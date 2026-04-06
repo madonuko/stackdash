@@ -1,42 +1,62 @@
-# sv
+# stack-dashboard
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit app configured for Cloudflare Workers with Wrangler JSONC config.
 
-## Creating a project
+## Local development
 
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+Install dependencies, then start the standard Vite dev server:
 
 ```sh
-# recreate this project
-bun x sv@0.14.0 create --template minimal --types ts --add tailwindcss="plugins:none" better-auth="demo:none" drizzle="database:postgresql+postgresql:postgres.js+docker:no" prettier --install bun stack-dashboard
+bun install
+bun run dev
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+To run against the Cloudflare Workers runtime locally:
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+bun run cf:dev
 ```
 
-## Building
-
-To create a production version of your app:
+If you do not have a direct local or test Postgres connection string, use the real Cloudflare runtime instead:
 
 ```sh
-npm run build
+bun run cf:dev:remote
 ```
 
-You can preview the production build with `npm run preview`.
+Create a `.dev.vars` file from [`.dev.vars.example`](./.dev.vars.example) for local Wrangler vars. Wrangler does not read your app's `.env` file for these bindings:
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+```sh
+ORIGIN="http://127.0.0.1:8787"
+BETTER_AUTH_SECRET="replace-with-a-long-random-secret"
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgres://user:password@host:5432/database?sslmode=require"
+```
+
+For `wrangler dev`, Hyperdrive local development can use either:
+
+```sh
+export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgres://user:password@host:5432/database?sslmode=require"
+```
+
+or `localConnectionString` inside [`wrangler.jsonc`](/Users/addison/dev/stack/stack-dashboard/wrangler.jsonc).
+
+`bun run dev` does not run inside Wrangler, so it falls back to `DATABASE_URL` from your local env:
+
+```sh
+DATABASE_URL="postgres://user:password@host:port/db-name"
+```
+
+## Cloudflare deployment
+
+The project uses [`wrangler.jsonc`](./wrangler.jsonc) and the Cloudflare SvelteKit adapter. Build and deploy with:
+
+```sh
+bun run build
+bun run cf:deploy
+```
+
+In Cloudflare, set these Worker secrets or plain-text vars before deploying:
+
+- `ORIGIN`
+- `BETTER_AUTH_SECRET`
+
+The production database connection is provided by the `HYPERDRIVE` binding in [`wrangler.jsonc`](/Users/addison/dev/stack/stack-dashboard/wrangler.jsonc), not by `DATABASE_URL`.
