@@ -1,1 +1,167 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn-svelte/tailwind.css';
+
+/* Satoshi Variable — the only typeface used on fyrastack */
+@font-face {
+	font-family: 'Satoshi-Variable';
+	src: url('https://cdn.fontshare.com/wf/BW65JOUWN35FSMHAWDPJZNBFX3QA4LLQ/UKFXAH3I6IJAGMCMQ2KUGSVKGAZMUWKB/MFGOWZFORWAV2T6OYRL3EIOGRMCEB5SD.woff2')
+		format('woff2');
+	font-style: normal;
+	font-weight: 300 900;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Satoshi-Variable';
+	src: url('https://cdn.fontshare.com/wf/CPS4PQWNHCXQMFI7WWHNC27EXQAQPJUN/PDQXGIOLB4JJU3FJQVCRYRKK5JJMDRVQ/P4KMY6GBRSTLZGNSZVQFBNBS72PJ3NHJ.woff2')
+		format('woff2');
+	font-style: italic;
+	font-weight: 300 900;
+	font-display: swap;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	/* Fyra Gray palette — exact */
+	--fyra-gray-50: #fafafa;
+	--fyra-gray-100: #f4f4f5;
+	--fyra-gray-200: #e4e4e7;
+	--fyra-gray-300: #d5d5d7;
+	--fyra-gray-400: #a2a2a9;
+	--fyra-gray-500: #727279;
+	--fyra-gray-600: #53535a;
+	--fyra-gray-700: #404045;
+	--fyra-gray-800: #27272a;
+	--fyra-gray-900: #18181a;
+	--fyra-gray-950: #09090b;
+
+	/* Fyra Red palette — exact */
+	--fyra-red-200: #f2dbd9;
+	--fyra-red-300: #e6bfbb;
+	--fyra-red-400: #d89894;
+	--fyra-red-500: #c6716d;
+	--fyra-red-600: #a54a4b;
+	--fyra-red-700: #923e40;
+	--fyra-red-950: #3a171a;
+
+	/* Mapped shadcn tokens → fyra palette for any shadcn components */
+	--background: var(--fyra-gray-900);
+	--foreground: var(--fyra-gray-50);
+	--card: var(--fyra-gray-900);
+	--card-foreground: var(--fyra-gray-50);
+	--popover: var(--fyra-gray-900);
+	--popover-foreground: var(--fyra-gray-50);
+	--primary: var(--fyra-red-500);
+	--primary-foreground: var(--fyra-gray-50);
+	--secondary: var(--fyra-gray-800);
+	--secondary-foreground: var(--fyra-gray-100);
+	--muted: var(--fyra-gray-800);
+	--muted-foreground: var(--fyra-gray-400);
+	--accent: var(--fyra-red-500);
+	--accent-foreground: var(--fyra-gray-50);
+	--destructive: var(--fyra-red-600);
+	--destructive-foreground: var(--fyra-gray-50);
+	--border: var(--fyra-gray-800);
+	--input: var(--fyra-gray-800);
+	--ring: var(--fyra-gray-500);
+
+	--font-sans: 'Satoshi-Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono:
+		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+		monospace;
+
+	--radius: 0;
+}
+
+.dark {
+	--background: var(--fyra-gray-900);
+	--foreground: var(--fyra-gray-50);
+	--card: var(--fyra-gray-900);
+	--card-foreground: var(--fyra-gray-50);
+	--popover: var(--fyra-gray-900);
+	--popover-foreground: var(--fyra-gray-50);
+	--primary: var(--fyra-red-500);
+	--primary-foreground: var(--fyra-gray-50);
+	--secondary: var(--fyra-gray-800);
+	--secondary-foreground: var(--fyra-gray-100);
+	--muted: var(--fyra-gray-800);
+	--muted-foreground: var(--fyra-gray-400);
+	--accent: var(--fyra-red-500);
+	--accent-foreground: var(--fyra-gray-50);
+	--destructive: var(--fyra-red-600);
+	--destructive-foreground: var(--fyra-gray-50);
+	--border: var(--fyra-gray-800);
+	--input: var(--fyra-gray-800);
+	--ring: var(--fyra-gray-500);
+}
+
+@theme inline {
+	/* Fyra palette exposed as Tailwind utilities */
+	--color-fyra-gray-50: var(--fyra-gray-50);
+	--color-fyra-gray-100: var(--fyra-gray-100);
+	--color-fyra-gray-200: var(--fyra-gray-200);
+	--color-fyra-gray-300: var(--fyra-gray-300);
+	--color-fyra-gray-400: var(--fyra-gray-400);
+	--color-fyra-gray-500: var(--fyra-gray-500);
+	--color-fyra-gray-600: var(--fyra-gray-600);
+	--color-fyra-gray-700: var(--fyra-gray-700);
+	--color-fyra-gray-800: var(--fyra-gray-800);
+	--color-fyra-gray-900: var(--fyra-gray-900);
+	--color-fyra-gray-950: var(--fyra-gray-950);
+
+	--color-fyra-red-200: var(--fyra-red-200);
+	--color-fyra-red-300: var(--fyra-red-300);
+	--color-fyra-red-400: var(--fyra-red-400);
+	--color-fyra-red-500: var(--fyra-red-500);
+	--color-fyra-red-600: var(--fyra-red-600);
+	--color-fyra-red-700: var(--fyra-red-700);
+	--color-fyra-red-950: var(--fyra-red-950);
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--font-sans: var(--font-sans);
+	--font-mono: var(--font-mono);
+
+	--radius-xs: 0;
+	--radius-sm: 0;
+	--radius-md: 0;
+	--radius-lg: 0;
+	--radius-xl: 0;
+	--radius-2xl: 0;
+	--radius-3xl: 0;
+}
+
+@layer base {
+	* {
+		@apply border-fyra-gray-800 outline-fyra-gray-500/40;
+	}
+	html {
+		@apply font-sans;
+		background-color: var(--fyra-gray-900);
+	}
+	body {
+		@apply text-fyra-gray-50 antialiased;
+		background-color: var(--fyra-gray-900);
+		font-feature-settings: 'ss01', 'ss02';
+	}
+}
