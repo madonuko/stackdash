@@ -1,0 +1,140 @@
+export interface PveResponse<T> {
+	data: T;
+}
+
+export interface PveNode {
+	node: string;
+	status: 'online' | 'offline' | 'unknown';
+	maxcpu: number;
+	cpu: number;
+	maxmem: number;
+	mem: number;
+	maxdisk: number;
+	disk: number;
+	uptime: number;
+}
+
+export interface PveQemuVm {
+	vmid: number;
+	name?: string;
+	status: 'running' | 'stopped' | 'paused';
+	cpus?: number;
+	maxmem?: number;
+	maxdisk?: number;
+	uptime?: number;
+	diskread?: number;
+	diskwrite?: number;
+	netin?: number;
+	netout?: number;
+	pid?: number;
+}
+
+export interface PveQemuConfig {
+	name?: string;
+	memory?: number;
+	cores?: number;
+	sockets?: number;
+	cpu?: string;
+	ostype?: string;
+	boot?: string;
+	scsihw?: string;
+	ide2?: string;
+	scsi0?: string;
+	net0?: string;
+	ipconfig0?: string;
+	ciuser?: string;
+	sshkeys?: string;
+	[key: string]: unknown;
+}
+
+export interface PveQemuStatus {
+	status: 'running' | 'stopped' | 'paused';
+	vmid: number;
+	name?: string;
+	cpus?: number;
+	maxmem?: number;
+	maxdisk?: number;
+	uptime?: number;
+	pid?: number;
+	qmpstatus?: string;
+	ha?: { managed: number };
+}
+
+export interface PveStorage {
+	storage: string;
+	type: string;
+	content: string;
+	total?: number;
+	used?: number;
+	avail?: number;
+	active?: 0 | 1;
+	enabled?: 0 | 1;
+	shared?: 0 | 1;
+}
+
+export interface PveTask {
+	upid: string;
+	node: string;
+	status?: string;
+	exitstatus?: string;
+	type: string;
+	starttime: number;
+	endtime?: number;
+	user: string;
+}
+
+export interface PveTaskStatus {
+	status: 'running' | 'stopped';
+	exitstatus?: string;
+	type: string;
+	pid: number;
+	upid: string;
+}
+
+export type PveNextId = number;
+
+export interface PveCreateQemuParams {
+	vmid: number;
+	name?: string;
+	memory?: number;
+	cores?: number;
+	sockets?: number;
+	cpu?: string;
+	ostype?: string;
+	scsihw?: string;
+	scsi0?: string;
+	ide2?: string;
+	net0?: string;
+	boot?: string;
+	ipconfig0?: string;
+	ciuser?: string;
+	sshkeys?: string;
+	start?: 0 | 1;
+	[key: string]: unknown;
+}
+
+export interface PveClusterResource {
+	id: string;
+	type: 'qemu' | 'lxc' | 'storage' | 'node' | 'sdn';
+	node?: string;
+	vmid?: number;
+	name?: string;
+	status?: string;
+	maxcpu?: number;
+	maxmem?: number;
+	maxdisk?: number;
+	cpu?: number;
+	mem?: number;
+	disk?: number;
+	uptime?: number;
+}
+
+export interface PveAgentNetworkInterface {
+	name: string;
+	'hardware-address'?: string;
+	'ip-addresses'?: {
+		'ip-address-type': 'ipv4' | 'ipv6';
+		'ip-address': string;
+		prefix: number;
+	}[];
+}
