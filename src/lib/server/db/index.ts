@@ -1,10 +1,33 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from './schema';
-import { env } from '$env/dynamic/private';
+import { getRuntimeEnv } from '$lib/server/env';
 
-if (!env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+const pools = new Map<string, Pool>();
 
-const client = postgres(env.DATABASE_URL);
+function getPool(connectionString: string) {
+	let pool = pools.get(connectionString);
 
-export const db = drizzle(client, { schema });
+	if (!pool) {
+		pool = new Pool({
+			connectionString,
+			max: 5
+		});
+		pools.set(connectionString, pool);
+	}
+
+	return pool;
+}
+
+export function initDrizzle() {
+	const { DATABASE_URL, HYPERDRIVE } = getRuntimeEnv();
+	const connectionString = HYPERDRIVE?.connectionString ?? DATABASE_URL;
+
+	if (!connectionString) {
+		throw new Error(
+			'No database connection string is available. Configure the HYPERDRIVE binding for Workers or DATABASE_URL for local non-Wrangler development.'
+		);
+	}
+
+	return drizzle(getPool(connectionString), { schema });
+}
