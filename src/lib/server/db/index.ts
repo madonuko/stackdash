@@ -9,9 +9,17 @@ function getPool(connectionString: string) {
 	let pool = pools.get(connectionString);
 
 	if (!pool) {
+		// Strip sslrootcert=system — node-pg doesn't support the "system"
+		// keyword and tries to open it as a file path. We enable SSL via
+		// the pool options instead.
+		const url = new URL(connectionString);
+		const useSystemSsl = url.searchParams.get('sslrootcert') === 'system';
+		url.searchParams.delete('sslrootcert');
+
 		pool = new Pool({
-			connectionString,
-			max: 5
+			connectionString: url.toString(),
+			max: 5,
+			...(useSystemSsl ? { ssl: { rejectUnauthorized: true } } : {})
 		});
 		pools.set(connectionString, pool);
 	}

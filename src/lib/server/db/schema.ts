@@ -31,6 +31,8 @@ export const vmIsaEnum = pgEnum('vm_isa', ['x86', 'arm', 'risc-v']);
 
 export const vmBackendEnum = pgEnum('vm_backend', ['proxmox']);
 
+export const vmStatusEnum = pgEnum('vm_status', ['provisioning', 'ready', 'error']);
+
 // Projects
 
 export const projects = pgTable('projects', {
@@ -94,7 +96,9 @@ export const vms = pgTable('vms', {
 		.notNull()
 		.references(() => vmTypes.id),
 	creationDate: date('creation_date').notNull(),
-	backend: vmBackendEnum('backend').notNull()
+	backend: vmBackendEnum('backend').notNull(),
+	status: vmStatusEnum('status').notNull().default('provisioning'),
+	statusError: text('status_error')
 });
 
 export const vmsRelations = relations(vms, ({ one, many }) => ({
@@ -202,9 +206,12 @@ export const sshKeys = pgTable('ssh_keys', {
 
 export const baseImages = pgTable('base_images', {
 	id: ulidPk(),
-	filePath: text('file_path').notNull(),
+	filePath: text('file_path').notNull(), // Proxmox storage path: "local:iso/Fedora-Server-dvd-x86_64-42-1.1.iso"
 	name: text('name').notNull(),
 	version: text('version').notNull(),
 	description: text('description').notNull(),
+	shortName: text('short_name').notNull().default(''),
+	icon: text('icon'), // SVG markup for the logo
+	color: text('color').notNull().default('bg-gray-600'), // Tailwind bg class
 	isa: vmIsaEnum('isa').notNull()
 });
