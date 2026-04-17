@@ -107,6 +107,23 @@ export const del: RpcFunction<DeleteParams, void> = async ({ projectId }, ctx) =
 	await ctx.db.delete(projects).where(eq(projects.id, projectId));
 };
 
+type UpdateParams = { projectId: string; name: string };
+
+export const update: RpcFunction<UpdateParams, void> = async ({ projectId, name }, ctx) => {
+	await requireProjectAccess(ctx.db, ctx.user.id, projectId, 'admin');
+
+	const project = await ctx.db.query.projects.findFirst({
+		where: eq(projects.id, projectId)
+	});
+
+	if (!project) throw new RpcError(404, 'Project not found');
+
+	await ctx.db
+		.update(projects)
+		.set({ projectName: name })
+		.where(eq(projects.id, projectId));
+};
+
 type AddMemberParams = {
 	projectId: string;
 	userId: string;

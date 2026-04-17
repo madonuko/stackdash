@@ -121,6 +121,26 @@ export const deleteProject = command(deleteParams, async (params) => {
 	await db.delete(projects).where(eq(projects.id, params.projectId));
 });
 
+const updateParams = type({ projectId: 'string', name: 'string' });
+export const updateProject = command(updateParams, async (params) => {
+	const event = getRequestEvent();
+	if (!event?.locals.user) error(401, 'Authentication required');
+
+	const db = initDrizzle();
+	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'admin');
+
+	const project = await db.query.projects.findFirst({
+		where: eq(projects.id, params.projectId)
+	});
+
+	if (!project) error(404, 'Project not found');
+
+	await db
+		.update(projects)
+		.set({ projectName: params.name })
+		.where(eq(projects.id, params.projectId));
+});
+
 const addMemberParams = type({
 	projectId: 'string',
 	userId: 'string',
