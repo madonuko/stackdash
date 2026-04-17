@@ -13,11 +13,11 @@ export function getBackendEnv(): BackendEnv {
 		| (Record<string, string | undefined> & BackendEnv)
 		| undefined;
 
-	if (platformEnv) {
+	if (platformEnv?.PROXMOX_API_URL) {
 		return {
 			PROXMOX_API_URL: platformEnv.PROXMOX_API_URL,
 			PROXMOX_TOKEN_ID: platformEnv.PROXMOX_TOKEN_ID,
-			PROXMOX_TOKEN_SECRET: platformEnv.PROXMOX_TOKEN_SECRET
+			PROXMOX_TOKEN_SECRET: platformEnv.PROXMOX_TOKEN_SECRET ?? platformEnv.PROXMOX_API_SECRET
 		};
 	}
 
@@ -28,6 +28,6 @@ export function getBackendEnv(): BackendEnv {
 	return {
 		PROXMOX_API_URL: privateEnv.PROXMOX_API_URL,
 		PROXMOX_TOKEN_ID: privateEnv.PROXMOX_TOKEN_ID,
-		PROXMOX_TOKEN_SECRET: privateEnv.PROXMOX_TOKEN_SECRET
+		PROXMOX_TOKEN_SECRET: privateEnv.PROXMOX_TOKEN_SECRET ?? privateEnv.PROXMOX_API_SECRET
 	};
 }

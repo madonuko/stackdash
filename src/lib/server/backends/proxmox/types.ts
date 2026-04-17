@@ -101,11 +101,17 @@ export interface PveCreateQemuParams {
 	sockets?: number;
 	cpu?: string;
 	ostype?: string;
+	bios?: 'seabios' | 'ovmf';
+	machine?: string;
+	efidisk0?: string;
+	virtio0?: string;
 	scsihw?: string;
 	scsi0?: string;
 	ide2?: string;
 	net0?: string;
 	boot?: string;
+	serial0?: string;
+	agent?: string;
 	ipconfig0?: string;
 	ciuser?: string;
 	sshkeys?: string;
@@ -127,6 +133,14 @@ export interface PveClusterResource {
 	mem?: number;
 	disk?: number;
 	uptime?: number;
+}
+
+export interface PveStorageContent {
+	volid: string;
+	content: string;
+	format: string;
+	size: number;
+	ctime?: number;
 }
 
 export interface PveAgentNetworkInterface {

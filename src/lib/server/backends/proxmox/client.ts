@@ -1,4 +1,5 @@
 import ky, { type KyInstance } from 'ky';
+import { Agent } from 'undici';
 import type {
 	PveResponse,
 	PveNode,
@@ -6,6 +7,7 @@ import type {
 	PveQemuConfig,
 	PveQemuStatus,
 	PveStorage,
+	PveStorageContent,
 	PveTaskStatus,
 	PveNextId,
 	PveCreateQemuParams,
@@ -24,15 +26,41 @@ export class ProxmoxClient {
 	private api: KyInstance;
 
 	constructor(config: ProxmoxClientConfig) {
-		const { baseUrl, tokenId, tokenSecret } = config;
+		const { baseUrl, tokenId, tokenSecret, verifySsl = true } = config;
+
+		// Build a custom fetch that skips TLS verification for self-signed certs
+		const insecureFetch = !verifySsl
+			? (input: RequestInfo | URL, init?: RequestInit) =>
+					fetch(input, {
+						...init,
+						// @ts-expect-error -- Node/undici dispatcher extension
+						dispatcher: new Agent({ connect: { rejectUnauthorized: false } })
+					})
+			: undefined;
 
 		this.api = ky.create({
 			prefix: `${baseUrl.replace(/\/+$/, '')}/api2/json`,
 			headers: {
-				Authorization: `PVEAPIToken=${tokenId}=${tokenSecret}`
+				Authorization: `PVEAPIToken=${tokenId}=${tokenSecret}`,
+				Accept: 'application/json'
 			},
-			timeout: 30_000
+			timeout: 30_000,
+			...(insecureFetch ? { fetch: insecureFetch } : {})
 		});
+	}
+
+	/**
+	 * Proxmox PVE API requires application/x-www-form-urlencoded for POST/PUT.
+	 * Passing URLSearchParams as the body lets fetch set the correct Content-Type.
+	 */
+	private toForm(params: Record<string, unknown>): URLSearchParams {
+		const form = new URLSearchParams();
+		for (const [key, value] of Object.entries(params)) {
+			if (value !== undefined && value !== null) {
+				form.append(key, String(value));
+			}
+		}
+		return form;
 	}
 
 	// Nodes
@@ -74,14 +102,42 @@ export class ProxmoxClient {
 
 	async createQemuVm(node: string, params: PveCreateQemuParams): Promise<string> {
 		const res = await this.api
-			.post(`nodes/${encodeURIComponent(node)}/qemu`, { json: params })
+			.post(`nodes/${encodeURIComponent(node)}/qemu`, {
+				body: this.toForm(params as Record<string, unknown>),
+				timeout: 120_000
+			})
 			.json<PveResponse<string>>();
 		return res.data;
 	}
 
+	/**
+	 * Async config update — POST (not PUT) returns a UPID so heavy ops like
+	 * import-from run as a background task instead of blocking the response.
+	 */
+	async updateQemuConfigAsync(
+		node: string,
+		vmid: number,
+		params: Record<string, unknown>
+	): Promise<string> {
+		const res = await this.api
+			.post(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/config`, {
+				body: this.toForm(params)
+			})
+			.json<PveResponse<string>>();
+		return res.data;
+	}
+
+	async resizeDisk(node: string, vmid: number, disk: string, size: string): Promise<void> {
+		await this.api
+			.put(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/resize`, {
+				body: this.toForm({ disk, size })
+			})
+			.json<PveResponse<null>>();
+	}
+
 	async deleteQemuVm(node: string, vmid: number): Promise<string> {
 		const res = await this.api
-			.delete(`nodes/${encodeURIComponent(node)}/qemu/${vmid}`)
+			.delete(`nodes/${encodeURIComponent(node)}/qemu/${vmid}`, { timeout: 120_000 })
 			.json<PveResponse<string>>();
 		return res.data;
 	}
@@ -122,6 +178,22 @@ export class ProxmoxClient {
 		const res = await this.api
 			.get(`nodes/${encodeURIComponent(node)}/storage`)
 			.json<PveResponse<PveStorage[]>>();
+		return res.data;
+	}
+
+	async listStorageContent(
+		node: string,
+		storage: string,
+		content?: 'iso' | 'vztmpl' | 'backup' | 'images' | 'rootdir'
+	): Promise<PveStorageContent[]> {
+		const searchParams: Record<string, string> = {};
+		if (content) searchParams['content'] = content;
+
+		const res = await this.api
+			.get(`nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/content`, {
+				searchParams
+			})
+			.json<PveResponse<PveStorageContent[]>>();
 		return res.data;
 	}
 

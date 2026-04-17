@@ -19,6 +19,8 @@ export interface VmCreateParams {
 	diskGb: number;
 	imageId?: string;
 	sshKeys?: string[];
+	/** Called when async provisioning (e.g. image import) finishes or fails. */
+	onProvisionSettled?: (result: { ok: boolean; error?: string }) => void;
 }
 
 export interface VmCreateResult {

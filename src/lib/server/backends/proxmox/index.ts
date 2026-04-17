@@ -88,17 +88,22 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async createVm(params: VmCreateParams): Promise<VmCreateResult> {
-		const nodes = await this.client.listNodes();
-		const node = nodes.find((n) => n.status === 'online');
-		if (!node) throw new Error('No online Proxmox nodes available');
+		const [nodes, vmid] = await Promise.all([
+			this.client.listNodes(),
+			this.client.getNextVmId()
+		]);
 
-		const vmid = await this.client.getNextVmId();
+		// Pick the online node with the most free memory
+		const online = nodes.filter((n) => n.status === 'online');
+		if (!online.length) throw new Error('No online Proxmox nodes available');
+		const node = online.sort((a, b) => (b.maxmem - b.mem) - (a.maxmem - a.mem))[0];
 
 		const sshKeysEncoded = params.sshKeys
 			? encodeURIComponent(params.sshKeys.join('\n'))
 			: undefined;
 
-		const upid = await this.client.createQemuVm(node.node, {
+		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
+		await this.client.createQemuVm(node.node, {
 			vmid,
 			name: params.id,
 			cores: params.cores,
@@ -106,16 +111,49 @@ export class ProxmoxBackend implements VmBackend {
 			memory: params.memoryMb,
 			cpu: 'host',
 			ostype: 'l26',
-			scsihw: 'virtio-scsi-single',
-			scsi0: `local-lvm:${params.diskGb}`,
+			bios: 'ovmf',
+			machine: 'q35',
+			efidisk0: 'local-lvm:0,efitype=4m,pre-enrolled-keys=1',
+			// blank disk when no image; cloud images are imported in phase 2
+			...(params.imageId ? {} : { virtio0: `local-lvm:${params.diskGb}` }),
 			net0: 'virtio,bridge=vmbr0',
-			boot: 'order=scsi0',
-			...(params.imageId ? { ide2: `${params.imageId},media=cdrom` } : {}),
-			...(sshKeysEncoded ? { sshkeys: sshKeysEncoded, ciuser: 'root' } : {}),
-			...(sshKeysEncoded ? { ipconfig0: 'ip=dhcp' } : {})
+			boot: 'order=virtio0',
+			ide2: 'local-lvm:cloudinit',
+			serial0: 'socket',
+			agent: '1',
+			...(sshKeysEncoded
+				? { ciuser: 'root', sshkeys: sshKeysEncoded, ipconfig0: 'ip=dhcp' }
+				: {})
 		});
 
-		return { id: params.id, taskId: upid };
+		// Phase 2 — import cloud image as boot disk (runs in background)
+		if (params.imageId) {
+			const importUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
+				virtio0: `local-lvm:0,import-from=${params.imageId}`
+			});
+
+			// Don't block the request — finish import + resize in the background
+			this.client
+				.waitForTask(node.node, importUpid)
+				.then(async () => {
+					if (params.diskGb > 0) {
+						await this.client.resizeDisk(node.node, vmid, 'virtio0', `${params.diskGb}G`);
+					}
+					params.onProvisionSettled?.({ ok: true });
+				})
+				.catch((err) => {
+					console.error(`VM ${params.id} image import failed:`, err);
+					params.onProvisionSettled?.({
+						ok: false,
+						error: err instanceof Error ? err.message : String(err)
+					});
+				});
+		} else {
+			// No image import needed — VM is ready immediately
+			params.onProvisionSettled?.({ ok: true });
+		}
+
+		return { id: params.id, taskId: String(vmid) };
 	}
 
 	async deleteVm(id: string): Promise<void> {

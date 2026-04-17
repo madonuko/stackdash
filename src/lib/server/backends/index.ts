@@ -6,7 +6,7 @@ import { getBackendEnv } from './env';
 
 export type { VmBackend, VmInfo, VmCreateParams, VmCreateResult, VmStatus } from './types';
 
-const cache = new Map<string, VmBackend>();
+let cached: { key: string; backend: VmBackend } | null = null;
 
 function createProxmox(): ProxmoxBackend {
 	const env = getBackendEnv();
@@ -28,8 +28,8 @@ function createProxmox(): ProxmoxBackend {
 }
 
 export function getBackend(name: string): VmBackend {
-	const cached = cache.get(name);
-	if (cached) return cached;
+	// Skip cache in dev — module-level state survives HMR and goes stale
+	if (!dev && cached?.key === name) return cached.backend;
 
 	let backend: VmBackend;
 
@@ -41,6 +41,6 @@ export function getBackend(name: string): VmBackend {
 			throw new Error(`Unknown VM backend: "${name}"`);
 	}
 
-	cache.set(name, backend);
+	cached = { key: name, backend };
 	return backend;
 }
