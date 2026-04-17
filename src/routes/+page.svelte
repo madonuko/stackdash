@@ -8,6 +8,8 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { officialImages, imageTypeColors, type OfficialImage, type ImageType } from '$lib/data/images';
+	import { rpc } from '$lib/rpc';
+	import { untrack, onMount } from 'svelte';
 	import {
 		Play,
 		Square,
@@ -39,17 +41,22 @@
 		AlertTriangle,
 		ChevronLeft,
 		ChevronRight,
-		DollarSign
+		DollarSign,
+		Loader2,
+		RefreshCw
 	} from '@lucide/svelte';
+
+	let { data } = $props();
 
 	type ServerInfo = {
 		id: string;
+		name: string;
 		vcpu: number;
 		ram: string;
 		disk: string;
 		ip: string;
 		ipv6: string;
-		status: 'running' | 'stopped' | 'restarting';
+		status: 'running' | 'stopped' | 'restarting' | 'provisioning';
 		agentConnected: boolean;
 		os: string;
 		region: string;
@@ -59,80 +66,107 @@
 		backups: boolean;
 	};
 
-	let servers = $state<ServerInfo[]>([
-		{
-			id: 'vps-747762',
-			vcpu: 2,
-			ram: '2GB',
-			disk: '40GB SAS3',
-			ip: '23.193.49.192',
-			ipv6: '2607:f8b0:4004:0800::/64',
-			status: 'running',
-			agentConnected: true,
-			os: 'Ultramarine Linux 40',
-			region: 'Chicago, IL',
-			created: '2026-03-15',
-			uptime: '21d 4h 32m',
-			plan: 'STACK-XXS',
-			backups: true
-		},
-		{
-			id: 'vps-742736',
-			vcpu: 4,
-			ram: '8GB',
-			disk: '160GB SAS3',
-			ip: '23.193.49.193',
-			ipv6: '2607:f8b0:4004:0801::/64',
-			status: 'running',
-			agentConnected: true,
-			os: 'Fedora 42',
-			region: 'Chicago, IL',
-			created: '2026-02-28',
-			uptime: '36d 12h 5m',
-			plan: 'STACK-SM',
-			backups: true
-		},
-		{
-			id: 'vps-711980',
-			vcpu: 2,
-			ram: '2GB',
-			disk: '40GB SAS3',
-			ip: '23.193.49.194',
-			ipv6: '2607:f8b0:4004:0802::/64',
-			status: 'stopped',
-			agentConnected: false,
-			os: 'Debian 12',
-			region: 'Chicago, IL',
-			created: '2026-01-10',
-			uptime: '—',
-			plan: 'STACK-XXS',
-			backups: false
-		},
-		{
-			id: 'vps-698412',
-			vcpu: 2,
-			ram: '4GB',
-			disk: '80GB SAS3',
-			ip: '23.193.49.195',
-			ipv6: '2607:f8b0:4004:0803::/64',
-			status: 'running',
-			agentConnected: false,
-			os: 'Ubuntu 24.04 LTS',
-			region: 'Chicago, IL',
-			created: '2026-03-22',
-			uptime: '14d 8h 12m',
-			plan: 'STACK-XS',
-			backups: false
-		}
-	]);
+	let servers = $state<ServerInfo[]>([]);
+	let loadingVms = $state(false);
+	let vmError = $state('');
 
-	let selectedServerId = $state(page.url.searchParams.get('server') ?? 'vps-747762');
+	function formatUptime(seconds: number): string {
+		if (!seconds) return '—';
+		const d = Math.floor(seconds / 86400);
+		const h = Math.floor((seconds % 86400) / 3600);
+		const m = Math.floor((seconds % 3600) / 60);
+		return `${d}d ${h}h ${m}m`;
+	}
+
+	function formatBytes(bytes: number): string {
+		if (!bytes) return '0B';
+		const gb = bytes / (1024 * 1024 * 1024);
+		if (gb >= 1) return `${gb.toFixed(0)}GB`;
+		const mb = bytes / (1024 * 1024);
+		return `${mb.toFixed(0)}MB`;
+	}
+
+	// Load VMs from backend
+	async function loadVms() {
+		const projectId = data.projects?.[0]?.id;
+		if (!projectId) {
+			servers = [];
+			return;
+		}
+
+		loadingVms = true;
+		vmError = '';
+		try {
+			type VmRow = {
+				id: string;
+				active: boolean;
+				status: string;
+				creationDate: string;
+				vmType: { name: string; cores: number; ramCapacity: number; storageAmount: number } | null;
+				live: { id: string; name: string; status: string; cores: number; memory: number; disk: number; uptime: number; networkInterfaces?: Record<string, { ipAddresses?: string[] }> } | null;
+			};
+			const vms = await rpc<VmRow[]>('vms.list', { projectId });
+			servers = vms.filter((v) => v.active).map((vm) => {
+				const ip = vm.live?.networkInterfaces
+					? Object.values(vm.live.networkInterfaces).flatMap((i) => i.ipAddresses ?? []).find((a) => a && !a.startsWith('127.') && !a.includes(':')) ?? '—'
+					: '—';
+				const ipv6 = vm.live?.networkInterfaces
+					? Object.values(vm.live.networkInterfaces).flatMap((i) => i.ipAddresses ?? []).find((a) => a?.includes(':')) ?? '—'
+					: '—';
+				const vmStatus: ServerInfo['status'] = vm.status === 'provisioning'
+					? 'provisioning'
+					: (vm.live?.status ?? 'stopped') as 'running' | 'stopped' | 'restarting';
+				return {
+					id: vm.id,
+					name: vm.live?.name ?? vm.id,
+					vcpu: vm.live?.cores ?? vm.vmType?.cores ?? 0,
+					ram: formatBytes(vm.live?.memory ?? (vm.vmType?.ramCapacity ?? 0) * 1024 * 1024),
+					disk: formatBytes(vm.live?.disk ?? (vm.vmType?.storageAmount ?? 0) * 1024 * 1024 * 1024),
+					ip,
+					ipv6,
+					status: vmStatus,
+					agentConnected: !!vm.live?.networkInterfaces,
+					os: '—',
+					region: '—',
+					created: vm.creationDate,
+					uptime: formatUptime(vm.live?.uptime ?? 0),
+					plan: vm.vmType?.name ?? '—',
+					backups: false
+				};
+			});
+
+			// Poll while any VMs are still provisioning
+			if (servers.some((s) => s.status === 'provisioning')) {
+				setTimeout(() => loadVms(), 3000);
+			}
+		} catch (err) {
+			vmError = err instanceof Error ? err.message : 'Failed to load VMs';
+		} finally {
+			loadingVms = false;
+		}
+	}
+
+	onMount(() => {
+		loadVms();
+	});
+
+	let selectedServerId = $state(page.url.searchParams.get('server') ?? '');
+
+	// Auto-select first server when list loads
+	$effect(() => {
+		const len = servers.length;
+		untrack(() => {
+			if (!selectedServerId && len) selectedServerId = servers[0].id;
+		});
+	});
 
 	// React to URL param changes from command palette
 	$effect(() => {
 		const fromUrl = page.url.searchParams.get('server');
-		if (fromUrl && servers.some((s) => s.id === fromUrl)) {
-			selectedServerId = fromUrl;
+		if (fromUrl) {
+			untrack(() => {
+				if (servers.some((s) => s.id === fromUrl)) selectedServerId = fromUrl;
+			});
 		}
 	});
 	let selectedServer = $derived(
@@ -306,8 +340,9 @@
 		editingName = false;
 	}
 
-	function doDelete() {
+	async function doDelete() {
 		if (deleteConfirm !== selectedServer.id) return;
+		await rpc('vms.delete', { vmId: selectedServer.id });
 		servers = servers.filter((s) => s.id !== selectedServer.id);
 		if (servers.length > 0) selectedServerId = servers[0].id;
 		deleteOpen = false;
@@ -322,15 +357,29 @@
 		setTimeout(() => (copied = ''), 1500);
 	}
 
-	// Power actions
-	function setStatus(status: 'running' | 'stopped' | 'restarting') {
-		if (status === 'restarting') {
-			servers[selectedServerIdx].status = 'restarting';
-			setTimeout(() => {
-				servers[selectedServerIdx].status = 'running';
-			}, 1500);
-		} else {
-			servers[selectedServerIdx].status = status;
+	// Power actions — wired to backend
+	let powerLoading = $state(false);
+
+	async function setStatus(status: 'running' | 'stopped' | 'restarting') {
+		if (!selectedServer || powerLoading) return;
+		powerLoading = true;
+
+		try {
+			if (status === 'running') {
+				servers[selectedServerIdx].status = 'restarting';
+				await rpc('vms.start', { vmId: selectedServer.id });
+			} else if (status === 'stopped') {
+				await rpc('vms.stop', { vmId: selectedServer.id });
+			} else if (status === 'restarting') {
+				servers[selectedServerIdx].status = 'restarting';
+				await rpc('vms.reboot', { vmId: selectedServer.id });
+			}
+			await loadVms();
+		} catch {
+			// Refresh to get current state even on error
+			await loadVms();
+		} finally {
+			powerLoading = false;
 		}
 	}
 
@@ -550,6 +599,65 @@
 	}
 	function deleteVmImage(id: string) { vmUserImages = vmUserImages.filter((i) => i.id !== id); }
 
+	// Create VM
+	let createVmOpen = $state(false);
+	let createVmName = $state('');
+	let createVmType = $state('');
+	let createVmImage = $state('');
+	let createVmSshKeys = $state<string[]>([]);
+	let creatingVm = $state(false);
+	let createVmError = $state('');
+
+	// VM types + images loaded from DB
+	type VmType = { id: string; name: string; cores: number; ramCapacity: number; storageAmount: number; rate: string; cap: string };
+	type DbImage = { id: string; name: string; version: string; shortName: string; color: string; icon: string | null; filePath: string; description: string };
+	let vmTypes = $state<VmType[]>([]);
+	let dbImages = $state<DbImage[]>([]);
+
+	async function loadVmTypes() {
+		try { vmTypes = await rpc<VmType[]>('vmTypes.list'); } catch {}
+	}
+	async function loadDbImages() {
+		try { dbImages = await rpc<DbImage[]>('images.list'); } catch {}
+	}
+
+	onMount(() => { loadVmTypes(); loadDbImages(); });
+
+	function openCreateVm() {
+		createVmName = '';
+		createVmType = vmTypes[0]?.id ?? '';
+		createVmImage = dbImages[0]?.filePath ?? '';
+		createVmSshKeys = [];
+		createVmError = '';
+		createVmOpen = true;
+	}
+
+	async function doCreateVm() {
+		const projectId = data.projects?.[0]?.id;
+		if (!projectId || !createVmName.trim() || !createVmType) {
+			createVmError = !createVmType ? 'Select a VM type (create one in Admin first)' : 'Enter a server name';
+			return;
+		}
+		creatingVm = true;
+		createVmError = '';
+		try {
+			await rpc('vms.create', {
+				projectId,
+				vmTypeId: createVmType,
+				name: createVmName.trim(),
+				imageId: createVmImage || undefined,
+				sshKeyIds: createVmSshKeys.length ? createVmSshKeys : undefined
+			});
+			createVmOpen = false;
+			// Reload immediately — VM will appear as "provisioning" and auto-poll
+			await loadVms();
+		} catch (err) {
+			createVmError = err instanceof Error ? err.message : 'Failed to create VM';
+		} finally {
+			creatingVm = false;
+		}
+	}
+
 	const sevColors: Record<Severity, string> = {
 		info: 'text-blue-400',
 		warn: 'text-amber-400',
@@ -580,9 +688,14 @@
 
 <!-- Server list panel -->
 <div class="flex w-64 shrink-0 flex-col border-r border-fyra-gray-800">
-	<div class="flex h-10 shrink-0 items-center border-b border-fyra-gray-800 px-4">
-		<span class="text-sm font-semibold text-fyra-gray-100">Servers</span>
-		<Badge variant="secondary" class="ml-2 text-[10px]">{servers.length}</Badge>
+	<div class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
+		<div class="flex items-center">
+			<span class="text-sm font-semibold text-fyra-gray-100">Servers</span>
+			<Badge variant="secondary" class="ml-2 text-[10px]">{servers.length}</Badge>
+		</div>
+		<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-fyra-gray-400 hover:text-fyra-gray-100" onclick={openCreateVm}>
+			<Plus class="h-3.5 w-3.5" />
+		</Button>
 	</div>
 	<div class="flex-1 overflow-y-auto">
 		{#each servers as server (server.id)}
@@ -597,7 +710,7 @@
 				}}
 			>
 				<div class="min-w-0">
-					<p class="truncate text-sm font-semibold text-fyra-gray-100">{server.id}</p>
+					<p class="truncate text-sm font-semibold text-fyra-gray-100">{server.name}</p>
 					<p class="mt-0.5 truncate text-xs text-fyra-gray-500">
 						{server.vcpu} vCPU &bull; {server.ram} RAM &bull; {server.ip}
 					</p>
@@ -605,17 +718,28 @@
 				<span
 					class="mt-1 ml-2 h-2 w-2 shrink-0 rounded-full {server.status === 'running'
 						? 'bg-emerald-500'
-						: server.status === 'restarting'
-							? 'animate-pulse bg-amber-500'
-							: 'bg-fyra-red-500'}"
+						: server.status === 'provisioning'
+							? 'animate-pulse bg-blue-500'
+							: server.status === 'restarting'
+								? 'animate-pulse bg-amber-500'
+								: 'bg-fyra-red-500'}"
 				></span>
 			</button>
 		{/each}
 
-		{#if servers.length === 0}
+		{#if loadingVms}
+			<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
+				<Loader2 class="mb-3 h-5 w-5 animate-spin" />
+				<p class="text-xs">Loading...</p>
+			</div>
+		{:else if servers.length === 0}
 			<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
 				<HardDrive class="mb-3 h-6 w-6" />
 				<p class="text-xs">No servers</p>
+				<Button variant="outline" size="sm" class="mt-3 gap-1.5 text-xs" onclick={openCreateVm}>
+					<Plus class="h-3 w-3" />
+					Create Server
+				</Button>
 			</div>
 		{/if}
 	</div>
@@ -629,16 +753,18 @@
 			class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4"
 		>
 			<div class="flex items-center gap-2">
-				<span class="text-sm font-medium text-fyra-gray-200">{selectedServer.id}</span>
+				<span class="text-sm font-medium text-fyra-gray-200">{selectedServer.name}</span>
 				<Badge
 					variant="outline"
 					class="text-[10px] {selectedServer.status === 'running'
 						? 'border-emerald-800 bg-emerald-950/40 text-emerald-400'
-						: selectedServer.status === 'restarting'
-							? 'border-amber-800 bg-amber-950/40 text-amber-400'
-							: 'border-fyra-red-800 bg-fyra-red-950/40 text-fyra-red-400'}"
+						: selectedServer.status === 'provisioning'
+							? 'border-blue-800 bg-blue-950/40 text-blue-400'
+							: selectedServer.status === 'restarting'
+								? 'border-amber-800 bg-amber-950/40 text-amber-400'
+								: 'border-fyra-red-800 bg-fyra-red-950/40 text-fyra-red-400'}"
 				>
-					{selectedServer.status}
+					{selectedServer.status === 'provisioning' ? 'provisioning...' : selectedServer.status}
 				</Badge>
 			</div>
 			<div class="flex items-center gap-1.5">
@@ -647,7 +773,8 @@
 					size="sm"
 					class="h-7 gap-1.5 px-3 text-xs"
 					disabled={selectedServer.status === 'running' ||
-						selectedServer.status === 'restarting'}
+						selectedServer.status === 'restarting' ||
+						selectedServer.status === 'provisioning'}
 					onclick={() => setStatus('running')}
 				>
 					<Play class="h-3 w-3" />
@@ -658,7 +785,8 @@
 					size="sm"
 					class="h-7 gap-1.5 px-3 text-xs"
 					disabled={selectedServer.status === 'stopped' ||
-						selectedServer.status === 'restarting'}
+						selectedServer.status === 'restarting' ||
+						selectedServer.status === 'provisioning'}
 					onclick={() => setStatus('restarting')}
 				>
 					<RotateCw
@@ -670,7 +798,8 @@
 					variant="outline"
 					size="sm"
 					class="h-7 gap-1.5 border-fyra-red-700 px-3 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
-					disabled={selectedServer.status === 'stopped'}
+					disabled={selectedServer.status === 'stopped' ||
+						selectedServer.status === 'provisioning'}
 					onclick={() => setStatus('stopped')}
 				>
 					<PowerOff class="h-3 w-3" />
@@ -784,11 +913,11 @@
 							{#if selectedServer.status === 'running'}
 								{#each terminalLines as line}
 									{#if line.type === 'prompt'}
-										<div><span class="text-fyra-gray-500">user@{selectedServer.id}~:</span> {line.text}</div>
+										<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> {line.text}</div>
 									{:else if line.type === 'output'}
 										<div class="text-fyra-gray-400">{line.text}</div>
 									{:else}
-										<div><span class="text-fyra-gray-500">user@{selectedServer.id}~:</span> <span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span></div>
+										<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> <span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span></div>
 									{/if}
 								{/each}
 							{:else if selectedServer.status === 'restarting'}
@@ -867,11 +996,11 @@
 					{#if selectedServer.status === 'running'}
 						{#each terminalLines as line}
 							{#if line.type === 'prompt'}
-								<div><span class="text-fyra-gray-500">user@{selectedServer.id}~:</span> {line.text}</div>
+								<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> {line.text}</div>
 							{:else if line.type === 'output'}
 								<div class="text-fyra-gray-400">{line.text}</div>
 							{:else}
-								<div><span class="text-fyra-gray-500">user@{selectedServer.id}~:</span> <span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span></div>
+								<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> <span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span></div>
 							{/if}
 						{/each}
 					{:else if selectedServer.status === 'restarting'}
@@ -885,7 +1014,7 @@
 				<!-- Full Logs tab -->
 				<div class="flex h-8 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
 					<div class="flex items-center gap-2">
-						<span class="text-xs font-medium text-fyra-gray-300">{selectedServer.id}</span>
+						<span class="text-xs font-medium text-fyra-gray-300">{selectedServer.name}</span>
 						{#if hasLogFilters}
 							<span class="text-[9px] text-fyra-gray-500">{filteredLogs().length}/{currentLogs.length}</span>
 							{#if logSevFilter}
@@ -1539,7 +1668,7 @@
 									</Button>
 								</div>
 							{:else}
-								<p class="mt-0.5 text-xs text-fyra-gray-400">{selectedServer.id}</p>
+								<p class="mt-0.5 text-xs text-fyra-gray-400">{selectedServer.name}</p>
 							{/if}
 						</div>
 						{#if !editingName}
@@ -1548,7 +1677,7 @@
 								size="sm"
 								class="h-7 gap-1.5 px-2 text-xs"
 								onclick={() => {
-									nameValue = selectedServer.id;
+									nameValue = selectedServer.name;
 									editingName = true;
 								}}
 							>
@@ -1627,7 +1756,7 @@
 		<Dialog.Header>
 			<Dialog.Title>Take Snapshot</Dialog.Title>
 			<Dialog.Description>
-				Create a point-in-time snapshot of {selectedServer.id}.
+				Create a point-in-time snapshot of {selectedServer.name}.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="flex flex-col gap-2 py-4">
@@ -1647,7 +1776,7 @@
 		<Dialog.Header>
 			<Dialog.Title>Delete Server</Dialog.Title>
 			<Dialog.Description>
-				This will permanently destroy <strong>{selectedServer.id}</strong> and all its data. This
+				This will permanently destroy <strong>{selectedServer.name}</strong> and all its data. This
 				cannot be undone.
 			</Dialog.Description>
 		</Dialog.Header>
@@ -1776,6 +1905,116 @@
 			<Button variant="outline" size="sm" onclick={() => (imgUploadOpen = false)}>Cancel</Button>
 			<Button size="sm" onclick={startImgUpload} disabled={!imgUploadName.trim() && !imgUploadFile && !imgUploadUrl}>
 				<Upload class="h-3 w-3" /> Upload
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Create VM Dialog -->
+<Dialog.Root bind:open={createVmOpen}>
+	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>Create Server</Dialog.Title>
+			<Dialog.Description>Provision a new virtual machine.</Dialog.Description>
+		</Dialog.Header>
+		<div class="flex flex-col gap-4 py-4">
+			{#if createVmError}
+				<div class="flex items-center gap-2 border border-fyra-red-700 bg-fyra-red-950 px-3 py-2 text-sm text-fyra-red-400">
+					<AlertTriangle class="h-3.5 w-3.5 shrink-0" />
+					{createVmError}
+				</div>
+			{/if}
+
+			<div class="flex flex-col gap-2">
+				<Label>Server Name</Label>
+				<Input bind:value={createVmName} placeholder="my-server" />
+			</div>
+
+			<!-- Plan selection -->
+			<div class="flex flex-col gap-2">
+				<Label>Plan</Label>
+				{#if vmTypes.length === 0}
+					<p class="text-xs text-fyra-gray-500">No plans available. <a href="/admin" class="text-fyra-red-400 hover:text-fyra-red-300">Create one in Admin</a>.</p>
+				{:else}
+					<div class="grid grid-cols-2 gap-2">
+						{#each vmTypes as vt (vt.id)}
+							<button
+								class="border px-3 py-2 text-left text-xs transition-colors {createVmType === vt.id ? 'border-fyra-red-500 bg-fyra-red-950/30 text-fyra-gray-100' : 'border-fyra-gray-800 text-fyra-gray-400 hover:border-fyra-gray-700'}"
+								onclick={() => (createVmType = vt.id)}
+							>
+								<p class="font-semibold text-fyra-gray-100">{vt.name}</p>
+								<p class="mt-0.5">{vt.cores} vCPU &bull; {vt.ramCapacity} MB &bull; {vt.storageAmount} GB</p>
+								<p class="mt-0.5 text-fyra-gray-500">${vt.rate}/mo</p>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Image selection -->
+			<div class="flex flex-col gap-2">
+				<Label>Image</Label>
+				{#if dbImages.length === 0}
+					<p class="text-xs text-fyra-gray-500">No images configured. <a href="/admin" class="text-fyra-red-400 hover:text-fyra-red-300">Add one in Admin</a>.</p>
+				{:else}
+					<div class="grid grid-cols-3 gap-2">
+						{#each dbImages as img (img.id)}
+							<button
+								class="flex items-center gap-2 border px-3 py-2 text-left text-xs transition-colors {createVmImage === img.filePath ? 'border-fyra-red-500 bg-fyra-red-950/30 text-fyra-gray-100' : 'border-fyra-gray-800 text-fyra-gray-400 hover:border-fyra-gray-700'}"
+								onclick={() => (createVmImage = img.filePath)}
+							>
+								<span class="flex h-6 w-6 shrink-0 items-center justify-center text-[10px] font-bold text-white {img.color}">
+									{#if img.icon}
+										{@html img.icon}
+									{:else}
+										{img.shortName || img.name.slice(0, 2).toUpperCase()}
+									{/if}
+								</span>
+								<div class="min-w-0">
+									<p class="truncate font-medium text-fyra-gray-100">{img.name}</p>
+									<p class="text-[10px] text-fyra-gray-500">{img.version}</p>
+								</div>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- SSH Keys -->
+			{#if data.sshKeys?.length}
+				<div class="flex flex-col gap-2">
+					<Label>SSH Keys <span class="font-normal text-fyra-gray-500">(optional)</span></Label>
+					<div class="flex flex-col gap-1.5">
+						{#each data.sshKeys as key (key.id)}
+							<label class="flex items-center gap-2 text-xs text-fyra-gray-300">
+								<input
+									type="checkbox"
+									class="accent-fyra-red-500"
+									checked={createVmSshKeys.includes(key.id)}
+									onchange={() => {
+										if (createVmSshKeys.includes(key.id)) {
+											createVmSshKeys = createVmSshKeys.filter((k) => k !== key.id);
+										} else {
+											createVmSshKeys = [...createVmSshKeys, key.id];
+										}
+									}}
+								/>
+								{key.name}
+								<span class="font-mono text-[10px] text-fyra-gray-600">{key.fingerprint.slice(0, 20)}...</span>
+							</label>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" size="sm" onclick={() => (createVmOpen = false)}>Cancel</Button>
+			<Button size="sm" onclick={doCreateVm} disabled={creatingVm || !createVmName.trim() || !createVmType}>
+				{#if creatingVm}
+					<Loader2 class="h-3 w-3 animate-spin" /> Creating...
+				{:else}
+					<Plus class="h-3 w-3" /> Create
+				{/if}
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
