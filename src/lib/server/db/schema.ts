@@ -202,6 +202,20 @@ export const sshKeys = pgTable('ssh_keys', {
 	description: text('description')
 });
 
+// API Tokens
+
+export const apiTokens = pgTable(
+	'api_tokens',
+	{
+		id: ulidPk(),
+		userId: text('user_id').notNull(),
+		name: text('name').notNull(),
+		tokenHash: text('token_hash').notNull(),
+		createdAt: bigint('created_at', { mode: 'number' }).notNull()
+	},
+	(table) => [index('api_tokens_user_id_index').on(table.userId)]
+);
+
 // Base Images
 
 export const baseImages = pgTable('base_images', {

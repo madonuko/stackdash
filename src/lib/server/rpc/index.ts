@@ -19,6 +19,7 @@ import * as volumeFns from './functions/volumes';
 import * as imageFns from './functions/images';
 import * as networkingFns from './functions/networking';
 import * as vmTypeFns from './functions/vm-types';
+import * as apiTokenFns from './functions/api-tokens';
 
 export const functions: FunctionRegistry = {
 	// VMs
@@ -69,7 +70,12 @@ export const functions: FunctionRegistry = {
 	'vmTypes.list': vmTypeFns.list,
 	'vmTypes.create': vmTypeFns.create,
 	'vmTypes.update': vmTypeFns.update,
-	'vmTypes.delete': vmTypeFns.del
+	'vmTypes.delete': vmTypeFns.del,
+
+	// API Tokens
+	'apiTokens.list': apiTokenFns.list,
+	'apiTokens.create': apiTokenFns.create,
+	'apiTokens.revoke': apiTokenFns.revoke
 };
 
 /** All registered function names (useful for introspection / client codegen). */
