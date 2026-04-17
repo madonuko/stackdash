@@ -172,47 +172,86 @@
 	}
 
 	// API Tokens
-	let tokens = $state([
-		{
-			id: 1,
-			name: 'ci-deploy',
-			token: 'sk-stack-****************************a3f1',
-			created: '2026-03-12'
-		},
-		{
-			id: 2,
-			name: 'monitoring',
-			token: 'sk-stack-****************************b7e2',
-			created: '2026-02-05'
-		}
-	]);
+	type ApiTokenState = {
+		id: string;
+		name: string;
+		created: string;
+		lastUsedAt: number | null;
+	};
+	let tokens = $state<ApiTokenState[]>([]);
+	let tokensLoading = $state(false);
 	let newTokenName = $state('');
 	let generatedToken = $state('');
-	let tokenCounter = $state(2);
-	let copied = $state('');
+	let copiedTokenId = $state<string | null>(null);
 
-	function generateToken() {
+	async function loadTokens() {
+		if (tokensLoading || tokens.length > 0) return;
+		tokensLoading = true;
+		try {
+			const result = await rpc<ApiTokenState[]>('apiTokens.list');
+			tokens = result.map((t) => ({
+				id: t.id,
+				name: t.name,
+				created: new Date(t.created).toISOString().slice(0, 10),
+				lastUsedAt: t.lastUsedAt
+			}));
+		} catch (e) {
+			console.error('Failed to load tokens:', e);
+		} finally {
+			tokensLoading = false;
+		}
+	}
+
+	async function generateToken() {
 		if (!newTokenName.trim()) return;
-		tokenCounter++;
-		const fullToken = `sk-stack-${Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('')}`;
-		generatedToken = fullToken;
+		const name = newTokenName.trim();
+		const tempId = `temp-${Date.now()}`;
+		const now = new Date().toISOString().slice(0, 10);
+
 		tokens.push({
-			id: tokenCounter,
-			name: newTokenName.trim(),
-			token: `sk-stack-****************************${fullToken.slice(-4)}`,
-			created: new Date().toISOString().slice(0, 10)
+			id: tempId,
+			name,
+			created: now,
+			lastUsedAt: null
 		});
-		newTokenName = '';
+
+		try {
+			const result = await rpc<{ id: string; token: string }>('apiTokens.create', { name });
+			generatedToken = result.token;
+			const idx = tokens.findIndex((t) => t.id === tempId);
+			if (idx !== -1) tokens[idx] = { ...tokens[idx], id: result.id };
+		} catch (e) {
+			console.error('Failed to create token:', e);
+			tokens = tokens.filter((t) => t.id !== tempId);
+		} finally {
+			newTokenName = '';
+		}
 	}
 
-	function revokeToken(id: number) {
+	async function revokeToken(id: string) {
+		const idx = tokens.findIndex((t) => t.id === id);
+		if (idx === -1) return;
+		const tokenToRemove = tokens[idx];
 		tokens = tokens.filter((t) => t.id !== id);
+
+		try {
+			await rpc('apiTokens.revoke', { tokenId: id });
+		} catch (e) {
+			console.error('Failed to revoke token:', e);
+			tokens.splice(idx, 0, tokenToRemove);
+		}
 	}
 
-	function copyText(text: string, label: string) {
+	function copyToken(tokenId: string, showFullToken: string | null) {
+		const text = showFullToken || `sk-stack-****************************`;
 		navigator.clipboard.writeText(text);
-		copied = label;
-		setTimeout(() => (copied = ''), 1500);
+		copiedTokenId = tokenId;
+		setTimeout(() => (copiedTokenId = null), 1500);
+	}
+
+	async function openUserSheet() {
+		await loadTokens();
+		userSheetOpen = true;
 	}
 
 	// Billing
@@ -347,7 +386,7 @@
 				<!-- Avatar button — opens user sheet -->
 				<button
 					class="flex items-center gap-2.5 rounded-xs px-2 py-1 transition-colors hover:bg-fyra-gray-800"
-					onclick={() => (userSheetOpen = true)}
+					onclick={() => openUserSheet()}
 				>
 					<div class="text-right">
 						<p class="text-sm leading-tight font-medium text-fyra-gray-100">{profileName}</p>
@@ -591,9 +630,9 @@
 								<button
 									type="button"
 									class="shrink-0 text-fyra-gray-500 hover:text-fyra-gray-300"
-									onclick={() => copyText(generatedToken, 'token')}
+									onclick={() => copyToken('new-token', generatedToken)}
 								>
-									{#if copied === 'token'}
+									{#if copiedTokenId === 'new-token'}
 										<Check class="h-3.5 w-3.5 text-emerald-500" />
 									{:else}
 										<Copy class="h-3.5 w-3.5" />
@@ -611,7 +650,7 @@
 										<div class="min-w-0">
 											<p class="truncate text-sm font-medium text-fyra-gray-100">{token.name}</p>
 											<p class="mt-0.5 truncate font-mono text-[11px] text-fyra-gray-500">
-												{token.token}
+												sk-stack-****...****
 												<span class="ml-2 font-sans text-fyra-gray-600"
 													>Created {token.created}</span
 												>
@@ -824,23 +863,23 @@
 
 			{#if cmdFilter === 'all' || cmdFilter === 'account'}
 				<Command.Group heading="Account">
-					<Command.Item onSelect={() => runCommand(() => (userSheetOpen = true))} class="gap-2">
+					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
 						<User class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Profile</span>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => (userSheetOpen = true))} class="gap-2">
+					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
 						<Key class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>SSH Keys</span>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => (userSheetOpen = true))} class="gap-2">
+					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
 						<KeyRound class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>API Tokens</span>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => (userSheetOpen = true))} class="gap-2">
+					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
 						<CreditCard class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Billing</span>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => (userSheetOpen = true))} class="gap-2">
+					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
 						<KeyRound class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Change Password</span>
 					</Command.Item>
