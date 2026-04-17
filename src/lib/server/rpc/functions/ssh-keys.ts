@@ -2,8 +2,6 @@ import { eq, and } from 'drizzle-orm';
 import { sshKeys } from '$lib/server/db/schema';
 import { RpcError, type RpcFunction } from '../types';
 
-// ── List SSH keys for the current user ──────────────────────────────
-
 type ListResult = {
 	id: string;
 	name: string;
@@ -17,8 +15,6 @@ export const list: RpcFunction<void, ListResult> = async (_params, ctx) => {
 		where: eq(sshKeys.userId, ctx.user.id)
 	});
 };
-
-// ── Add an SSH key ──────────────────────────────────────────────────
 
 type CreateParams = {
 	name: string;
@@ -53,8 +49,6 @@ export const create: RpcFunction<CreateParams, CreateResult> = async (params, ct
 
 	return { id: inserted.id, fingerprint: inserted.fingerprint };
 };
-
-// ── Delete an SSH key ───────────────────────────────────────────────
 
 type DeleteParams = { keyId: string };
 

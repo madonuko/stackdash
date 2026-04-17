@@ -3,8 +3,6 @@ import { baseImages } from '$lib/server/db/schema';
 import { getBackend } from '$lib/server/backends';
 import { RpcError, type RpcFunction } from '../types';
 
-// ── List base images from DB ────────────────────────────────────────
-
 type ImageRow = {
 	id: string;
 	name: string;
@@ -20,8 +18,6 @@ type ImageRow = {
 export const list: RpcFunction<void, ImageRow[]> = async (_params, ctx) => {
 	return ctx.db.query.baseImages.findMany();
 };
-
-// ── Create a base image ─────────────────────────────────────────────
 
 type CreateParams = {
 	name: string;
@@ -52,8 +48,6 @@ export const create: RpcFunction<CreateParams, { id: string }> = async (params, 
 	return { id: inserted.id };
 };
 
-// ── Update a base image ─────────────────────────────────────────────
-
 type UpdateParams = {
 	id: string;
 	name?: string;
@@ -79,8 +73,6 @@ export const update: RpcFunction<UpdateParams, void> = async (params, ctx) => {
 	await ctx.db.update(baseImages).set(updates).where(eq(baseImages.id, id));
 };
 
-// ── Delete a base image ─────────────────────────────────────────────
-
 export const del: RpcFunction<{ id: string }, void> = async ({ id }, ctx) => {
 	const existing = await ctx.db.query.baseImages.findFirst({
 		where: eq(baseImages.id, id)
@@ -89,8 +81,6 @@ export const del: RpcFunction<{ id: string }, void> = async ({ id }, ctx) => {
 
 	await ctx.db.delete(baseImages).where(eq(baseImages.id, id));
 };
-
-// ── List ISOs available on Proxmox ──────────────────────────────────
 
 type ProxmoxIso = {
 	volid: string;

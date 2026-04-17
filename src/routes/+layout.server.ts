@@ -1,7 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { initDrizzle } from '$lib/server/db';
-import { dispatch } from '$lib/server/rpc';
+import { listProjects } from '$lib/remote/projects.remote';
+import { listSshKeys } from '$lib/remote/ssh-keys.remote';
+import { getRequestEvent } from '$app/server';
 
 const publicRoutes = ['/login', '/signup', '/api/'];
 
@@ -17,17 +18,17 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		throw redirect(303, '/');
 	}
 
-	const db = initDrizzle();
-	const ctx = { user: locals.user, session: locals.session, db };
+	const event = getRequestEvent();
+	if (!event?.locals.user) throw redirect(303, '/login');
 
 	const [projects, sshKeys] = await Promise.all([
-		dispatch('projects.list', undefined, ctx),
-		dispatch('sshKeys.list', undefined, ctx)
+		listProjects({}),
+		listSshKeys({})
 	]);
 
 	return {
 		user: locals.user,
-		projects: projects as { id: string; projectName: string; role: string }[],
-		sshKeys: sshKeys as { id: string; name: string; fingerprint: string; publicKey: string }[]
+		projects,
+		sshKeys
 	};
 };

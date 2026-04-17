@@ -8,7 +8,17 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { officialImages, imageTypeColors, type OfficialImage, type ImageType } from '$lib/data/images';
-	import { rpc } from '$lib/rpc';
+	import {
+		listVms,
+		getVm,
+		createVm,
+		deleteVm,
+		startVm,
+		stopVm,
+		rebootVm
+	} from '$lib/remote/vms.remote';
+	import { listVmTypes } from '$lib/remote/vm-types.remote';
+	import { listImages } from '$lib/remote/images.remote';
 	import { untrack, onMount } from 'svelte';
 	import {
 		Play,
@@ -105,7 +115,7 @@
 				vmType: { name: string; cores: number; ramCapacity: number; storageAmount: number } | null;
 				live: { id: string; name: string; status: string; cores: number; memory: number; disk: number; uptime: number; networkInterfaces?: Record<string, { ipAddresses?: string[] }> } | null;
 			};
-			const vms = await rpc<VmRow[]>('vms.list', { projectId });
+			const vms = await listVms({ projectId });
 			servers = vms.filter((v) => v.active).map((vm) => {
 				const ip = vm.live?.networkInterfaces
 					? Object.values(vm.live.networkInterfaces).flatMap((i) => i.ipAddresses ?? []).find((a) => a && !a.startsWith('127.') && !a.includes(':')) ?? '—'
@@ -342,7 +352,7 @@
 
 	async function doDelete() {
 		if (deleteConfirm !== selectedServer.id) return;
-		await rpc('vms.delete', { vmId: selectedServer.id });
+		await deleteVm({ vmId: selectedServer.id });
 		servers = servers.filter((s) => s.id !== selectedServer.id);
 		if (servers.length > 0) selectedServerId = servers[0].id;
 		deleteOpen = false;
@@ -367,12 +377,12 @@
 		try {
 			if (status === 'running') {
 				servers[selectedServerIdx].status = 'restarting';
-				await rpc('vms.start', { vmId: selectedServer.id });
+				await startVm({ vmId: selectedServer.id });
 			} else if (status === 'stopped') {
-				await rpc('vms.stop', { vmId: selectedServer.id });
+				await stopVm({ vmId: selectedServer.id });
 			} else if (status === 'restarting') {
 				servers[selectedServerIdx].status = 'restarting';
-				await rpc('vms.reboot', { vmId: selectedServer.id });
+				await rebootVm({ vmId: selectedServer.id });
 			}
 			await loadVms();
 		} catch {
@@ -615,10 +625,10 @@
 	let dbImages = $state<DbImage[]>([]);
 
 	async function loadVmTypes() {
-		try { vmTypes = await rpc<VmType[]>('vmTypes.list'); } catch {}
+		try { vmTypes = await listVmTypes({}); } catch {}
 	}
 	async function loadDbImages() {
-		try { dbImages = await rpc<DbImage[]>('images.list'); } catch {}
+		try { dbImages = await listImages({}); } catch {}
 	}
 
 	onMount(() => { loadVmTypes(); loadDbImages(); });
@@ -641,7 +651,7 @@
 		creatingVm = true;
 		createVmError = '';
 		try {
-			await rpc('vms.create', {
+			await createVm({
 				projectId,
 				vmTypeId: createVmType,
 				name: createVmName.trim(),

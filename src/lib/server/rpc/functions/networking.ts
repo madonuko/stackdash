@@ -3,15 +3,11 @@ import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { RpcError, type RpcFunction } from '../types';
 import { requireProjectAccess } from '../context';
 
-// ── List all IP blocks ──────────────────────────────────────────────
-
 type ListBlocksResult = { id: string; ipBlock: string }[];
 
 export const listIpBlocks: RpcFunction<void, ListBlocksResult> = async (_params, ctx) => {
 	return ctx.db.query.ipBlocks.findMany();
 };
-
-// ── List IP assignments for a VM ────────────────────────────────────
 
 type ListAssignmentsParams = { vmId: string };
 type ListAssignmentsResult = {
@@ -35,8 +31,6 @@ export const listAssignments: RpcFunction<ListAssignmentsParams, ListAssignments
 	});
 };
 
-// ── Assign an IP to a VM ────────────────────────────────────────────
-
 type AssignParams = { ip: string; ipBlockId: string; vmId: string };
 
 export const assignIp: RpcFunction<AssignParams, void> = async (params, ctx) => {
@@ -52,8 +46,6 @@ export const assignIp: RpcFunction<AssignParams, void> = async (params, ctx) => 
 		associatedVmId: params.vmId
 	});
 };
-
-// ── Unassign an IP from a VM ────────────────────────────────────────
 
 type UnassignParams = { ip: string; vmId: string };
 

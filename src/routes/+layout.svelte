@@ -16,6 +16,7 @@
 	import { untrack } from 'svelte';
 	import { rpc } from '$lib/rpc';
 	import { authClient } from '$lib/auth-client';
+	import { deleteSshKey } from '$lib/remote/ssh-keys.remote';
 	import {
 		Server,
 		HardDrive,
@@ -145,8 +146,8 @@
 		newKeyValue = '';
 	}
 
-	async function deleteSshKey(id: string) {
-		await rpc('sshKeys.delete', { keyId: id });
+	async function removeSshKey(id: string) {
+		await deleteSshKey({ keyId: id });
 		sshKeys = sshKeys.filter((k) => k.id !== id);
 	}
 
@@ -510,7 +511,7 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 shrink-0 p-0 text-fyra-red-400 hover:text-fyra-red-300"
-											onclick={() => deleteSshKey(key.id)}
+											onclick={() => removeSshKey(key.id)}
 										>
 											<Trash2 class="h-3 w-3" />
 										</Button>

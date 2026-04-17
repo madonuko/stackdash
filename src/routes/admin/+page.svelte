@@ -6,15 +6,16 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { rpc } from '$lib/rpc';
 	import { onMount } from 'svelte';
+	import {
+		updateVmType,
+		deleteVmType
+	} from '$lib/remote/vm-types.remote';
+	import { updateImage, deleteImage } from '$lib/remote/images.remote';
 	import { Plus, Pencil, Trash2, Cpu, Disc, Loader2, AlertTriangle, RefreshCw } from '@lucide/svelte';
 
-	// ── Tab state ───────────────────────────────────────────────────
 	type AdminTab = 'vmTypes' | 'images';
 	let activeTab = $state<AdminTab>('vmTypes');
 
-	// ════════════════════════════════════════════════════════════════
-	// VM Types
-	// ════════════════════════════════════════════════════════════════
 	type VmType = { id: string; name: string; isa: string; cores: number; ramCapacity: number; storageAmount: number; rate: string; cap: string };
 	let vmTypes = $state<VmType[]>([]);
 	let vtLoading = $state(true);
@@ -40,7 +41,7 @@
 		try {
 			const data = { name: vtName.trim(), isa: vtIsa, cores: vtCores, ramCapacity: vtRam, storageAmount: vtStorage, rate: vtRate, cap: vtCap };
 			if (vtEditing) {
-				await rpc('vmTypes.update', { id: vtEditing.id, ...data });
+				await updateVmType({ vmTypeId: vtEditing.id, ...data });
 				const idx = vmTypes.findIndex((v) => v.id === vtEditing!.id);
 				if (idx !== -1) vmTypes[idx] = { ...vmTypes[idx], ...data };
 			} else {
@@ -52,13 +53,10 @@
 		finally { vtSaving = false; }
 	}
 	async function vtRemove(id: string) {
-		try { await rpc('vmTypes.delete', { id }); vmTypes = vmTypes.filter((v) => v.id !== id); }
+		try { await deleteVmType({ vmTypeId: id }); vmTypes = vmTypes.filter((v) => v.id !== id); }
 		catch (err) { alert(err instanceof Error ? err.message : 'Failed to delete'); }
 	}
 
-	// ════════════════════════════════════════════════════════════════
-	// Images
-	// ════════════════════════════════════════════════════════════════
 	type BaseImage = { id: string; name: string; version: string; description: string; shortName: string; icon: string | null; color: string; filePath: string; isa: string };
 	type PveIso = { volid: string; filename: string; size: number; node: string };
 	let images = $state<BaseImage[]>([]);
@@ -117,7 +115,7 @@
 		try {
 			const data = { name: imgName.trim(), version: imgVersion.trim(), description: imgDescription.trim(), shortName: imgShortName.trim(), icon: imgIcon.trim() || null, color: imgColor, filePath: imgFilePath.trim(), isa: imgIsa as 'x86' | 'arm' | 'risc-v' };
 			if (imgEditing) {
-				await rpc('images.update', { id: imgEditing.id, ...data });
+				await updateImage({ imageId: imgEditing.id, ...data });
 				const idx = images.findIndex((i) => i.id === imgEditing!.id);
 				if (idx !== -1) images[idx] = { ...images[idx], ...data };
 			} else {
@@ -129,7 +127,7 @@
 		finally { imgSaving = false; }
 	}
 	async function imgRemove(id: string) {
-		try { await rpc('images.delete', { id }); images = images.filter((i) => i.id !== id); }
+		try { await deleteImage({ imageId: id }); images = images.filter((i) => i.id !== id); }
 		catch (err) { alert(err instanceof Error ? err.message : 'Failed to delete'); }
 	}
 

@@ -5,8 +5,6 @@ import { getBackend, type VmInfo } from '$lib/server/backends';
 import { requireProjectAccess } from '../context';
 import { RpcError, type RpcFunction } from '../types';
 
-// ── List VMs for a project ──────────────────────────────────────────
-
 type ListParams = { projectId: string };
 type ListResult = {
 	id: string;
@@ -56,8 +54,6 @@ export const list: RpcFunction<ListParams, ListResult> = async ({ projectId }, c
 	}));
 };
 
-// ── Get a single VM with live status ────────────────────────────────
-
 type GetParams = { vmId: string };
 type GetResult = {
 	id: string;
@@ -105,8 +101,6 @@ export const get: RpcFunction<GetParams, GetResult> = async ({ vmId }, ctx) => {
 		live
 	};
 };
-
-// ── Create a VM ─────────────────────────────────────────────────────
 
 type CreateParams = {
 	projectId: string;
@@ -180,8 +174,6 @@ export const create: RpcFunction<CreateParams, CreateResult> = async (params, ct
 	return { id: inserted.id, taskId: result.taskId };
 };
 
-// ── Delete a VM ─────────────────────────────────────────────────────
-
 type DeleteParams = { vmId: string };
 
 export const del: RpcFunction<DeleteParams, void> = async ({ vmId }, ctx) => {
@@ -201,8 +193,6 @@ export const del: RpcFunction<DeleteParams, void> = async ({ vmId }, ctx) => {
 	// Soft-delete in DB
 	await ctx.db.update(vms).set({ active: false }).where(eq(vms.id, vmId));
 };
-
-// ── Power actions ───────────────────────────────────────────────────
 
 async function powerAction(
 	vmId: string,

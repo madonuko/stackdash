@@ -3,8 +3,6 @@ import { vmTypes } from '$lib/server/db/schema';
 import { RpcError, type RpcFunction } from '../types';
 import { requireAdmin } from '../context';
 
-// ── List all VM types ───────────────────────────────────────────────
-
 type VmTypeRow = {
 	id: string;
 	name: string;
@@ -19,8 +17,6 @@ type VmTypeRow = {
 export const list: RpcFunction<void, VmTypeRow[]> = async (_params, ctx) => {
 	return ctx.db.query.vmTypes.findMany();
 };
-
-// ── Create a VM type ────────────────────────────────────────────────
 
 type CreateParams = {
 	name: string;
@@ -51,8 +47,6 @@ export const create: RpcFunction<CreateParams, { id: string }> = async (params, 
 	return { id: inserted.id };
 };
 
-// ── Update a VM type ────────────────────────────────────────────────
-
 type UpdateParams = {
 	id: string;
 	name?: string;
@@ -79,8 +73,6 @@ export const update: RpcFunction<UpdateParams, void> = async (params, ctx) => {
 
 	await ctx.db.update(vmTypes).set(updates).where(eq(vmTypes.id, id));
 };
-
-// ── Delete a VM type ────────────────────────────────────────────────
 
 type DeleteParams = { id: string };
 

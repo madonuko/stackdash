@@ -12,7 +12,6 @@
 
 import { RpcError, type FunctionRegistry, type RpcContext } from './types';
 
-// ── Function modules ────────────────────────────────────────────────
 import * as vmFns from './functions/vms';
 import * as projectFns from './functions/projects';
 import * as sshKeyFns from './functions/ssh-keys';
@@ -20,9 +19,6 @@ import * as volumeFns from './functions/volumes';
 import * as imageFns from './functions/images';
 import * as networkingFns from './functions/networking';
 import * as vmTypeFns from './functions/vm-types';
-
-// ── The registry ────────────────────────────────────────────────────
-// Each key becomes the HTTP route: POST /api/rpc/vms.list etc.
 
 export const functions: FunctionRegistry = {
 	// VMs
@@ -78,8 +74,6 @@ export const functions: FunctionRegistry = {
 
 /** All registered function names (useful for introspection / client codegen). */
 export const functionNames = Object.keys(functions) as (keyof typeof functions)[];
-
-// ── Dispatcher ──────────────────────────────────────────────────────
 
 export async function dispatch(name: string, params: unknown, ctx: RpcContext): Promise<unknown> {
 	const fn = functions[name];

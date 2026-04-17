@@ -3,8 +3,6 @@ import { volumes, vms } from '$lib/server/db/schema';
 import { RpcError, type RpcFunction } from '../types';
 import { requireProjectAccess } from '../context';
 
-// ── List volumes for a project ──────────────────────────────────────
-
 type ListParams = { projectId: string };
 type ListResult = {
 	id: string;
@@ -22,8 +20,6 @@ export const list: RpcFunction<ListParams, ListResult> = async ({ projectId }, c
 		columns: { id: true, name: true, size: true, associatedVmId: true }
 	});
 };
-
-// ── Get a single volume ─────────────────────────────────────────────
 
 type GetParams = { volumeId: string };
 type GetResult = {
@@ -45,8 +41,6 @@ export const get: RpcFunction<GetParams, GetResult> = async ({ volumeId }, ctx) 
 	return vol;
 };
 
-// ── Input validation helpers ──────────────────────────────────────
-
 function validateId(id: unknown, fieldName: string): string {
 	if (typeof id !== 'string' || id.length === 0) {
 		throw new RpcError(400, `${fieldName} is required`);
@@ -67,8 +61,6 @@ function validatePositiveInteger(value: unknown, fieldName: string): number {
 	}
 	return value;
 }
-
-// ── Create a volume ─────────────────────────────────────────────────
 
 type CreateParams = { projectId: string; name: string; sizeGb: number };
 type CreateResult = { id: string };
@@ -93,8 +85,6 @@ export const create: RpcFunction<CreateParams, CreateResult> = async (params, ct
 	return { id: inserted.id };
 };
 
-// ── Delete a volume ─────────────────────────────────────────────────
-
 type DeleteParams = { volumeId: string };
 
 export const del: RpcFunction<DeleteParams, void> = async ({ volumeId }, ctx) => {
@@ -111,8 +101,6 @@ export const del: RpcFunction<DeleteParams, void> = async ({ volumeId }, ctx) =>
 
 	await ctx.db.delete(volumes).where(eq(volumes.id, volumeId));
 };
-
-// ── Attach a volume to a VM ─────────────────────────────────────────
 
 type AttachParams = { volumeId: string; vmId: string };
 
@@ -140,8 +128,6 @@ export const attach: RpcFunction<AttachParams, void> = async ({ volumeId, vmId }
 		.set({ associatedVmId: vmId })
 		.where(eq(volumes.id, volumeId));
 };
-
-// ── Detach a volume from its VM ─────────────────────────────────────
 
 type DetachParams = { volumeId: string };
 

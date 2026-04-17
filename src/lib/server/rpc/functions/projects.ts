@@ -3,8 +3,6 @@ import { projects, projectPermissions } from '$lib/server/db/schema';
 import { RpcError, type RpcFunction } from '../types';
 import { requireProjectAccess } from '../context';
 
-// ── List projects the user has access to ────────────────────────────
-
 type ListResult = {
 	id: string;
 	projectName: string;
@@ -43,8 +41,6 @@ export const list: RpcFunction<void, ListResult> = async (_params, ctx) => {
 	return results;
 };
 
-// ── Get a single project ────────────────────────────────────────────
-
 type GetParams = { projectId: string };
 type GetResult = {
 	id: string;
@@ -76,8 +72,6 @@ export const get: RpcFunction<GetParams, GetResult> = async ({ projectId }, ctx)
 	};
 };
 
-// ── Create a project ────────────────────────────────────────────────
-
 type CreateParams = { name: string };
 type CreateResult = { id: string };
 
@@ -93,8 +87,6 @@ export const create: RpcFunction<CreateParams, CreateResult> = async ({ name }, 
 
 	return { id: inserted.id };
 };
-
-// ── Delete a project ────────────────────────────────────────────────
 
 type DeleteParams = { projectId: string };
 
@@ -114,8 +106,6 @@ export const del: RpcFunction<DeleteParams, void> = async ({ projectId }, ctx) =
 		.where(eq(projectPermissions.projectId, projectId));
 	await ctx.db.delete(projects).where(eq(projects.id, projectId));
 };
-
-// ── Add a member ────────────────────────────────────────────────────
 
 type AddMemberParams = {
 	projectId: string;
@@ -142,8 +132,6 @@ export const addMember: RpcFunction<AddMemberParams, void> = async (params, ctx)
 		permissions: params.permissions
 	});
 };
-
-// ── Remove a member ─────────────────────────────────────────────────
 
 type RemoveMemberParams = { projectId: string; userId: string };
 
