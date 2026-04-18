@@ -39,6 +39,7 @@ export const functions: FunctionRegistry = {
 	'projects.delete': projectFns.del,
 	'projects.addMember': projectFns.addMember,
 	'projects.removeMember': projectFns.removeMember,
+	'projects.searchUsers': projectFns.searchUsers,
 
 	// SSH Keys
 	'sshKeys.list': sshKeyFns.list,

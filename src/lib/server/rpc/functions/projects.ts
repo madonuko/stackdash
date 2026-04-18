@@ -1,5 +1,6 @@
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, like, sql } from 'drizzle-orm';
 import { projects, projectPermissions } from '$lib/server/db/schema';
+import { user } from '$lib/server/db/auth.schema';
 import { RpcError, type RpcFunction } from '../types';
 import { requireProjectAccess } from '../context';
 
@@ -42,12 +43,15 @@ export const list: RpcFunction<void, ListResult> = async (_params, ctx) => {
 };
 
 type GetParams = { projectId: string };
+type MemberInfo = { userId: string; name: string; email: string; permissions: string };
 type GetResult = {
 	id: string;
 	projectName: string;
 	ownerUserId: string;
+	ownerName: string;
+	ownerEmail: string;
 	creationDate: number;
-	members: { userId: string; permissions: string }[];
+	members: MemberInfo[];
 };
 
 export const get: RpcFunction<GetParams, GetResult> = async ({ projectId }, ctx) => {
@@ -60,15 +64,35 @@ export const get: RpcFunction<GetParams, GetResult> = async ({ projectId }, ctx)
 
 	if (!project) throw new RpcError(404, 'Project not found');
 
+	// Get owner user details
+	const ownerUser = await ctx.db.query.user.findFirst({
+		where: eq(user.id, project.ownerUserId)
+	});
+
+	// Get member user details
+	const memberUserIds = project.permissions.map((p: { userId: string }) => p.userId);
+	const memberUsers = await ctx.db.query.user.findMany({
+		where: or(...memberUserIds.map((id: string) => eq(user.id, id)))
+	});
+
+	const memberUserMap = new Map(memberUsers.map((u) => [u.id, u]));
+
 	return {
 		id: project.id,
 		projectName: project.projectName,
 		ownerUserId: project.ownerUserId,
+		ownerName: ownerUser?.name ?? 'Unknown',
+		ownerEmail: ownerUser?.email ?? '',
 		creationDate: project.creationDate,
-		members: project.permissions.map((p) => ({
-			userId: p.userId,
-			permissions: p.permissions
-		}))
+		members: project.permissions.map((p: { userId: string; permissions: string }) => {
+			const memberUser = memberUserMap.get(p.userId);
+			return {
+				userId: p.userId,
+				name: memberUser?.name ?? 'Unknown',
+				email: memberUser?.email ?? '',
+				permissions: p.permissions
+			};
+		})
 	};
 };
 
@@ -163,4 +187,30 @@ export const removeMember: RpcFunction<RemoveMemberParams, void> = async (params
 				eq(projectPermissions.userId, params.userId)
 			)
 		);
+};
+
+type SearchUsersParams = { query: string; limit?: number };
+type SearchUsersResult = { id: string; name: string; email: string }[];
+
+export const searchUsers: RpcFunction<SearchUsersParams, SearchUsersResult> = async (
+	{ query, limit = 10 },
+	ctx
+) => {
+	await requireProjectAccess(ctx.db, ctx.user.id, ctx.user.id); // Just check they're logged in
+
+	// Search users by email or name
+	const results = await ctx.db
+		.select({
+			id: user.id,
+			name: user.name,
+			email: user.email
+		})
+		.from(user)
+		.where(
+			sql`${user.email} ILIKE ${'%' + query + '%'} OR ${user.name} ILIKE ${'%' + query + '%'}`
+		)
+		.limit(limit);
+
+	// Exclude current user
+	return results.filter((r) => r.id !== ctx.user.id);
 };

@@ -71,22 +71,37 @@
 	}
 
 	// Project Sheet
-	type ProjectMember = { userId: string; permissions: string };
+	type ProjectMember = { userId: string; name: string; email: string; permissions: string };
 	type ProjectInfo = {
 		id: string;
 		projectName: string;
 		ownerUserId: string;
+		ownerName: string;
+		ownerEmail: string;
+		creationDate: number;
 		members: ProjectMember[];
 	};
+	type SearchUser = { id: string; name: string; email: string };
+
 	let projectSheetOpen = $state(false);
 	let projectSheetLoading = $state(false);
 	let projectSheetName = $state('');
 	let projectSheetOwnerId = $state('');
+	let projectSheetOwnerName = $state('');
+	let projectSheetOwnerEmail = $state('');
 	let projectSheetMembers = $state<ProjectMember[]>([]);
 	let projectSheetSaving = $state(false);
 	let projectSheetSaved = $state(false);
 	let projectDeleteConfirm = $state('');
 	let projectDeleting = $state(false);
+
+	// Member management state
+	let addMemberOpen = $state(false);
+	let memberSearchQuery = $state('');
+	let memberSearchResults = $state<SearchUser[]>([]);
+	let memberSearchLoading = $state(false);
+	let selectedMemberRole = $state<'admin' | 'read_write'>('read_write');
+	let addingMember = $state(false);
 
 	async function openProjectSheet() {
 		if (!selectedProjectId) return;
@@ -96,6 +111,8 @@
 			const proj = await rpc<ProjectInfo>('projects.get', { projectId: selectedProjectId });
 			projectSheetName = proj.projectName;
 			projectSheetOwnerId = proj.ownerUserId;
+			projectSheetOwnerName = proj.ownerName;
+			projectSheetOwnerEmail = proj.ownerEmail;
 			projectSheetMembers = proj.members;
 		} catch (e) {
 			console.error('Failed to load project:', e);
@@ -143,6 +160,99 @@
 			console.error('Failed to delete project:', e);
 		} finally {
 			projectDeleting = false;
+		}
+	}
+
+	// Member management functions
+	async function searchUsers() {
+		if (!memberSearchQuery.trim() || memberSearchQuery.length < 2) {
+			memberSearchResults = [];
+			return;
+		}
+		memberSearchLoading = true;
+		try {
+			const results = await rpc<SearchUser[]>('projects.searchUsers', {
+				query: memberSearchQuery.trim()
+			});
+			// Filter out users who are already members
+			memberSearchResults = results.filter(
+				(r) => !projectSheetMembers.some((m) => m.userId === r.id) && r.id !== projectSheetOwnerId
+			);
+		} catch (e) {
+			console.error('Failed to search users:', e);
+			memberSearchResults = [];
+		} finally {
+			memberSearchLoading = false;
+		}
+	}
+
+	async function addMember(user: SearchUser) {
+		if (!selectedProjectId || addingMember) return;
+		addingMember = true;
+		try {
+			await rpc('projects.addMember', {
+				projectId: selectedProjectId,
+				userId: user.id,
+				permissions: selectedMemberRole
+			});
+			// Optimistic update
+			projectSheetMembers.push({
+				userId: user.id,
+				name: user.name,
+				email: user.email,
+				permissions: selectedMemberRole
+			});
+			// Reset form
+			memberSearchQuery = '';
+			memberSearchResults = [];
+			addMemberOpen = false;
+		} catch (e) {
+			console.error('Failed to add member:', e);
+		} finally {
+			addingMember = false;
+		}
+	}
+
+	async function removeMember(userId: string) {
+		if (!selectedProjectId) return;
+		const idx = projectSheetMembers.findIndex((m) => m.userId === userId);
+		if (idx === -1) return;
+
+		const memberToRemove = projectSheetMembers[idx];
+		// Optimistic update
+		projectSheetMembers = projectSheetMembers.filter((m) => m.userId !== userId);
+
+		try {
+			await rpc('projects.removeMember', {
+				projectId: selectedProjectId,
+				userId
+			});
+		} catch (e) {
+			console.error('Failed to remove member:', e);
+			// Revert on failure
+			projectSheetMembers.splice(idx, 0, memberToRemove);
+		}
+	}
+
+	async function updateMemberRole(userId: string, newRole: string) {
+		if (!selectedProjectId) return;
+		const idx = projectSheetMembers.findIndex((m) => m.userId === userId);
+		if (idx === -1) return;
+
+		const oldRole = projectSheetMembers[idx].permissions;
+		// Optimistic update
+		projectSheetMembers[idx] = { ...projectSheetMembers[idx], permissions: newRole };
+
+		try {
+			await rpc('projects.addMember', {
+				projectId: selectedProjectId,
+				userId,
+				permissions: newRole as 'admin' | 'read_write'
+			});
+		} catch (e) {
+			console.error('Failed to update member role:', e);
+			// Revert on failure
+			projectSheetMembers[idx] = { ...projectSheetMembers[idx], permissions: oldRole };
 		}
 	}
 
@@ -888,11 +998,22 @@
 
 					<!-- Members -->
 					<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-						<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-							<User class="h-3.5 w-3.5 text-fyra-red-400" />
-							<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
-								Members
-							</p>
+						<div class="mb-3 flex items-center justify-between border-b border-fyra-gray-800/50 pb-2">
+							<div class="flex items-center gap-2">
+								<User class="h-3.5 w-3.5 text-fyra-red-400" />
+								<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
+									Members
+								</p>
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								class="h-7 gap-1.5 text-xs"
+								onclick={() => (addMemberOpen = true)}
+							>
+								<Plus class="h-3 w-3" />
+								Add
+							</Button>
 						</div>
 						<div class="max-h-48 overflow-y-auto">
 							<!-- Owner -->
@@ -900,13 +1021,16 @@
 								<div class="flex items-center justify-between py-2.5">
 									<div class="min-w-0">
 										<p class="truncate text-sm font-medium text-fyra-gray-100">
-											{projectSheetOwnerId}
+											{projectSheetOwnerName}
 										</p>
-										<span
-											class="mt-0.5 inline-block rounded-xs bg-fyra-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-fyra-red-400"
-											>Owner</span
-										>
+										<p class="truncate text-[10px] text-fyra-gray-500">
+											{projectSheetOwnerEmail}
+										</p>
 									</div>
+									<span
+										class="shrink-0 rounded-xs bg-fyra-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-fyra-red-400"
+										>Owner</span
+									>
 								</div>
 								<div class="border-b border-fyra-gray-800/30"></div>
 							{/if}
@@ -916,19 +1040,114 @@
 									<div class="flex items-center justify-between py-2.5">
 										<div class="min-w-0">
 											<p class="truncate text-sm font-medium text-fyra-gray-100">
-												{member.userId}
+												{member.name}
 											</p>
-											<span
-												class="mt-0.5 inline-block rounded-xs bg-fyra-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-fyra-gray-400"
-												>{member.permissions}</span
-											>
+											<p class="truncate text-[10px] text-fyra-gray-500">
+												{member.email}
+											</p>
+											<DropdownMenu.Root>
+												<DropdownMenu.Trigger>
+													<span
+														class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-fyra-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-fyra-gray-400 transition-colors hover:bg-fyra-gray-700"
+														>{member.permissions}</span
+													>
+												</DropdownMenu.Trigger>
+												<DropdownMenu.Content
+													align="start"
+													class="border-fyra-gray-800 bg-fyra-gray-900"
+												>
+													<DropdownMenu.Item
+														class="cursor-pointer text-xs text-fyra-gray-300 focus:bg-fyra-gray-800 focus:text-fyra-gray-100"
+														onclick={() => updateMemberRole(member.userId, 'admin')}
+													>
+														Admin
+													</DropdownMenu.Item>
+													<DropdownMenu.Item
+														class="cursor-pointer text-xs text-fyra-gray-300 focus:bg-fyra-gray-800 focus:text-fyra-gray-100"
+														onclick={() => updateMemberRole(member.userId, 'read_write')}
+													>
+														Read Write
+													</DropdownMenu.Item>
+												</DropdownMenu.Content>
+											</DropdownMenu.Root>
 										</div>
+										<Button
+											variant="ghost"
+											size="sm"
+											class="h-7 w-7 shrink-0 p-0 text-fyra-gray-500 hover:text-fyra-red-400"
+											onclick={() => removeMember(member.userId)}
+										>
+											<Trash2 class="h-3.5 w-3.5" />
+										</Button>
 									</div>
 								{/each}
 							{:else if !projectSheetOwnerId}
 								<p class="py-2 text-center text-xs text-fyra-gray-500">No members added.</p>
 							{/if}
 						</div>
+
+						<!-- Add Member Form -->
+						{#if addMemberOpen}
+							<div class="mt-3 border-t border-fyra-gray-800/50 pt-3">
+								<p class="mb-2 text-xs font-medium text-fyra-gray-400">Add member by email</p>
+								<div class="flex flex-col gap-2">
+									<Input
+										bind:value={memberSearchQuery}
+										placeholder="Search by email..."
+										class="h-8 text-xs"
+										oninput={searchUsers}
+									/>
+									{#if memberSearchLoading}
+										<p class="py-1 text-xs text-fyra-gray-500">Searching...</p>
+									{:else if memberSearchResults.length > 0}
+										<div class="max-h-32 overflow-y-auto border border-fyra-gray-800">
+											{#each memberSearchResults as user (user.id)}
+												<button
+													type="button"
+													class="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-left transition-colors hover:bg-fyra-gray-800"
+													onclick={() => addMember(user)}
+												>
+													<div class="min-w-0">
+														<p class="truncate text-xs font-medium text-fyra-gray-100">
+															{user.name}
+														</p>
+														<p class="truncate text-[10px] text-fyra-gray-500">{user.email}</p>
+													</div>
+													<Plus class="h-3 w-3 shrink-0 text-fyra-gray-500" />
+												</button>
+											{/each}
+										</div>
+									{:else if memberSearchQuery.length >= 2}
+										<p class="py-1 text-xs text-fyra-gray-500">No users found</p>
+									{/if}
+									<div class="flex items-center gap-2">
+										<span class="text-xs text-fyra-gray-500">Role:</span>
+										<div class="flex gap-1">
+											<button
+												type="button"
+												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+												'admin'
+													? 'bg-fyra-gray-700 text-fyra-gray-100'
+													: 'text-fyra-gray-500 hover:text-fyra-gray-300'}"
+												onclick={() => (selectedMemberRole = 'admin')}
+											>
+												Admin
+											</button>
+											<button
+												type="button"
+												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+												'read_write'
+													? 'bg-fyra-gray-700 text-fyra-gray-100'
+													: 'text-fyra-gray-500 hover:text-fyra-gray-300'}"
+												onclick={() => (selectedMemberRole = 'read_write')}
+											>
+												Read Write
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+						{/if}
 					</div>
 
 					<!-- Delete Project -->
