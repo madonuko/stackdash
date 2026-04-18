@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { officialImages, type OfficialImage } from '$lib/data/images';
+	import { createVm } from '$lib/remote/vms.remote';
 	import { listVmTypes } from '$lib/remote/vm-types.remote';
 	import { listImages } from '$lib/remote/images.remote';
 	import {
@@ -189,6 +190,40 @@
 	function truncateFingerprint(fp: string): string {
 		if (fp.length <= 24) return fp;
 		return `${fp.slice(0, 12)}...${fp.slice(-8)}`;
+	}
+
+	async function handleCreate() {
+		if (!serverName.trim() || !selectedPlanId) return;
+
+		const projectId = data.projects?.[0]?.id;
+		if (!projectId) {
+			createError = 'No project selected. Please select a project.';
+			return;
+		}
+
+		creating = true;
+		createError = '';
+
+		let imageId: string | undefined;
+		if (selectedImageId) {
+			imageId = selectedImageId.startsWith('db-') ? selectedImageId.slice(3) : selectedImageId;
+		}
+
+		try {
+			await createVm({
+				projectId,
+				vmTypeId: selectedPlanId,
+				name: serverName.trim(),
+				imageId,
+				sshKeyIds: selectedSshKeyIds.length > 0 ? selectedSshKeyIds : undefined
+			});
+			goto('/');
+		} catch (err) {
+			createError =
+				err instanceof Error ? err.message : 'Failed to create server. Please try again.';
+		} finally {
+			creating = false;
+		}
 	}
 </script>
 
@@ -764,7 +799,7 @@
 					<Button
 						class="w-full"
 						disabled={!serverName.trim() || !selectedPlanId || creating}
-						onclick={() => {}}
+						onclick={handleCreate}
 					>
 						{#if creating}
 							<Loader2 class="mr-2 h-3 w-3 animate-spin" />
