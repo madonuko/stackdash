@@ -15,7 +15,9 @@
 		Loader2,
 		Check,
 		Circle,
-		HardDriveUpload
+		HardDriveUpload,
+		Plus,
+		X
 	} from '@lucide/svelte';
 
 	let { data } = $props();
@@ -51,8 +53,26 @@
 	let selectedImageVersion = $state<string | null>(null);
 	let selectedPlanId = $state<string | null>(null);
 	let networkingOption = $state<'both' | 'ipv4' | 'ipv6' | 'none'>('both');
+	let selectedVpcId = $state<string>('');
 	let selectedSshKeyIds = $state<string[]>([]);
 	let selectedVolumeIds = $state<string[]>([]);
+
+	type MockVolume = { id: string; name: string; sizeGb: number };
+	let mockVolumes = $state<MockVolume[]>([
+		{ id: 'vol-1', name: 'data-vol-01', sizeGb: 50 },
+		{ id: 'vol-2', name: 'backup-vol-01', sizeGb: 100 },
+		{ id: 'vol-3', name: 'media-vol-01', sizeGb: 200 }
+	]);
+	let newVolumeName = $state('');
+	let newVolumeSize = $state('10');
+	let showCreateVolume = $state(false);
+
+	type MockVpc = { id: string; name: string; cidr: string };
+	const mockVpcs: MockVpc[] = [
+		{ id: 'vpc-1', name: 'default', cidr: '10.0.0.0/16' },
+		{ id: 'vpc-2', name: 'staging', cidr: '172.16.0.0/16' },
+		{ id: 'vpc-3', name: 'production', cidr: '192.168.0.0/16' }
+	];
 
 	let creating = $state(false);
 	let createError = $state('');
@@ -152,6 +172,23 @@
 	function formatRam(mb: number): string {
 		if (mb >= 1024) return `${(mb / 1024).toFixed(0)}GB`;
 		return `${mb}MB`;
+	}
+
+	function createVolume() {
+		const name = newVolumeName.trim();
+		const size = parseInt(newVolumeSize, 10);
+		if (!name || !size || size < 1) return;
+		const id = `vol-new-${Date.now()}`;
+		mockVolumes = [...mockVolumes, { id, name, sizeGb: size }];
+		selectedVolumeIds = [...selectedVolumeIds, id];
+		newVolumeName = '';
+		newVolumeSize = '10';
+		showCreateVolume = false;
+	}
+
+	function truncateFingerprint(fp: string): string {
+		if (fp.length <= 24) return fp;
+		return `${fp.slice(0, 12)}...${fp.slice(-8)}`;
 	}
 </script>
 
@@ -415,11 +452,110 @@
 							{:else}
 								<p class="text-xs text-fyra-gray-500">Select a plan to see included disk size.</p>
 							{/if}
-							<div class="mt-4 border border-fyra-gray-800/50 bg-fyra-gray-900/50 p-3">
-								<p class="text-[10px] tracking-wider text-fyra-gray-500 uppercase">
-									Attach Volumes
-								</p>
-								<p class="mt-1 text-xs text-fyra-gray-600">Volume attachment coming soon.</p>
+
+							<div class="mt-4">
+								<div class="flex items-center justify-between">
+									<span
+										class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+										>Attach Volumes</span
+									>
+									<button
+										type="button"
+										class="flex items-center gap-1 text-[10px] font-medium text-fyra-red-400 transition-colors hover:text-fyra-red-300"
+										onclick={() => (showCreateVolume = !showCreateVolume)}
+									>
+										{#if showCreateVolume}
+											<X class="h-3 w-3" />
+											Cancel
+										{:else}
+											<Plus class="h-3 w-3" />
+											Create Volume
+										{/if}
+									</button>
+								</div>
+
+								{#if showCreateVolume}
+									<div class="mt-2 flex gap-2 border border-fyra-gray-700 bg-fyra-gray-800/40 p-3">
+										<div class="flex-1">
+											<label for="new-vol-name" class="mb-1 block text-[10px] text-fyra-gray-500"
+												>Name</label
+											>
+											<input
+												id="new-vol-name"
+												name="newVolumeName"
+												bind:value={newVolumeName}
+												placeholder="volume-name"
+												class="h-7 w-full border border-fyra-gray-700 bg-fyra-gray-900 px-2 text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+											/>
+										</div>
+										<div class="w-24">
+											<label for="new-vol-size" class="mb-1 block text-[10px] text-fyra-gray-500"
+												>Size (GB)</label
+											>
+											<input
+												id="new-vol-size"
+												name="newVolumeSize"
+												type="number"
+												min="1"
+												bind:value={newVolumeSize}
+												class="h-7 w-full border border-fyra-gray-700 bg-fyra-gray-900 px-2 text-xs text-fyra-gray-100 tabular-nums focus:border-fyra-gray-500 focus:outline-none"
+											/>
+										</div>
+										<div class="flex items-end">
+											<Button
+												type="button"
+												size="sm"
+												class="h-7 px-3 text-xs"
+												disabled={!newVolumeName.trim() ||
+													!parseInt(newVolumeSize, 10) ||
+													parseInt(newVolumeSize, 10) < 1}
+												onclick={createVolume}
+											>
+												Create
+											</Button>
+										</div>
+									</div>
+								{/if}
+
+								{#if mockVolumes.length > 0}
+									<div class="mt-2 flex flex-col gap-1">
+										{#each mockVolumes as vol (vol.id)}
+											<label
+												class="flex cursor-pointer items-center gap-3 border p-3 text-xs transition-colors {selectedVolumeIds.includes(
+													vol.id
+												)
+													? 'border-fyra-red-500 bg-fyra-red-950/20'
+													: 'border-fyra-gray-700 hover:border-fyra-gray-600'}"
+											>
+												<input
+													type="checkbox"
+													checked={selectedVolumeIds.includes(vol.id)}
+													onchange={() => {
+														if (selectedVolumeIds.includes(vol.id)) {
+															selectedVolumeIds = selectedVolumeIds.filter((id) => id !== vol.id);
+														} else {
+															selectedVolumeIds = [...selectedVolumeIds, vol.id];
+														}
+													}}
+													class="accent-fyra-red-500"
+												/>
+												<span class="font-medium text-fyra-gray-200">{vol.name}</span>
+												<span class="ml-auto text-[11px] text-fyra-gray-500 tabular-nums"
+													>{vol.sizeGb}GB</span
+												>
+											</label>
+										{/each}
+									</div>
+								{:else}
+									<div
+										class="mt-2 border border-fyra-gray-800/50 bg-fyra-gray-900/50 p-3 text-center"
+									>
+										<p class="text-xs text-fyra-gray-500">No volumes available.</p>
+										<p class="mt-1 text-[11px] text-fyra-gray-600">
+											Create a volume to attach it to this server.
+										</p>
+									</div>
+								{/if}
 							</div>
 						</div>
 					</div>
@@ -451,9 +587,31 @@
 									</label>
 								{/each}
 							</div>
-							<div class="mt-4 border border-fyra-gray-800/50 bg-fyra-gray-900/50 p-3">
-								<p class="text-[10px] tracking-wider text-fyra-gray-500 uppercase">VPC</p>
-								<p class="mt-1 text-xs text-fyra-gray-600">VPC selection coming soon.</p>
+							<div class="mt-4">
+								<span class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									>VPC</span
+								>
+								<div class="mt-1.5 inline-grid w-full grid-cols-[1fr_--spacing(8)] items-center">
+									<select
+										name="vpc"
+										bind:value={selectedVpcId}
+										class="col-span-full row-start-1 h-8 w-full appearance-none border border-fyra-gray-700 bg-fyra-gray-800 pr-8 pl-2 text-xs text-fyra-gray-100 focus:border-fyra-red-500 focus:outline-none"
+									>
+										<option value="">Default (no VPC)</option>
+										{#each mockVpcs as vpc (vpc.id)}
+											<option value={vpc.id}>{vpc.name} ({vpc.cidr})</option>
+										{/each}
+									</select>
+									<svg
+										viewBox="0 0 8 5"
+										width="8"
+										height="5"
+										fill="none"
+										class="pointer-events-none col-start-2 row-start-1 place-self-center text-fyra-gray-400"
+									>
+										<path d="M.5.5L4 4L7.5.5" stroke="currentColor" />
+									</svg>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -491,7 +649,7 @@
 											<div class="flex flex-col">
 												<span class="font-medium text-fyra-gray-200">{key.name}</span>
 												<span class="font-mono text-[10px] text-fyra-gray-500"
-													>{key.fingerprint}</span
+													>{truncateFingerprint(key.fingerprint)}</span
 												>
 											</div>
 										</label>
@@ -557,6 +715,15 @@
 										: '—'}
 								</span>
 							</div>
+							{#if selectedPlan}
+								<div class="flex items-center justify-between text-xs">
+									<span class="text-fyra-gray-500">Disk</span>
+									<span class="text-fyra-gray-200 tabular-nums"
+										>{selectedPlan.storageAmount}GB{#if selectedVolumeIds.length > 0}
+											+ {selectedVolumeIds.length} vol{/if}</span
+									>
+								</div>
+							{/if}
 							<div class="flex items-center justify-between text-xs">
 								<span class="text-fyra-gray-500">Network</span>
 								<span class="text-fyra-gray-200">
@@ -569,6 +736,20 @@
 												: 'None'}
 								</span>
 							</div>
+							{#if selectedVpcId}
+								<div class="flex items-center justify-between text-xs">
+									<span class="text-fyra-gray-500">VPC</span>
+									<span class="text-fyra-gray-200"
+										>{mockVpcs.find((v) => v.id === selectedVpcId)?.name ?? '—'}</span
+									>
+								</div>
+							{/if}
+							{#if selectedSshKeyIds.length > 0}
+								<div class="flex items-center justify-between text-xs">
+									<span class="text-fyra-gray-500">SSH Keys</span>
+									<span class="text-fyra-gray-200">{selectedSshKeyIds.length} selected</span>
+								</div>
+							{/if}
 							{#if selectedPlan?.rate}
 								<div class="flex items-center justify-between text-xs">
 									<span class="text-fyra-gray-500">Estimated</span>
