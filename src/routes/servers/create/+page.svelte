@@ -206,12 +206,17 @@
 								onclick={() => (imageTab = 'os')}>OS Images</button
 							>
 							<button
-								class="border px-3 py-1.5 text-xs font-medium text-fyra-gray-600 transition-colors hover:text-fyra-gray-400"
-								disabled>Snapshots</button
+								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab ===
+								'snapshots'
+									? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
+									: 'border-fyra-gray-700 text-fyra-gray-500 hover:border-fyra-gray-600 hover:text-fyra-gray-300'}"
+								onclick={() => (imageTab = 'snapshots')}>Snapshots</button
 							>
 							<button
-								class="border px-3 py-1.5 text-xs font-medium text-fyra-gray-600 transition-colors hover:text-fyra-gray-400"
-								disabled>Apps</button
+								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab === 'apps'
+									? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
+									: 'border-fyra-gray-700 text-fyra-gray-500 hover:border-fyra-gray-600 hover:text-fyra-gray-300'}"
+								onclick={() => (imageTab = 'apps')}>Apps</button
 							>
 						</div>
 						{#if imageTab === 'os'}
@@ -225,38 +230,61 @@
 								</div>
 								<div class="mt-3 grid grid-cols-2 gap-px bg-fyra-gray-900">
 									{#each filteredOfficialImages() as img (img.id)}
-										<button
-											class="relative flex gap-3 overflow-hidden bg-fyra-gray-900 p-4 text-left transition-colors hover:bg-fyra-gray-800/40 {selectedImageId ===
-											img.id
-												? 'ring-2 ring-fyra-red-500 ring-inset'
-												: ''}"
-											onclick={() => selectImage(img.id)}
-										>
-											<div
-												class="pointer-events-none absolute inset-0 opacity-[0.05]"
-												style="background: linear-gradient(135deg, {img.iconColor} 0%, transparent 60%)"
-											></div>
-											<div class="relative shrink-0">
-												{#if img.icon}
-													<svg viewBox="0 0 24 24" class="h-10 w-10" fill="var(--fyra-gray-300)">
-														<path d={img.icon} />
-													</svg>
-												{:else}
-													<span
-														class="flex h-10 w-10 items-center justify-center text-lg font-bold text-fyra-gray-300"
-														>{img.shortName}</span
+										{@const isSelected = selectedImageId === img.id}
+										<div class="contents">
+											<button
+												class="relative flex gap-4 overflow-hidden bg-fyra-gray-900 p-5 text-left transition-colors hover:bg-fyra-gray-800/40 {isSelected
+													? 'ring-2 ring-fyra-red-500 ring-inset'
+													: ''}"
+												onclick={() => selectImage(img.id)}
+											>
+												<div
+													class="pointer-events-none absolute inset-0 opacity-[0.08]"
+													style="background: linear-gradient(135deg, {img.iconColor} 0%, transparent 60%)"
+												></div>
+												<div class="relative shrink-0">
+													{#if img.icon}
+														<svg viewBox="0 0 24 24" class="h-12 w-12" fill={img.iconColor}>
+															<path d={img.icon} />
+														</svg>
+													{:else}
+														<span
+															class="flex h-12 w-12 items-center justify-center text-xl font-bold"
+															style="color: {img.iconColor}">{img.shortName}</span
+														>
+													{/if}
+												</div>
+												<div class="relative flex min-w-0 flex-1 flex-col">
+													<span class="text-sm font-semibold text-fyra-gray-50">{img.name}</span>
+													<p
+														class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-fyra-gray-500"
 													>
-												{/if}
-											</div>
-											<div class="relative flex min-w-0 flex-1 flex-col">
-												<span class="text-sm font-semibold text-fyra-gray-50">{img.name}</span>
-												<p
-													class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-fyra-gray-500"
+														{img.description}
+													</p>
+													<p class="mt-auto pt-2 text-[10px] leading-none text-fyra-gray-600">
+														{img.versions[0]?.archs?.join('  ') ?? ''}
+														{#if img.versions.length > 1}
+															| {img.versions.length} versions
+														{/if}
+													</p>
+												</div>
+											</button>
+											{#if isSelected && img.versions.length > 0}
+												<div
+													class="col-span-2 border-t border-fyra-gray-800 bg-fyra-gray-900/50 px-5 py-3"
 												>
-													{img.description}
-												</p>
-											</div>
-										</button>
+													<span class="text-xs text-fyra-gray-400">Version</span>
+													<select
+														bind:value={selectedImageVersion}
+														class="mt-1.5 h-8 w-full border border-fyra-gray-700 bg-fyra-gray-800 px-2 text-xs text-fyra-gray-100 focus:border-fyra-red-500 focus:outline-none"
+													>
+														{#each img.versions as v (v.version)}
+															<option value={v.version}>{v.version} ({v.archs.join(', ')})</option>
+														{/each}
+													</select>
+												</div>
+											{/if}
+										</div>
 									{/each}
 								</div>
 								{#if filteredOfficialImages().length === 0 && imagesSearch.trim()}
@@ -279,7 +307,7 @@
 											<button
 												class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-fyra-gray-800/20 {selectedImageId ===
 												`db-${img.id}`
-													? 'bg-fyra-gray-800/40'
+													? 'border-l-2 border-l-fyra-red-500 bg-fyra-gray-800/40'
 													: ''}"
 												onclick={() => {
 													if (selectedImageId === `db-${img.id}`) {
@@ -301,20 +329,22 @@
 									</div>
 								</div>
 							{/if}
-
-							{#if selectedImage && selectedImage.versions.length > 1}
-								<div class="mt-3">
-									<span class="text-xs text-fyra-gray-400">Version</span>
-									<select
-										bind:value={selectedImageVersion}
-										class="mt-1 h-8 w-full border border-fyra-gray-700 bg-fyra-gray-800 px-2 text-xs text-fyra-gray-100 focus:border-fyra-gray-500 focus:outline-none"
-									>
-										{#each selectedImage.versions as v (v.version)}
-											<option value={v.version}>{v.version} ({v.archs.join(', ')})</option>
-										{/each}
-									</select>
-								</div>
-							{/if}
+						{:else if imageTab === 'snapshots'}
+							<div class="mt-6 flex flex-col items-center justify-center py-8 text-center">
+								<HardDrive class="mb-3 h-8 w-8 text-fyra-gray-600" />
+								<p class="text-xs text-fyra-gray-500">Snapshots coming soon</p>
+								<p class="mt-1 max-w-xs text-[11px] text-fyra-gray-600">
+									Create point-in-time copies of your servers for quick recovery.
+								</p>
+							</div>
+						{:else if imageTab === 'apps'}
+							<div class="mt-6 flex flex-col items-center justify-center py-8 text-center">
+								<Server class="mb-3 h-8 w-8 text-fyra-gray-600" />
+								<p class="text-xs text-fyra-gray-500">Apps coming soon</p>
+								<p class="mt-1 max-w-xs text-[11px] text-fyra-gray-600">
+									One-click deploy popular applications like WordPress, Nextcloud, and more.
+								</p>
+							</div>
 						{/if}
 					</div>
 
