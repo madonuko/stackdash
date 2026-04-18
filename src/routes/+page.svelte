@@ -7,18 +7,14 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Sheet from '$lib/components/ui/sheet';
-	import { officialImages, imageTypeColors, type OfficialImage, type ImageType } from '$lib/data/images';
 	import {
-		listVms,
-		getVm,
-		createVm,
-		deleteVm,
-		startVm,
-		stopVm,
-		rebootVm
-	} from '$lib/remote/vms.remote';
-	import { listVmTypes } from '$lib/remote/vm-types.remote';
-	import { listImages } from '$lib/remote/images.remote';
+		officialImages,
+		imageTypeColors,
+		type OfficialImage,
+		type ImageType
+	} from '$lib/data/images';
+	import { listVms, getVm, deleteVm, startVm, stopVm, rebootVm } from '$lib/remote/vms.remote';
+	import { goto } from '$app/navigation';
 	import { untrack, onMount } from 'svelte';
 	import {
 		Play,
@@ -113,37 +109,55 @@
 				status: string;
 				creationDate: string;
 				vmType: { name: string; cores: number; ramCapacity: number; storageAmount: number } | null;
-				live: { id: string; name: string; status: string; cores: number; memory: number; disk: number; uptime: number; networkInterfaces?: Record<string, { ipAddresses?: string[] }> } | null;
+				live: {
+					id: string;
+					name: string;
+					status: string;
+					cores: number;
+					memory: number;
+					disk: number;
+					uptime: number;
+					networkInterfaces?: Record<string, { ipAddresses?: string[] }>;
+				} | null;
 			};
 			const vms = await listVms({ projectId });
-			servers = vms.filter((v) => v.active).map((vm) => {
-				const ip = vm.live?.networkInterfaces
-					? Object.values(vm.live.networkInterfaces).flatMap((i) => i.ipAddresses ?? []).find((a) => a && !a.startsWith('127.') && !a.includes(':')) ?? '—'
-					: '—';
-				const ipv6 = vm.live?.networkInterfaces
-					? Object.values(vm.live.networkInterfaces).flatMap((i) => i.ipAddresses ?? []).find((a) => a?.includes(':')) ?? '—'
-					: '—';
-				const vmStatus: ServerInfo['status'] = vm.status === 'provisioning'
-					? 'provisioning'
-					: (vm.live?.status ?? 'stopped') as 'running' | 'stopped' | 'restarting';
-				return {
-					id: vm.id,
-					name: vm.live?.name ?? vm.id,
-					vcpu: vm.live?.cores ?? vm.vmType?.cores ?? 0,
-					ram: formatBytes(vm.live?.memory ?? (vm.vmType?.ramCapacity ?? 0) * 1024 * 1024),
-					disk: formatBytes(vm.live?.disk ?? (vm.vmType?.storageAmount ?? 0) * 1024 * 1024 * 1024),
-					ip,
-					ipv6,
-					status: vmStatus,
-					agentConnected: !!vm.live?.networkInterfaces,
-					os: '—',
-					region: '—',
-					created: vm.creationDate,
-					uptime: formatUptime(vm.live?.uptime ?? 0),
-					plan: vm.vmType?.name ?? '—',
-					backups: false
-				};
-			});
+			servers = vms
+				.filter((v) => v.active)
+				.map((vm) => {
+					const ip = vm.live?.networkInterfaces
+						? (Object.values(vm.live.networkInterfaces)
+								.flatMap((i) => i.ipAddresses ?? [])
+								.find((a) => a && !a.startsWith('127.') && !a.includes(':')) ?? '—')
+						: '—';
+					const ipv6 = vm.live?.networkInterfaces
+						? (Object.values(vm.live.networkInterfaces)
+								.flatMap((i) => i.ipAddresses ?? [])
+								.find((a) => a?.includes(':')) ?? '—')
+						: '—';
+					const vmStatus: ServerInfo['status'] =
+						vm.status === 'provisioning'
+							? 'provisioning'
+							: ((vm.live?.status ?? 'stopped') as 'running' | 'stopped' | 'restarting');
+					return {
+						id: vm.id,
+						name: vm.live?.name ?? vm.id,
+						vcpu: vm.live?.cores ?? vm.vmType?.cores ?? 0,
+						ram: formatBytes(vm.live?.memory ?? (vm.vmType?.ramCapacity ?? 0) * 1024 * 1024),
+						disk: formatBytes(
+							vm.live?.disk ?? (vm.vmType?.storageAmount ?? 0) * 1024 * 1024 * 1024
+						),
+						ip,
+						ipv6,
+						status: vmStatus,
+						agentConnected: !!vm.live?.networkInterfaces,
+						os: '—',
+						region: '—',
+						created: vm.creationDate,
+						uptime: formatUptime(vm.live?.uptime ?? 0),
+						plan: vm.vmType?.name ?? '—',
+						backups: false
+					};
+				});
 
 			// Poll while any VMs are still provisioning
 			if (servers.some((s) => s.status === 'provisioning')) {
@@ -179,12 +193,21 @@
 			});
 		}
 	});
-	let selectedServer = $derived(
-		servers.find((s) => s.id === selectedServerId) ?? servers[0]
-	);
+	let selectedServer = $derived(servers.find((s) => s.id === selectedServerId) ?? servers[0]);
 	let selectedServerIdx = $derived(servers.findIndex((s) => s.id === selectedServerId));
 
-	type Tab = 'overview' | 'console' | 'logs' | 'networking' | 'images' | 'snapshots' | 'backups' | 'rebuild' | 'resize' | 'rescue' | 'settings';
+	type Tab =
+		| 'overview'
+		| 'console'
+		| 'logs'
+		| 'networking'
+		| 'images'
+		| 'snapshots'
+		| 'backups'
+		| 'rebuild'
+		| 'resize'
+		| 'rescue'
+		| 'settings';
 	let activeTab = $state<Tab>('overview');
 
 	const tabs: { id: Tab; label: string; icon: typeof BarChart3 }[] = [
@@ -412,9 +435,7 @@
 			{ ip: '2607:f8b0:4004:0800::1', rdns: 'mail.stack.sh' },
 			{ ip: '2607:f8b0:4004:0800::2', rdns: 'mx.stack.sh' }
 		],
-		'vps-742736': [
-			{ ip: '2607:f8b0:4004:0801::1', rdns: '' }
-		],
+		'vps-742736': [{ ip: '2607:f8b0:4004:0801::1', rdns: '' }],
 		'vps-711980': [],
 		'vps-698412': []
 	});
@@ -455,14 +476,42 @@
 
 	// Logs (per-VM, shown in overview)
 	type Severity = 'info' | 'warn' | 'error' | 'debug';
-	type LogEntry = { id: number; timestamp: string; severity: Severity; source: string; message: string };
+	type LogEntry = {
+		id: number;
+		timestamp: string;
+		severity: Severity;
+		source: string;
+		message: string;
+	};
 
 	const logSources = ['nginx', 'app', 'postgres', 'redis', 'cron', 'sshd'];
 	const logMessages: Record<Severity, string[]> = {
-		info: ['GET /api/health 200 OK - 2ms', 'POST /api/auth/login 200 OK - 45ms', 'Worker started pid=4821', 'Cache hit ratio: 94.2%', 'Backup completed: 42MB', 'GET /api/servers 200 OK - 12ms'],
-		warn: ['Rate limit at 80% for 45.33.32.156', 'Slow query: 850ms on users', 'Disk usage at 78%', 'Memory exceeds 85% threshold', 'Cert expires in 14 days'],
-		error: ['Connection timeout after 30000ms', 'ECONNREFUSED 10.132.0.5:5432', 'OOM: kill pid 3827', 'SSL handshake failed'],
-		debug: ['GC pause: 12ms (heap: 256MB)', 'Route matched: /api/servers/:id', 'Cache eviction: 12 entries']
+		info: [
+			'GET /api/health 200 OK - 2ms',
+			'POST /api/auth/login 200 OK - 45ms',
+			'Worker started pid=4821',
+			'Cache hit ratio: 94.2%',
+			'Backup completed: 42MB',
+			'GET /api/servers 200 OK - 12ms'
+		],
+		warn: [
+			'Rate limit at 80% for 45.33.32.156',
+			'Slow query: 850ms on users',
+			'Disk usage at 78%',
+			'Memory exceeds 85% threshold',
+			'Cert expires in 14 days'
+		],
+		error: [
+			'Connection timeout after 30000ms',
+			'ECONNREFUSED 10.132.0.5:5432',
+			'OOM: kill pid 3827',
+			'SSL handshake failed'
+		],
+		debug: [
+			'GC pause: 12ms (heap: 256MB)',
+			'Route matched: /api/servers/:id',
+			'Cache eviction: 12 entries'
+		]
 	};
 
 	let logId = $state(0);
@@ -500,7 +549,9 @@
 		if (logSourceFilter) result = result.filter((l) => l.source === logSourceFilter);
 		if (logSearch.trim()) {
 			const q = logSearch.toLowerCase();
-			result = result.filter((l) => l.message.toLowerCase().includes(q) || l.source.toLowerCase().includes(q));
+			result = result.filter(
+				(l) => l.message.toLowerCase().includes(q) || l.source.toLowerCase().includes(q)
+			);
 		}
 		return result;
 	});
@@ -511,13 +562,39 @@
 		logSearch = '';
 	}
 
-	let hasLogFilters = $derived(logSevFilter !== null || logSourceFilter !== null || logSearch.trim() !== '');
+	let hasLogFilters = $derived(
+		logSevFilter !== null || logSourceFilter !== null || logSearch.trim() !== ''
+	);
 
 	// Images
-	type UserImage = { id: string; name: string; type: ImageType; size: string; uploaded: string; status: 'ready' | 'uploading' | 'processing'; progress: number };
+	type UserImage = {
+		id: string;
+		name: string;
+		type: ImageType;
+		size: string;
+		uploaded: string;
+		status: 'ready' | 'uploading' | 'processing';
+		progress: number;
+	};
 	let vmUserImages = $state<UserImage[]>([
-		{ id: 'img-008', name: 'custom-webserver', type: 'qcow2', size: '8.4 GB', uploaded: '2026-03-28', status: 'ready', progress: 100 },
-		{ id: 'img-009', name: 'db-snapshot-apr', type: 'img', size: '12.1 GB', uploaded: '2026-04-02', status: 'ready', progress: 100 }
+		{
+			id: 'img-008',
+			name: 'custom-webserver',
+			type: 'qcow2',
+			size: '8.4 GB',
+			uploaded: '2026-03-28',
+			status: 'ready',
+			progress: 100
+		},
+		{
+			id: 'img-009',
+			name: 'db-snapshot-apr',
+			type: 'img',
+			size: '12.1 GB',
+			uploaded: '2026-04-02',
+			status: 'ready',
+			progress: 100
+		}
 	]);
 
 	let imgSearch = $state('');
@@ -540,7 +617,11 @@
 	function filteredOfficialImages() {
 		if (!imgSearch.trim()) return officialImages;
 		const q = imgSearch.toLowerCase();
-		return officialImages.filter((i) => i.name.toLowerCase().includes(q) || i.versions.some((v) => v.version.toLowerCase().includes(q)));
+		return officialImages.filter(
+			(i) =>
+				i.name.toLowerCase().includes(q) ||
+				i.versions.some((v) => v.version.toLowerCase().includes(q))
+		);
 	}
 	let imgTotalPages = $derived(Math.ceil(filteredOfficialImages().length / imgPerPage));
 	let pagedOfficialImages = $derived(() => {
@@ -553,12 +634,27 @@
 		return vmUserImages.filter((i) => i.name.toLowerCase().includes(q));
 	});
 
-	function openImageDetail(img: OfficialImage) { selectedOfficialImage = img; imgSheetOpen = true; }
-	function closeImageDetail() { imgSheetOpen = false; setTimeout(() => (selectedOfficialImage = null), 200); }
-	function mountOfficialVersion(name: string, version: string) { mountedImage = `${name} ${version}`; }
-	function mountUserImage(name: string) { mountedImage = name; }
-	function unmountImage() { mountedImage = null; }
-	function startRebuild(name: string, version: string) { rebuildFromImage = { name, version }; rebuildImageConfirm = ''; }
+	function openImageDetail(img: OfficialImage) {
+		selectedOfficialImage = img;
+		imgSheetOpen = true;
+	}
+	function closeImageDetail() {
+		imgSheetOpen = false;
+		setTimeout(() => (selectedOfficialImage = null), 200);
+	}
+	function mountOfficialVersion(name: string, version: string) {
+		mountedImage = `${name} ${version}`;
+	}
+	function mountUserImage(name: string) {
+		mountedImage = name;
+	}
+	function unmountImage() {
+		mountedImage = null;
+	}
+	function startRebuild(name: string, version: string) {
+		rebuildFromImage = { name, version };
+		rebuildImageConfirm = '';
+	}
 
 	function doRebuildFromImage() {
 		if (rebuildImageConfirm !== selectedServer.id || !rebuildFromImage) return;
@@ -596,76 +692,38 @@
 		const type = imgUploadDetectedType ?? 'img';
 		imgCounter++;
 		const sizes = ['1.2 GB', '2.8 GB', '4.5 GB', '680 MB', '9.1 GB'];
-		const newImg: UserImage = { id: `img-${String(imgCounter).padStart(3, '0')}`, name: imgUploadName.trim(), type, size: sizes[Math.floor(Math.random() * sizes.length)], uploaded: new Date().toISOString().slice(0, 10), status: 'uploading', progress: 0 };
+		const newImg: UserImage = {
+			id: `img-${String(imgCounter).padStart(3, '0')}`,
+			name: imgUploadName.trim(),
+			type,
+			size: sizes[Math.floor(Math.random() * sizes.length)],
+			uploaded: new Date().toISOString().slice(0, 10),
+			status: 'uploading',
+			progress: 0
+		};
 		vmUserImages.push(newImg);
 		imgUploadOpen = false;
-		imgUploadName = ''; imgUploadFile = ''; imgUploadUrl = ''; imgUploadDetectedType = null;
+		imgUploadName = '';
+		imgUploadFile = '';
+		imgUploadUrl = '';
+		imgUploadDetectedType = null;
 		const idx = vmUserImages.length - 1;
 		const tick = setInterval(() => {
-			if (vmUserImages[idx].progress >= 100) { vmUserImages[idx].status = 'processing'; clearInterval(tick); setTimeout(() => { vmUserImages[idx].status = 'ready'; vmUserImages[idx].progress = 100; }, 1500); return; }
+			if (vmUserImages[idx].progress >= 100) {
+				vmUserImages[idx].status = 'processing';
+				clearInterval(tick);
+				setTimeout(() => {
+					vmUserImages[idx].status = 'ready';
+					vmUserImages[idx].progress = 100;
+				}, 1500);
+				return;
+			}
 			vmUserImages[idx].progress += Math.floor(Math.random() * 15 + 5);
 			if (vmUserImages[idx].progress > 100) vmUserImages[idx].progress = 100;
 		}, 400);
 	}
-	function deleteVmImage(id: string) { vmUserImages = vmUserImages.filter((i) => i.id !== id); }
-
-	// Create VM
-	let createVmOpen = $state(false);
-	let createVmName = $state('');
-	let createVmType = $state('');
-	let createVmImage = $state('');
-	let createVmSshKeys = $state<string[]>([]);
-	let creatingVm = $state(false);
-	let createVmError = $state('');
-
-	// VM types + images loaded from DB
-	type VmType = { id: string; name: string; cores: number; ramCapacity: number; storageAmount: number; rate: string; cap: string };
-	type DbImage = { id: string; name: string; version: string; shortName: string; color: string; icon: string | null; filePath: string; description: string };
-	let vmTypes = $state<VmType[]>([]);
-	let dbImages = $state<DbImage[]>([]);
-
-	async function loadVmTypes() {
-		try { vmTypes = await listVmTypes({}); } catch {}
-	}
-	async function loadDbImages() {
-		try { dbImages = await listImages({}); } catch {}
-	}
-
-	onMount(() => { loadVmTypes(); loadDbImages(); });
-
-	function openCreateVm() {
-		createVmName = '';
-		createVmType = vmTypes[0]?.id ?? '';
-		createVmImage = dbImages[0]?.filePath ?? '';
-		createVmSshKeys = [];
-		createVmError = '';
-		createVmOpen = true;
-	}
-
-	async function doCreateVm() {
-		const projectId = data.projects?.[0]?.id;
-		if (!projectId || !createVmName.trim() || !createVmType) {
-			createVmError = !createVmType ? 'Select a VM type (create one in Admin first)' : 'Enter a server name';
-			return;
-		}
-		creatingVm = true;
-		createVmError = '';
-		try {
-			await createVm({
-				projectId,
-				vmTypeId: createVmType,
-				name: createVmName.trim(),
-				imageId: createVmImage || undefined,
-				sshKeyIds: createVmSshKeys.length ? createVmSshKeys : undefined
-			});
-			createVmOpen = false;
-			// Reload immediately — VM will appear as "provisioning" and auto-poll
-			await loadVms();
-		} catch (err) {
-			createVmError = err instanceof Error ? err.message : 'Failed to create VM';
-		} finally {
-			creatingVm = false;
-		}
+	function deleteVmImage(id: string) {
+		vmUserImages = vmUserImages.filter((i) => i.id !== id);
 	}
 
 	const sevColors: Record<Severity, string> = {
@@ -691,7 +749,9 @@
 	$effect(() => {
 		filteredLogs();
 		if (logStreaming && logContainer) {
-			requestAnimationFrame(() => { logContainer!.scrollTop = logContainer!.scrollHeight; });
+			requestAnimationFrame(() => {
+				logContainer!.scrollTop = logContainer!.scrollHeight;
+			});
 		}
 	});
 </script>
@@ -703,7 +763,12 @@
 			<span class="text-sm font-semibold text-fyra-gray-100">Servers</span>
 			<Badge variant="secondary" class="ml-2 text-[10px]">{servers.length}</Badge>
 		</div>
-		<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-fyra-gray-400 hover:text-fyra-gray-100" onclick={openCreateVm}>
+		<Button
+			variant="ghost"
+			size="sm"
+			class="h-6 w-6 p-0 text-fyra-gray-400 hover:text-fyra-gray-100"
+			onclick={() => goto('/servers/create')}
+		>
 			<Plus class="h-3.5 w-3.5" />
 		</Button>
 	</div>
@@ -746,7 +811,12 @@
 			<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
 				<HardDrive class="mb-3 h-6 w-6" />
 				<p class="text-xs">No servers</p>
-				<Button variant="outline" size="sm" class="mt-3 gap-1.5 text-xs" onclick={openCreateVm}>
+				<Button
+					variant="outline"
+					size="sm"
+					class="mt-3 gap-1.5 text-xs"
+					onclick={() => goto('/servers/create')}
+				>
 					<Plus class="h-3 w-3" />
 					Create Server
 				</Button>
@@ -759,9 +829,7 @@
 <div class="flex flex-1 flex-col overflow-hidden">
 	{#if servers.length > 0}
 		<!-- Server header with power actions -->
-		<div
-			class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4"
-		>
+		<div class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
 			<div class="flex items-center gap-2">
 				<span class="text-sm font-medium text-fyra-gray-200">{selectedServer.name}</span>
 				<Badge
@@ -808,8 +876,7 @@
 					variant="outline"
 					size="sm"
 					class="h-7 gap-1.5 border-fyra-red-700 px-3 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
-					disabled={selectedServer.status === 'stopped' ||
-						selectedServer.status === 'provisioning'}
+					disabled={selectedServer.status === 'stopped' || selectedServer.status === 'provisioning'}
 					onclick={() => setStatus('stopped')}
 				>
 					<PowerOff class="h-3 w-3" />
@@ -846,16 +913,16 @@
 					{#each charts as chart (chart.label)}
 						<div class="relative flex flex-col">
 							<div class="flex items-baseline justify-between px-4 pt-3 pb-1">
-								<span class="relative z-10 text-xs font-medium text-fyra-gray-400">{chart.label}</span>
-								<span class="relative z-10 text-xs font-semibold text-fyra-gray-200">{chart.value}</span>
+								<span class="relative z-10 text-xs font-medium text-fyra-gray-400"
+									>{chart.label}</span
+								>
+								<span class="relative z-10 text-xs font-semibold text-fyra-gray-200"
+									>{chart.value}</span
+								>
 							</div>
 							<div>
 								<svg viewBox="0 0 240 80" class="block h-28 w-full" preserveAspectRatio="none">
-									<polygon
-										points="{chart.points} 240,80 0,80"
-										fill={chart.color}
-										opacity="0.08"
-									/>
+									<polygon points="{chart.points} 240,80 0,80" fill={chart.color} opacity="0.08" />
 									<polyline
 										points={chart.points}
 										fill="none"
@@ -872,22 +939,17 @@
 				</div>
 
 				<!-- Info grid + Terminal -->
-				<div class="grid shrink-0 grid-cols-5 divide-x divide-fyra-gray-800 border-b border-fyra-gray-800">
+				<div
+					class="grid shrink-0 grid-cols-5 divide-x divide-fyra-gray-800 border-b border-fyra-gray-800"
+				>
 					<!-- Server info -->
 					<div class="col-span-2 divide-y divide-fyra-gray-800/50">
 						<div class="px-5 py-3">
-							<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500">Server Details</span>
+							<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+								>Server Details</span
+							>
 						</div>
-						{#each [
-							['Plan', selectedServer.plan],
-							['OS', selectedServer.os],
-							['Region', selectedServer.region],
-							['vCPU', `${selectedServer.vcpu} cores`],
-							['RAM', selectedServer.ram],
-							['Disk', selectedServer.disk],
-							['Created', selectedServer.created],
-							['Uptime', selectedServer.uptime]
-						] as [label, value]}
+						{#each [['Plan', selectedServer.plan], ['OS', selectedServer.os], ['Region', selectedServer.region], ['vCPU', `${selectedServer.vcpu} cores`], ['RAM', selectedServer.ram], ['Disk', selectedServer.disk], ['Created', selectedServer.created], ['Uptime', selectedServer.uptime]] as [label, value]}
 							<div class="flex items-center justify-between px-5 py-2">
 								<span class="text-xs text-fyra-gray-500">{label}</span>
 								<span class="text-xs font-medium text-fyra-gray-200">{value}</span>
@@ -897,8 +959,13 @@
 							<span class="text-xs text-fyra-gray-500">IPv4</span>
 							<div class="flex items-center gap-1.5">
 								<span class="font-mono text-xs text-fyra-gray-200">{selectedServer.ip}</span>
-								<button class="text-fyra-gray-500 hover:text-fyra-gray-300" onclick={() => copyToClipboard(selectedServer.ip, 'ipv4')}>
-									{#if copied === 'ipv4'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy class="h-3 w-3" />{/if}
+								<button
+									class="text-fyra-gray-500 hover:text-fyra-gray-300"
+									onclick={() => copyToClipboard(selectedServer.ip, 'ipv4')}
+								>
+									{#if copied === 'ipv4'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy
+											class="h-3 w-3"
+										/>{/if}
 								</button>
 							</div>
 						</div>
@@ -906,8 +973,13 @@
 							<span class="text-xs text-fyra-gray-500">IPv6</span>
 							<div class="flex items-center gap-1.5">
 								<span class="font-mono text-[11px] text-fyra-gray-200">{selectedServer.ipv6}</span>
-								<button class="text-fyra-gray-500 hover:text-fyra-gray-300" onclick={() => copyToClipboard(selectedServer.ipv6, 'ipv6')}>
-									{#if copied === 'ipv6'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy class="h-3 w-3" />{/if}
+								<button
+									class="text-fyra-gray-500 hover:text-fyra-gray-300"
+									onclick={() => copyToClipboard(selectedServer.ipv6, 'ipv6')}
+								>
+									{#if copied === 'ipv6'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy
+											class="h-3 w-3"
+										/>{/if}
 								</button>
 							</div>
 						</div>
@@ -919,21 +991,31 @@
 							<Terminal class="h-3 w-3 text-fyra-gray-500" />
 							<span class="text-xs font-semibold text-fyra-gray-400">Console</span>
 						</div>
-						<div class="min-h-[180px] flex-1 bg-fyra-gray-950 p-4 font-mono text-sm leading-relaxed text-fyra-gray-300">
+						<div
+							class="min-h-[180px] flex-1 bg-fyra-gray-950 p-4 font-mono text-sm leading-relaxed text-fyra-gray-300"
+						>
 							{#if selectedServer.status === 'running'}
 								{#each terminalLines as line}
 									{#if line.type === 'prompt'}
-										<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> {line.text}</div>
+										<div>
+											<span class="text-fyra-gray-500">user@{selectedServer.name}~:</span>
+											{line.text}
+										</div>
 									{:else if line.type === 'output'}
 										<div class="text-fyra-gray-400">{line.text}</div>
 									{:else}
-										<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> <span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span></div>
+										<div>
+											<span class="text-fyra-gray-500">user@{selectedServer.name}~:</span>
+											<span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span>
+										</div>
 									{/if}
 								{/each}
 							{:else if selectedServer.status === 'restarting'}
 								<div class="text-amber-500">Restarting server...</div>
 							{:else}
-								<div class="text-fyra-gray-600">Server is offline. Start the server to connect.</div>
+								<div class="text-fyra-gray-600">
+									Server is offline. Start the server to connect.
+								</div>
 							{/if}
 						</div>
 					</div>
@@ -941,7 +1023,9 @@
 
 				<!-- Logs panel -->
 				<div class="flex min-h-0 flex-1 flex-col">
-					<div class="flex h-8 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
+					<div
+						class="flex h-8 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4"
+					>
 						<div class="flex items-center gap-2">
 							<FileText class="h-3 w-3 text-fyra-gray-500" />
 							<span class="text-xs font-semibold text-fyra-gray-400">Logs</span>
@@ -949,27 +1033,55 @@
 								<span class="text-[9px] text-fyra-gray-500">
 									{filteredLogs().length}/{currentLogs.length}
 								</span>
-								<button class="text-[9px] text-fyra-red-400 hover:text-fyra-red-300" onclick={clearLogFilters}>clear</button>
+								<button
+									class="text-[9px] text-fyra-red-400 hover:text-fyra-red-300"
+									onclick={clearLogFilters}>clear</button
+								>
 							{/if}
 						</div>
 						<div class="flex items-center gap-1">
-							<Button variant="ghost" size="sm" class="h-6 w-6 p-0" onclick={() => (logStreaming = !logStreaming)}>
-								{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play class="h-2.5 w-2.5" />{/if}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="h-6 w-6 p-0"
+								onclick={() => (logStreaming = !logStreaming)}
+							>
+								{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play
+										class="h-2.5 w-2.5"
+									/>{/if}
 							</Button>
-							<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-fyra-red-400" onclick={() => { serverLogs[selectedServerId] = []; }}>
+							<Button
+								variant="ghost"
+								size="sm"
+								class="h-6 w-6 p-0 text-fyra-red-400"
+								onclick={() => {
+									serverLogs[selectedServerId] = [];
+								}}
+							>
 								<Trash2 class="h-2.5 w-2.5" />
 							</Button>
 						</div>
 					</div>
-					<div class="flex-1 overflow-auto bg-fyra-gray-950 font-mono text-[11px] leading-relaxed" bind:this={logContainer}>
+					<div
+						class="flex-1 overflow-auto bg-fyra-gray-950 font-mono text-[11px] leading-relaxed"
+						bind:this={logContainer}
+					>
 						{#if selectedServer.status !== 'running'}
 							<div class="flex h-full flex-col items-center justify-center gap-3">
 								<AlertTriangle class="h-8 w-8 text-amber-500/60" />
 								<div class="text-center">
 									<p class="text-sm font-medium text-fyra-gray-300">Server not running</p>
-									<p class="mt-1 text-xs text-fyra-gray-500">Start the server to connect to the guest agent.</p>
+									<p class="mt-1 text-xs text-fyra-gray-500">
+										Start the server to connect to the guest agent.
+									</p>
 								</div>
-								<Button variant="outline" size="sm" class="mt-1 gap-1.5 text-xs" onclick={() => setStatus('running')} disabled={selectedServer.status === 'restarting'}>
+								<Button
+									variant="outline"
+									size="sm"
+									class="mt-1 gap-1.5 text-xs"
+									onclick={() => setStatus('running')}
+									disabled={selectedServer.status === 'restarting'}
+								>
 									<Play class="h-3 w-3" />
 									Start Server
 								</Button>
@@ -979,38 +1091,69 @@
 								<AlertTriangle class="h-8 w-8 text-fyra-red-400/60" />
 								<div class="text-center">
 									<p class="text-sm font-medium text-fyra-gray-300">Guest agent unreachable</p>
-									<p class="mt-1 max-w-xs text-xs text-fyra-gray-500">The server is running but the guest agent is not responding. Ensure the agent is installed and the network is configured.</p>
+									<p class="mt-1 max-w-xs text-xs text-fyra-gray-500">
+										The server is running but the guest agent is not responding. Ensure the agent is
+										installed and the network is configured.
+									</p>
 								</div>
 							</div>
 						{:else}
 							{#each filteredLogs() as entry (entry.id)}
-								<div class="flex items-baseline gap-0 px-4 py-px leading-[1.6] hover:bg-fyra-gray-800/20">
+								<div
+									class="flex items-baseline gap-0 px-4 py-px leading-[1.6] hover:bg-fyra-gray-800/20"
+								>
 									<span class="w-[148px] shrink-0 text-fyra-gray-600">{entry.timestamp}</span>
-									<button class="w-[42px] shrink-0 text-left font-semibold uppercase {sevColors[entry.severity]} {logSevFilter === entry.severity ? 'underline' : ''}" onclick={() => (logSevFilter = logSevFilter === entry.severity ? null : entry.severity)}>{entry.severity.slice(0, 4)}</button>
-									<button class="w-[72px] shrink-0 text-left text-fyra-gray-500 hover:text-fyra-gray-300 {logSourceFilter === entry.source ? 'text-fyra-gray-200' : ''}" onclick={() => (logSourceFilter = logSourceFilter === entry.source ? null : entry.source)}>{entry.source}</button>
+									<button
+										class="w-[42px] shrink-0 text-left font-semibold uppercase {sevColors[
+											entry.severity
+										]} {logSevFilter === entry.severity ? 'underline' : ''}"
+										onclick={() =>
+											(logSevFilter = logSevFilter === entry.severity ? null : entry.severity)}
+										>{entry.severity.slice(0, 4)}</button
+									>
+									<button
+										class="w-[72px] shrink-0 text-left text-fyra-gray-500 hover:text-fyra-gray-300 {logSourceFilter ===
+										entry.source
+											? 'text-fyra-gray-200'
+											: ''}"
+										onclick={() =>
+											(logSourceFilter = logSourceFilter === entry.source ? null : entry.source)}
+										>{entry.source}</button
+									>
 									<span class="text-fyra-gray-300">{entry.message}</span>
 								</div>
 							{/each}
 							{#if filteredLogs().length === 0 && currentLogs.length > 0}
-								<div class="flex items-center justify-center py-8 text-xs text-fyra-gray-600">No logs match filter</div>
+								<div class="flex items-center justify-center py-8 text-xs text-fyra-gray-600">
+									No logs match filter
+								</div>
 							{:else if currentLogs.length === 0}
-								<div class="flex items-center justify-center py-8 text-xs text-fyra-gray-600">No logs yet</div>
+								<div class="flex items-center justify-center py-8 text-xs text-fyra-gray-600">
+									No logs yet
+								</div>
 							{/if}
 						{/if}
 					</div>
 				</div>
-
 			{:else if activeTab === 'console'}
 				<!-- Full Console tab -->
-				<div class="min-h-0 flex-1 overflow-auto bg-fyra-gray-950 p-5 font-mono text-sm leading-relaxed text-fyra-gray-300">
+				<div
+					class="min-h-0 flex-1 overflow-auto bg-fyra-gray-950 p-5 font-mono text-sm leading-relaxed text-fyra-gray-300"
+				>
 					{#if selectedServer.status === 'running'}
 						{#each terminalLines as line}
 							{#if line.type === 'prompt'}
-								<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> {line.text}</div>
+								<div>
+									<span class="text-fyra-gray-500">user@{selectedServer.name}~:</span>
+									{line.text}
+								</div>
 							{:else if line.type === 'output'}
 								<div class="text-fyra-gray-400">{line.text}</div>
 							{:else}
-								<div><span class="text-fyra-gray-500">user@{selectedServer.name}~:</span> <span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span></div>
+								<div>
+									<span class="text-fyra-gray-500">user@{selectedServer.name}~:</span>
+									<span class="inline-block h-4 w-1.5 animate-pulse bg-fyra-gray-400"></span>
+								</div>
 							{/if}
 						{/each}
 					{:else if selectedServer.status === 'restarting'}
@@ -1019,17 +1162,23 @@
 						<div class="text-fyra-gray-600">Server is offline. Start the server to connect.</div>
 					{/if}
 				</div>
-
 			{:else if activeTab === 'logs'}
 				<!-- Full Logs tab -->
-				<div class="flex h-8 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
+				<div
+					class="flex h-8 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4"
+				>
 					<div class="flex items-center gap-2">
 						<span class="text-xs font-medium text-fyra-gray-300">{selectedServer.name}</span>
 						{#if hasLogFilters}
-							<span class="text-[9px] text-fyra-gray-500">{filteredLogs().length}/{currentLogs.length}</span>
+							<span class="text-[9px] text-fyra-gray-500"
+								>{filteredLogs().length}/{currentLogs.length}</span
+							>
 							{#if logSevFilter}
 								<button onclick={() => (logSevFilter = null)}>
-									<Badge variant="outline" class="cursor-pointer gap-1 text-[8px] {sevColors[logSevFilter]}">
+									<Badge
+										variant="outline"
+										class="cursor-pointer gap-1 text-[8px] {sevColors[logSevFilter]}"
+									>
 										{logSevFilter.toUpperCase()}
 										<X class="h-2 w-2" />
 									</Badge>
@@ -1047,33 +1196,63 @@
 					</div>
 					<div class="flex items-center gap-1.5">
 						<div class="relative">
-							<Search class="pointer-events-none absolute left-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-fyra-gray-500" />
+							<Search
+								class="pointer-events-none absolute top-1/2 left-2 h-2.5 w-2.5 -translate-y-1/2 text-fyra-gray-500"
+							/>
 							<input
 								bind:value={logSearch}
 								placeholder="Search..."
-								class="h-6 w-36 border border-fyra-gray-700 bg-fyra-gray-800 pl-6 pr-2 text-[11px] text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+								class="h-6 w-36 border border-fyra-gray-700 bg-fyra-gray-800 pr-2 pl-6 text-[11px] text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
 							/>
 						</div>
 						{#if hasLogFilters}
-							<button class="text-[9px] text-fyra-red-400 hover:text-fyra-red-300" onclick={clearLogFilters}>Clear</button>
+							<button
+								class="text-[9px] text-fyra-red-400 hover:text-fyra-red-300"
+								onclick={clearLogFilters}>Clear</button
+							>
 						{/if}
-						<Button variant="ghost" size="sm" class="h-6 w-6 p-0" onclick={() => (logStreaming = !logStreaming)}>
-							{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play class="h-2.5 w-2.5" />{/if}
+						<Button
+							variant="ghost"
+							size="sm"
+							class="h-6 w-6 p-0"
+							onclick={() => (logStreaming = !logStreaming)}
+						>
+							{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play
+									class="h-2.5 w-2.5"
+								/>{/if}
 						</Button>
-						<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-fyra-red-400" onclick={() => { serverLogs[selectedServerId] = []; }}>
+						<Button
+							variant="ghost"
+							size="sm"
+							class="h-6 w-6 p-0 text-fyra-red-400"
+							onclick={() => {
+								serverLogs[selectedServerId] = [];
+							}}
+						>
 							<Trash2 class="h-2.5 w-2.5" />
 						</Button>
 					</div>
 				</div>
-				<div class="min-h-0 flex-1 overflow-auto bg-fyra-gray-950 font-mono text-[11px] leading-relaxed" bind:this={logContainer}>
+				<div
+					class="min-h-0 flex-1 overflow-auto bg-fyra-gray-950 font-mono text-[11px] leading-relaxed"
+					bind:this={logContainer}
+				>
 					{#if selectedServer.status !== 'running'}
 						<div class="flex h-full flex-col items-center justify-center gap-3">
 							<AlertTriangle class="h-10 w-10 text-amber-500/60" />
 							<div class="text-center">
 								<p class="text-base font-medium text-fyra-gray-200">Server not running</p>
-								<p class="mt-1 text-xs text-fyra-gray-500">Start the server to connect to the guest agent and stream logs.</p>
+								<p class="mt-1 text-xs text-fyra-gray-500">
+									Start the server to connect to the guest agent and stream logs.
+								</p>
 							</div>
-							<Button variant="outline" size="sm" class="mt-2 gap-1.5 text-xs" onclick={() => setStatus('running')} disabled={selectedServer.status === 'restarting'}>
+							<Button
+								variant="outline"
+								size="sm"
+								class="mt-2 gap-1.5 text-xs"
+								onclick={() => setStatus('running')}
+								disabled={selectedServer.status === 'restarting'}
+							>
 								<Play class="h-3 w-3" />
 								Start Server
 							</Button>
@@ -1083,655 +1262,852 @@
 							<AlertTriangle class="h-10 w-10 text-fyra-red-400/60" />
 							<div class="text-center">
 								<p class="text-base font-medium text-fyra-gray-200">Guest agent unreachable</p>
-								<p class="mt-1 max-w-sm text-xs text-fyra-gray-500">The server is running but the guest agent is not responding. Ensure the agent is installed and the network is configured correctly.</p>
+								<p class="mt-1 max-w-sm text-xs text-fyra-gray-500">
+									The server is running but the guest agent is not responding. Ensure the agent is
+									installed and the network is configured correctly.
+								</p>
 							</div>
 						</div>
 					{:else}
 						{#each filteredLogs() as entry (entry.id)}
-							<div class="flex items-baseline gap-0 px-4 py-px leading-[1.6] hover:bg-fyra-gray-800/20">
+							<div
+								class="flex items-baseline gap-0 px-4 py-px leading-[1.6] hover:bg-fyra-gray-800/20"
+							>
 								<span class="w-[148px] shrink-0 text-fyra-gray-600">{entry.timestamp}</span>
-								<button class="w-[42px] shrink-0 cursor-pointer text-left font-semibold uppercase {sevColors[entry.severity]} {logSevFilter === entry.severity ? 'underline' : ''}" onclick={() => (logSevFilter = logSevFilter === entry.severity ? null : entry.severity)}>{entry.severity.slice(0, 4)}</button>
-								<button class="w-[72px] shrink-0 cursor-pointer text-left text-fyra-gray-500 hover:text-fyra-gray-300 {logSourceFilter === entry.source ? 'text-fyra-gray-200' : ''}" onclick={() => (logSourceFilter = logSourceFilter === entry.source ? null : entry.source)}>{entry.source}</button>
+								<button
+									class="w-[42px] shrink-0 cursor-pointer text-left font-semibold uppercase {sevColors[
+										entry.severity
+									]} {logSevFilter === entry.severity ? 'underline' : ''}"
+									onclick={() =>
+										(logSevFilter = logSevFilter === entry.severity ? null : entry.severity)}
+									>{entry.severity.slice(0, 4)}</button
+								>
+								<button
+									class="w-[72px] shrink-0 cursor-pointer text-left text-fyra-gray-500 hover:text-fyra-gray-300 {logSourceFilter ===
+									entry.source
+										? 'text-fyra-gray-200'
+										: ''}"
+									onclick={() =>
+										(logSourceFilter = logSourceFilter === entry.source ? null : entry.source)}
+									>{entry.source}</button
+								>
 								<span class="text-fyra-gray-300">{entry.message}</span>
 							</div>
 						{/each}
 						{#if filteredLogs().length === 0 && currentLogs.length > 0}
-							<div class="flex items-center justify-center py-16 text-xs text-fyra-gray-600">No logs match filter</div>
+							<div class="flex items-center justify-center py-16 text-xs text-fyra-gray-600">
+								No logs match filter
+							</div>
 						{:else if currentLogs.length === 0}
-							<div class="flex items-center justify-center py-16 text-xs text-fyra-gray-600">No logs yet</div>
+							<div class="flex items-center justify-center py-16 text-xs text-fyra-gray-600">
+								No logs yet
+							</div>
 						{/if}
 					{/if}
 				</div>
-
 			{:else}
-			<div class="flex-1 overflow-auto">
-			{#if activeTab === 'networking'}
-				<div class="divide-y divide-fyra-gray-800/50">
-					<div class="px-5 py-3">
-						<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500">Public Network</span>
-					</div>
-					<!-- IPv4 -->
-					<div class="px-5 py-3">
-						<div class="flex items-center justify-between">
-							<div>
-								<p class="text-sm font-medium text-fyra-gray-100">IPv4 Address</p>
-								<p class="mt-0.5 font-mono text-xs text-fyra-gray-400">{selectedServer.ip}</p>
+				<div class="flex-1 overflow-auto">
+					{#if activeTab === 'networking'}
+						<div class="divide-y divide-fyra-gray-800/50">
+							<div class="px-5 py-3">
+								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									>Public Network</span
+								>
 							</div>
-							<button class="text-fyra-gray-500 hover:text-fyra-gray-300" onclick={() => copyToClipboard(selectedServer.ip, 'net-ipv4')}>
-								{#if copied === 'net-ipv4'}<Check class="h-3.5 w-3.5 text-emerald-500" />{:else}<Copy class="h-3.5 w-3.5" />{/if}
-							</button>
-						</div>
-						<div class="mt-2 flex items-center justify-between">
-							<span class="text-xs text-fyra-gray-500">Reverse DNS</span>
-							{#if editingRdnsKey === 'ipv4'}
-								<div class="flex items-center gap-1.5">
-									<Input bind:value={rdnsValue} class="h-7 w-56 text-xs" placeholder="hostname.example.com" />
-									<Button variant="ghost" size="sm" class="h-7 w-7 p-0 text-emerald-500" onclick={saveIpv4Rdns}><Check class="h-3 w-3" /></Button>
-									<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={() => (editingRdnsKey = null)}><X class="h-3 w-3" /></Button>
-								</div>
-							{:else}
-								<div class="flex items-center gap-1.5">
-									<span class="font-mono text-xs text-fyra-gray-300">{ipv4Rdns[selectedServerId] || '—'}</span>
-									<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={() => startRdnsEdit('ipv4', ipv4Rdns[selectedServerId] ?? '')}><Pencil class="h-3 w-3" /></Button>
-								</div>
-							{/if}
-						</div>
-					</div>
-					<!-- IPv6 Subnet -->
-					<div class="px-5 py-3">
-						<div class="flex items-center justify-between">
-							<div>
-								<p class="text-sm font-medium text-fyra-gray-100">IPv6 Subnet</p>
-								<p class="mt-0.5 font-mono text-xs text-fyra-gray-400">{selectedServer.ipv6}</p>
-							</div>
-							<Button variant="outline" size="sm" class="h-7 gap-1.5 px-3 text-xs" onclick={() => {
-								const prefix = selectedServer.ipv6.replace('::/64', '');
-								newIpv6Addr = prefix + '::';
-								newIpv6Rdns = '';
-								addIpv6Open = true;
-							}}>
-								<Plus class="h-3 w-3" />
-								Add Address
-							</Button>
-						</div>
-					</div>
-					<!-- IPv6 per-IP entries -->
-					{#each ipv6Entries[selectedServerId] ?? [] as entry, idx (entry.ip)}
-						<div class="flex items-center justify-between px-5 py-2.5">
-							<div class="flex items-center gap-3">
-								<span class="font-mono text-xs text-fyra-gray-200">{entry.ip}</span>
-								{#if editingRdnsKey === `ipv6-${idx}`}
-									<div class="flex items-center gap-1.5">
-										<Input bind:value={rdnsValue} class="h-7 w-48 text-xs" placeholder="hostname" />
-										<Button variant="ghost" size="sm" class="h-7 w-7 p-0 text-emerald-500" onclick={() => saveIpv6Rdns(idx)}><Check class="h-3 w-3" /></Button>
-										<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={() => (editingRdnsKey = null)}><X class="h-3 w-3" /></Button>
+							<!-- IPv4 -->
+							<div class="px-5 py-3">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm font-medium text-fyra-gray-100">IPv4 Address</p>
+										<p class="mt-0.5 font-mono text-xs text-fyra-gray-400">{selectedServer.ip}</p>
 									</div>
-								{:else}
-									<span class="font-mono text-xs text-fyra-gray-500">{entry.rdns || '—'}</span>
-								{/if}
-							</div>
-							{#if editingRdnsKey !== `ipv6-${idx}`}
-								<div class="flex items-center gap-1">
-									<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={() => startRdnsEdit(`ipv6-${idx}`, entry.rdns)}><Pencil class="h-3 w-3" /></Button>
-									<Button variant="ghost" size="sm" class="h-7 w-7 p-0 text-fyra-red-400 hover:text-fyra-red-300" onclick={() => deleteIpv6Entry(idx)}><Trash2 class="h-3 w-3" /></Button>
-								</div>
-							{/if}
-						</div>
-					{/each}
-					{#if (ipv6Entries[selectedServerId] ?? []).length === 0}
-						<div class="px-5 py-3 text-xs text-fyra-gray-500">No IPv6 addresses configured. Add one from the subnet above.</div>
-					{/if}
-					<div class="px-5 py-3">
-						<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500">Firewall</span>
-					</div>
-					<div class="flex items-center justify-between px-5 py-3">
-						<div>
-							<p class="text-sm font-medium text-fyra-gray-100">web-servers</p>
-							<p class="mt-0.5 text-xs text-fyra-gray-400">3 inbound, 1 outbound rules</p>
-						</div>
-						<Badge variant="outline" class="border-emerald-800 bg-emerald-950/40 text-[10px] text-emerald-400">Active</Badge>
-					</div>
-					<div class="px-5 py-3">
-						<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500">Private Network</span>
-					</div>
-					<div class="flex items-center justify-between px-5 py-3">
-						<div>
-							<p class="text-sm font-medium text-fyra-gray-100">internal-net</p>
-							<p class="mt-0.5 font-mono text-xs text-fyra-gray-400">10.132.0.0/16</p>
-						</div>
-						<Badge variant="outline" class="border-emerald-800 bg-emerald-950/40 text-[10px] text-emerald-400">Connected</Badge>
-					</div>
-				</div>
-
-			{:else if activeTab === 'images'}
-				<div class="flex flex-1 flex-col overflow-hidden">
-					<!-- Mounted image banner -->
-					{#if mountedImage}
-						<div class="flex items-center justify-between border-b border-fyra-gray-800 bg-fyra-gray-800/20 px-5 py-2.5">
-							<div class="flex items-center gap-2">
-								<Disc class="h-3 w-3 text-fyra-red-400" />
-								<span class="text-xs font-medium text-fyra-gray-200">Mounted: {mountedImage}</span>
-							</div>
-							<Button variant="ghost" size="sm" class="h-7 px-2 text-xs" onclick={unmountImage}>Unmount</Button>
-						</div>
-					{/if}
-
-					<!-- Rebuild confirmation -->
-					{#if rebuildFromImage}
-						<div class="border-b border-fyra-gray-800 bg-fyra-red-950/10 px-5 py-3">
-							<h3 class="text-sm font-semibold text-fyra-gray-100">Rebuild from {rebuildFromImage.name} {rebuildFromImage.version}</h3>
-							<p class="mt-1 text-xs text-fyra-gray-400">This will wipe all data and reinstall from this image. Type the server name to confirm.</p>
-							<div class="mt-3 flex items-center gap-2">
-								<Input bind:value={rebuildImageConfirm} placeholder={selectedServer.id} class="h-8 w-56 font-mono text-xs" />
-								<Button variant="outline" size="sm" class="gap-1.5 border-fyra-red-700 px-3 text-xs text-fyra-red-400 hover:bg-fyra-red-950" disabled={rebuildImageConfirm !== selectedServer.id || rebuildingFromImage} onclick={doRebuildFromImage}>
-									{#if rebuildingFromImage}<RotateCw class="h-3 w-3 animate-spin" /> Rebuilding...{:else}Rebuild{/if}
-								</Button>
-								<Button variant="ghost" size="sm" class="h-8 px-2 text-xs" onclick={() => (rebuildFromImage = null)}>Cancel</Button>
-							</div>
-						</div>
-					{/if}
-
-					<!-- Search + Upload -->
-					<div class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5">
-						<div class="relative">
-							<Search class="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-fyra-gray-500" />
-							<input bind:value={imgSearch} placeholder="Search images..." class="h-7 w-44 border border-fyra-gray-700 bg-fyra-gray-800 pl-7 pr-2 text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none" />
-						</div>
-						<Button variant="outline" size="sm" class="h-7 gap-1.5 px-3 text-xs" onclick={() => { imgUploadOpen = true; imgUploadMethod = 'file'; imgUploadFile = ''; imgUploadUrl = ''; imgUploadName = ''; imgUploadDetectedType = null; }}>
-							<Upload class="h-3 w-3" /> Upload Image
-						</Button>
-					</div>
-
-					<div class="flex-1 overflow-auto">
-						<!-- Official Images -->
-						<div class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5">
-							<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500">Official Images</span>
-							{#if imgTotalPages > 1}
-								<div class="flex items-center gap-1.5">
-									<button class="flex h-6 w-6 items-center justify-center text-fyra-gray-500 hover:text-fyra-gray-300 disabled:opacity-30" disabled={imgPage === 0} onclick={() => imgPage--}>
-										<ChevronLeft class="h-3.5 w-3.5" />
-									</button>
-									<span class="text-[10px] text-fyra-gray-500">{imgPage + 1}/{imgTotalPages}</span>
-									<button class="flex h-6 w-6 items-center justify-center text-fyra-gray-500 hover:text-fyra-gray-300 disabled:opacity-30" disabled={imgPage >= imgTotalPages - 1} onclick={() => imgPage++}>
-										<ChevronRight class="h-3.5 w-3.5" />
+									<button
+										class="text-fyra-gray-500 hover:text-fyra-gray-300"
+										onclick={() => copyToClipboard(selectedServer.ip, 'net-ipv4')}
+									>
+										{#if copied === 'net-ipv4'}<Check
+												class="h-3.5 w-3.5 text-emerald-500"
+											/>{:else}<Copy class="h-3.5 w-3.5" />{/if}
 									</button>
 								</div>
-							{/if}
-						</div>
-
-						<div class="border-b border-fyra-gray-800">
-							<div class="grid grid-cols-2 gap-px bg-fyra-gray-900">
-								{#each pagedOfficialImages() as img (img.id)}
-									<button class="relative flex gap-3 overflow-hidden bg-fyra-gray-900 p-4 text-left transition-colors hover:bg-fyra-gray-800/40" onclick={() => openImageDetail(img)}>
-										<div class="pointer-events-none absolute inset-0 opacity-[0.05]" style="background: linear-gradient(135deg, {img.iconColor} 0%, transparent 60%)"></div>
-										<div class="relative shrink-0">
-											{#if img.icon}
-												<svg viewBox="0 0 24 24" class="h-10 w-10" fill="var(--fyra-gray-300)"><path d={img.icon} /></svg>
-											{:else}
-												<span class="flex h-10 w-10 items-center justify-center text-lg font-bold text-fyra-gray-300">{img.shortName}</span>
-											{/if}
-										</div>
-										<div class="relative flex min-w-0 flex-1 flex-col">
-											<div class="flex items-center gap-1.5">
-												<span class="text-sm font-semibold text-fyra-gray-50">{img.name}</span>
-												{#if img.paid}
-													<Badge variant="outline" class="border-fyra-red-700 bg-fyra-red-950/40 text-[8px] text-fyra-red-400">
-														<DollarSign class="mr-0.5 h-2 w-2" /> {img.price}
-													</Badge>
-												{/if}
-											</div>
-											<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-fyra-gray-500">{img.description}</p>
-											<p class="mt-auto pt-1.5 text-[10px] leading-none text-fyra-gray-600">
-												{img.versions[0].archs.join('  ')} | {img.versions.length} version{img.versions.length > 1 ? 's' : ''}
-											</p>
-										</div>
-									</button>
-								{/each}
-							</div>
-							{#if filteredOfficialImages().length === 0 && imgSearch.trim()}
-								<div class="px-5 py-6 text-center text-xs text-fyra-gray-500">No official images match "{imgSearch}"</div>
-							{/if}
-						</div>
-
-						<!-- User Images -->
-						<div class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5">
-							<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500">Your Images ({vmUserImages.length})</span>
-						</div>
-						{#if filteredVmUserImages().length > 0}
-							<div class="divide-y divide-fyra-gray-800/20">
-								{#each filteredVmUserImages() as img (img.id)}
-									<div class="flex items-center justify-between px-5 py-3 transition-colors hover:bg-fyra-gray-800/20">
-										<div class="flex items-center gap-2">
-											<Disc class="h-2.5 w-2.5 shrink-0 text-fyra-gray-600" />
-											<span class="text-xs text-fyra-gray-200">{img.name}</span>
-											<Badge variant="outline" class="text-[7px] {imageTypeColors[img.type]}">.{img.type}</Badge>
-											<span class="text-[10px] text-fyra-gray-600">{img.size}</span>
-										</div>
+								<div class="mt-2 flex items-center justify-between">
+									<span class="text-xs text-fyra-gray-500">Reverse DNS</span>
+									{#if editingRdnsKey === 'ipv4'}
 										<div class="flex items-center gap-1.5">
-											{#if img.status === 'ready'}
-												{#if mountedImage === img.name}
-													<Badge variant="outline" class="border-emerald-800 bg-emerald-950/40 text-[9px] text-emerald-400">Mounted</Badge>
-												{:else}
-													<Button variant="ghost" size="sm" class="h-6 px-2 text-[10px]" onclick={() => mountUserImage(img.name)}>Mount</Button>
-												{/if}
-												<Button variant="outline" size="sm" class="h-6 px-2 text-[10px]" onclick={() => startRebuild(img.name, '')}>Rebuild</Button>
-												<span class="text-[10px] text-fyra-gray-600">{img.uploaded}</span>
-											{:else if img.status === 'uploading'}
-												<div class="flex items-center gap-1">
-													<div class="h-0.5 w-12 bg-fyra-gray-800"><div class="h-full bg-fyra-red-500 transition-all" style="width: {img.progress}%"></div></div>
-													<span class="text-[9px] text-fyra-gray-500">{img.progress}%</span>
-												</div>
-											{:else}
-												<span class="text-[9px] text-amber-500">Processing</span>
-											{/if}
-											<Button variant="ghost" size="sm" class="h-5 w-5 p-0 text-fyra-gray-600 hover:text-fyra-red-400" onclick={() => deleteVmImage(img.id)} disabled={img.status !== 'ready'}>
-												<Trash2 class="h-2.5 w-2.5" />
-											</Button>
+											<Input
+												bind:value={rdnsValue}
+												class="h-7 w-56 text-xs"
+												placeholder="hostname.example.com"
+											/>
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-7 w-7 p-0 text-emerald-500"
+												onclick={saveIpv4Rdns}><Check class="h-3 w-3" /></Button
+											>
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-7 w-7 p-0"
+												onclick={() => (editingRdnsKey = null)}><X class="h-3 w-3" /></Button
+											>
 										</div>
+									{:else}
+										<div class="flex items-center gap-1.5">
+											<span class="font-mono text-xs text-fyra-gray-300"
+												>{ipv4Rdns[selectedServerId] || '—'}</span
+											>
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-7 w-7 p-0"
+												onclick={() => startRdnsEdit('ipv4', ipv4Rdns[selectedServerId] ?? '')}
+												><Pencil class="h-3 w-3" /></Button
+											>
+										</div>
+									{/if}
+								</div>
+							</div>
+							<!-- IPv6 Subnet -->
+							<div class="px-5 py-3">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm font-medium text-fyra-gray-100">IPv6 Subnet</p>
+										<p class="mt-0.5 font-mono text-xs text-fyra-gray-400">{selectedServer.ipv6}</p>
 									</div>
-								{/each}
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 gap-1.5 px-3 text-xs"
+										onclick={() => {
+											const prefix = selectedServer.ipv6.replace('::/64', '');
+											newIpv6Addr = prefix + '::';
+											newIpv6Rdns = '';
+											addIpv6Open = true;
+										}}
+									>
+										<Plus class="h-3 w-3" />
+										Add Address
+									</Button>
+								</div>
 							</div>
-						{:else if imgSearch.trim()}
-							<div class="px-5 py-3 text-center text-[10px] text-fyra-gray-600">No matches</div>
-						{:else}
-							<div class="flex items-center justify-center gap-1.5 py-3 text-fyra-gray-600">
-								<Upload class="h-3 w-3" />
-								<p class="text-[10px]">No uploaded images</p>
-							</div>
-						{/if}
-					</div>
-				</div>
-
-			{:else if activeTab === 'snapshots'}
-				<div>
-					<div class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-3">
-						<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500"
-							>Snapshots</span
-						>
-						<Button
-							variant="outline"
-							size="sm"
-							class="h-7 gap-1.5 px-3 text-xs"
-							onclick={() => (createSnapOpen = true)}
-						>
-							<Camera class="h-3 w-3" />
-							Take Snapshot
-						</Button>
-					</div>
-					<table class="w-full">
-						<thead>
-							<tr class="border-b border-fyra-gray-800/50">
-								<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
-									>Name</th
-								>
-								<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
-									>Size</th
-								>
-								<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
-									>Date</th
-								>
-								<th class="px-5 py-2.5 text-right text-xs font-medium text-fyra-gray-500"
-								></th>
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-fyra-gray-800/30">
-							{#each snapshots as snap (snap.id)}
-								<tr class="transition-colors duration-100 hover:bg-fyra-gray-800/20">
-									<td class="px-5 py-2.5">
-										<span class="text-sm font-medium text-fyra-gray-100">{snap.name}</span>
-										<span class="ml-2 text-xs text-fyra-gray-600">{snap.id}</span>
-									</td>
-									<td class="px-5 py-2.5 text-sm text-fyra-gray-300">{snap.size}</td>
-									<td class="px-5 py-2.5 text-sm text-fyra-gray-400">{snap.date}</td>
-									<td class="px-5 py-2.5 text-right">
-										<div class="flex items-center justify-end gap-1">
-											<Button variant="ghost" size="sm" class="h-7 gap-1.5 px-2 text-xs">
-												<Download class="h-3 w-3" />
-												Restore
-											</Button>
+							<!-- IPv6 per-IP entries -->
+							{#each ipv6Entries[selectedServerId] ?? [] as entry, idx (entry.ip)}
+								<div class="flex items-center justify-between px-5 py-2.5">
+									<div class="flex items-center gap-3">
+										<span class="font-mono text-xs text-fyra-gray-200">{entry.ip}</span>
+										{#if editingRdnsKey === `ipv6-${idx}`}
+											<div class="flex items-center gap-1.5">
+												<Input
+													bind:value={rdnsValue}
+													class="h-7 w-48 text-xs"
+													placeholder="hostname"
+												/>
+												<Button
+													variant="ghost"
+													size="sm"
+													class="h-7 w-7 p-0 text-emerald-500"
+													onclick={() => saveIpv6Rdns(idx)}><Check class="h-3 w-3" /></Button
+												>
+												<Button
+													variant="ghost"
+													size="sm"
+													class="h-7 w-7 p-0"
+													onclick={() => (editingRdnsKey = null)}><X class="h-3 w-3" /></Button
+												>
+											</div>
+										{:else}
+											<span class="font-mono text-xs text-fyra-gray-500">{entry.rdns || '—'}</span>
+										{/if}
+									</div>
+									{#if editingRdnsKey !== `ipv6-${idx}`}
+										<div class="flex items-center gap-1">
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-7 w-7 p-0"
+												onclick={() => startRdnsEdit(`ipv6-${idx}`, entry.rdns)}
+												><Pencil class="h-3 w-3" /></Button
+											>
 											<Button
 												variant="ghost"
 												size="sm"
 												class="h-7 w-7 p-0 text-fyra-red-400 hover:text-fyra-red-300"
-												onclick={() => deleteSnapshot(snap.id)}
+												onclick={() => deleteIpv6Entry(idx)}><Trash2 class="h-3 w-3" /></Button
 											>
-												<Trash2 class="h-3 w-3" />
-											</Button>
 										</div>
-									</td>
-								</tr>
+									{/if}
+								</div>
 							{/each}
-						</tbody>
-					</table>
-					{#if snapshots.length === 0}
-						<div
-							class="flex flex-col items-center justify-center py-16 text-fyra-gray-500"
-						>
-							<Camera class="mb-3 h-8 w-8" />
-							<p class="text-sm">No snapshots</p>
-							<p class="mt-1 text-xs text-fyra-gray-600">
-								Take a snapshot to save your server's current state.
-							</p>
-						</div>
-					{/if}
-				</div>
-
-			{:else if activeTab === 'backups'}
-				<div>
-					<div
-						class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-3"
-					>
-						<div class="flex items-center gap-2">
-							<span class="text-xs font-semibold uppercase tracking-wider text-fyra-gray-500"
-								>Automatic Backups</span
-							>
-							<Badge
-								variant="outline"
-								class="text-[10px] {selectedServer.backups
-									? 'border-emerald-800 bg-emerald-950/40 text-emerald-400'
-									: 'text-fyra-gray-500'}"
-							>
-								{selectedServer.backups ? 'Enabled' : 'Disabled'}
-							</Badge>
-						</div>
-						<Switch
-							checked={selectedServer.backups}
-							onCheckedChange={(v) => (servers[selectedServerIdx].backups = v)}
-							size="sm"
-						/>
-					</div>
-
-					{#if selectedServer.backups}
-						<div class="border-b border-fyra-gray-800/50 px-5 py-2.5">
-							<p class="text-xs text-fyra-gray-500">
-								Backups run daily at 03:00 UTC. Last 7 backups are retained. Cost: $1/mo
-								(20% of plan).
-							</p>
-						</div>
-						<table class="w-full">
-							<thead>
-								<tr class="border-b border-fyra-gray-800/50">
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
-										>Date</th
-									>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
-										>Size</th
-									>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
-										>Status</th
-									>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-fyra-gray-500"
-									></th>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-fyra-gray-800/30">
-								{#each backups as backup (backup.id)}
-									<tr class="transition-colors duration-100 hover:bg-fyra-gray-800/20">
-										<td class="px-5 py-2.5 text-sm text-fyra-gray-200">{backup.date}</td>
-										<td class="px-5 py-2.5 text-sm text-fyra-gray-300">{backup.size}</td>
-										<td class="px-5 py-2.5">
-											<Badge
-												variant="outline"
-												class="border-emerald-800 bg-emerald-950/40 text-[10px] text-emerald-400"
-												>{backup.status}</Badge
-											>
-										</td>
-										<td class="px-5 py-2.5 text-right">
-											<Button variant="ghost" size="sm" class="h-7 gap-1.5 px-2 text-xs">
-												<Download class="h-3 w-3" />
-												Restore
-											</Button>
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					{:else}
-						<div
-							class="flex flex-col items-center justify-center py-16 text-fyra-gray-500"
-						>
-							<Clock class="mb-3 h-8 w-8" />
-							<p class="text-sm">Backups are disabled</p>
-							<p class="mt-1 text-xs text-fyra-gray-600">
-								Enable automatic daily backups for this server.
-							</p>
-						</div>
-					{/if}
-				</div>
-
-			{:else if activeTab === 'rebuild'}
-				<div class="max-w-xl px-5 py-5">
-					<h3 class="text-sm font-semibold text-fyra-gray-100">Rebuild Server</h3>
-					<p class="mt-1 text-xs text-fyra-gray-400">
-						This will wipe all data and reinstall the operating system. This action cannot be
-						undone.
-					</p>
-
-					<div class="mt-5 flex flex-col gap-4">
-						<div class="flex flex-col gap-2">
-							<Label class="text-xs">Operating System</Label>
-							<select
-								bind:value={rebuildOs}
-								class="w-full appearance-none border border-fyra-gray-700 bg-fyra-gray-800 px-3 py-2 text-sm text-fyra-gray-100 focus:border-fyra-gray-500 focus:outline-none"
-							>
-								{#each osOptions as os (os)}
-									<option value={os}>{os}</option>
-								{/each}
-							</select>
-						</div>
-						<div class="flex flex-col gap-2">
-							<Label class="text-xs">Type server name to confirm</Label>
-							<Input bind:value={rebuildConfirm} placeholder={selectedServer.id} class="font-mono" />
-						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							class="w-fit gap-1.5 border-fyra-red-700 px-4 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
-							disabled={rebuildConfirm !== selectedServer.id || rebuilding}
-							onclick={doRebuild}
-						>
-							{#if rebuilding}
-								<RotateCw class="h-3 w-3 animate-spin" />
-								Rebuilding...
-							{:else}
-								<RotateCw class="h-3 w-3" />
-								Rebuild Server
+							{#if (ipv6Entries[selectedServerId] ?? []).length === 0}
+								<div class="px-5 py-3 text-xs text-fyra-gray-500">
+									No IPv6 addresses configured. Add one from the subnet above.
+								</div>
 							{/if}
-						</Button>
-					</div>
-				</div>
-
-			{:else if activeTab === 'resize'}
-				<div class="px-5 py-5">
-					<h3 class="text-sm font-semibold text-fyra-gray-100">Resize Server</h3>
-					<p class="mt-1 text-xs text-fyra-gray-400">
-						Upgrade or change your server plan. The server will restart during the resize.
-					</p>
-
-					<div class="mt-5 grid grid-cols-2 gap-3">
-						{#each resizePlans as plan (plan.name)}
-							<button
-								class="flex flex-col border px-4 py-3 text-left transition-colors duration-100 {plan.name ===
-								selectedServer.plan
-									? 'cursor-default border-fyra-gray-600 bg-fyra-gray-800/40 opacity-50'
-									: resizePlan === plan.name
-										? 'border-fyra-red-500 bg-fyra-red-950/20'
-										: 'border-fyra-gray-700 hover:border-fyra-gray-600'}"
-								disabled={plan.name === selectedServer.plan}
-								onclick={() => (resizePlan = plan.name)}
-							>
-								<div class="flex items-center justify-between">
-									<span class="text-sm font-semibold text-fyra-gray-100">{plan.name}</span>
-									<span class="text-sm font-medium text-fyra-gray-400">{plan.price}</span>
+							<div class="px-5 py-3">
+								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									>Firewall</span
+								>
+							</div>
+							<div class="flex items-center justify-between px-5 py-3">
+								<div>
+									<p class="text-sm font-medium text-fyra-gray-100">web-servers</p>
+									<p class="mt-0.5 text-xs text-fyra-gray-400">3 inbound, 1 outbound rules</p>
 								</div>
-								<span class="mt-1 text-xs text-fyra-gray-500">
-									{plan.vcpu} vCPU &bull; {plan.ram} RAM &bull; {plan.disk} SAS3
-								</span>
-								{#if plan.name === selectedServer.plan}
-									<Badge variant="secondary" class="mt-2 w-fit text-[10px]">Current</Badge>
-								{/if}
-							</button>
-						{/each}
-					</div>
-
-					{#if resizePlan && resizePlan !== selectedServer.plan}
-						<Button
-							size="sm"
-							class="mt-4 gap-1.5 px-4 text-xs"
-							onclick={doResize}
-						>
-							<ArrowUpDown class="h-3 w-3" />
-							Resize to {resizePlan}
-						</Button>
-					{/if}
-				</div>
-
-			{:else if activeTab === 'rescue'}
-				<div class="max-w-xl px-5 py-5">
-					<h3 class="text-sm font-semibold text-fyra-gray-100">Rescue Mode</h3>
-					<p class="mt-1 text-xs text-fyra-gray-400">
-						Boot into a minimal rescue system to recover data or fix boot issues.
-					</p>
-
-					<div class="mt-5">
-						{#if rescueEnabled}
-							<div
-								class="flex flex-col gap-3 border border-amber-800/50 bg-amber-950/20 p-4"
-							>
-								<div class="flex items-center gap-2">
-									<span
-										class="h-2 w-2 animate-pulse rounded-full bg-amber-500"
-									></span>
-									<span class="text-sm font-medium text-amber-400"
-										>Rescue mode is active</span
+								<Badge
+									variant="outline"
+									class="border-emerald-800 bg-emerald-950/40 text-[10px] text-emerald-400"
+									>Active</Badge
+								>
+							</div>
+							<div class="px-5 py-3">
+								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									>Private Network</span
+								>
+							</div>
+							<div class="flex items-center justify-between px-5 py-3">
+								<div>
+									<p class="text-sm font-medium text-fyra-gray-100">internal-net</p>
+									<p class="mt-0.5 font-mono text-xs text-fyra-gray-400">10.132.0.0/16</p>
+								</div>
+								<Badge
+									variant="outline"
+									class="border-emerald-800 bg-emerald-950/40 text-[10px] text-emerald-400"
+									>Connected</Badge
+								>
+							</div>
+						</div>
+					{:else if activeTab === 'images'}
+						<div class="flex flex-1 flex-col overflow-hidden">
+							<!-- Mounted image banner -->
+							{#if mountedImage}
+								<div
+									class="flex items-center justify-between border-b border-fyra-gray-800 bg-fyra-gray-800/20 px-5 py-2.5"
+								>
+									<div class="flex items-center gap-2">
+										<Disc class="h-3 w-3 text-fyra-red-400" />
+										<span class="text-xs font-medium text-fyra-gray-200"
+											>Mounted: {mountedImage}</span
+										>
+									</div>
+									<Button variant="ghost" size="sm" class="h-7 px-2 text-xs" onclick={unmountImage}
+										>Unmount</Button
 									>
 								</div>
-								<div>
-									<p class="text-xs text-fyra-gray-400">Root password:</p>
-									<div class="mt-1 flex items-center gap-2">
-										<code
-											class="bg-fyra-gray-800 px-2 py-1 font-mono text-sm text-fyra-gray-100"
-											>{rescuePassword}</code
+							{/if}
+
+							<!-- Rebuild confirmation -->
+							{#if rebuildFromImage}
+								<div class="border-b border-fyra-gray-800 bg-fyra-red-950/10 px-5 py-3">
+									<h3 class="text-sm font-semibold text-fyra-gray-100">
+										Rebuild from {rebuildFromImage.name}
+										{rebuildFromImage.version}
+									</h3>
+									<p class="mt-1 text-xs text-fyra-gray-400">
+										This will wipe all data and reinstall from this image. Type the server name to
+										confirm.
+									</p>
+									<div class="mt-3 flex items-center gap-2">
+										<Input
+											bind:value={rebuildImageConfirm}
+											placeholder={selectedServer.id}
+											class="h-8 w-56 font-mono text-xs"
+										/>
+										<Button
+											variant="outline"
+											size="sm"
+											class="gap-1.5 border-fyra-red-700 px-3 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
+											disabled={rebuildImageConfirm !== selectedServer.id || rebuildingFromImage}
+											onclick={doRebuildFromImage}
 										>
-										<button
-											class="text-fyra-gray-500 hover:text-fyra-gray-300"
-											onclick={() =>
-												copyToClipboard(rescuePassword, 'rescue-pw')}
+											{#if rebuildingFromImage}<RotateCw class="h-3 w-3 animate-spin" /> Rebuilding...{:else}Rebuild{/if}
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											class="h-8 px-2 text-xs"
+											onclick={() => (rebuildFromImage = null)}>Cancel</Button
 										>
-											{#if copied === 'rescue-pw'}
-												<Check class="h-3 w-3 text-emerald-500" />
-											{:else}
-												<Copy class="h-3 w-3" />
-											{/if}
-										</button>
 									</div>
+								</div>
+							{/if}
+
+							<!-- Search + Upload -->
+							<div
+								class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5"
+							>
+								<div class="relative">
+									<Search
+										class="pointer-events-none absolute top-1/2 left-2.5 h-3 w-3 -translate-y-1/2 text-fyra-gray-500"
+									/>
+									<input
+										bind:value={imgSearch}
+										placeholder="Search images..."
+										class="h-7 w-44 border border-fyra-gray-700 bg-fyra-gray-800 pr-2 pl-7 text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+									/>
 								</div>
 								<Button
 									variant="outline"
 									size="sm"
-									class="w-fit gap-1.5 px-4 text-xs"
-									onclick={toggleRescue}
+									class="h-7 gap-1.5 px-3 text-xs"
+									onclick={() => {
+										imgUploadOpen = true;
+										imgUploadMethod = 'file';
+										imgUploadFile = '';
+										imgUploadUrl = '';
+										imgUploadName = '';
+										imgUploadDetectedType = null;
+									}}
 								>
-									<Power class="h-3 w-3" />
-									Disable Rescue Mode
+									<Upload class="h-3 w-3" /> Upload Image
 								</Button>
 							</div>
-						{:else}
-							<Button
-								variant="outline"
-								size="sm"
-								class="gap-1.5 px-4 text-xs"
-								onclick={toggleRescue}
-								disabled={selectedServer.status === 'stopped'}
-							>
-								<Terminal class="h-3 w-3" />
-								Enable Rescue Mode
-							</Button>
-						{/if}
-					</div>
-				</div>
 
-			{:else if activeTab === 'settings'}
-				<div class="divide-y divide-fyra-gray-800/50">
-					<!-- Rename -->
-					<div class="flex items-center justify-between px-5 py-4">
-						<div>
-							<p class="text-sm font-medium text-fyra-gray-100">Server Name</p>
-							{#if editingName}
-								<div class="mt-2 flex items-center gap-2">
-									<Input bind:value={nameValue} class="h-7 w-48 text-xs" />
-									<Button
-										variant="ghost"
-										size="sm"
-										class="h-7 w-7 p-0 text-emerald-500"
-										onclick={saveName}
+							<div class="flex-1 overflow-auto">
+								<!-- Official Images -->
+								<div
+									class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5"
+								>
+									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+										>Official Images</span
 									>
-										<Check class="h-3 w-3" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="sm"
-										class="h-7 w-7 p-0"
-										onclick={() => (editingName = false)}
-									>
-										<X class="h-3 w-3" />
-									</Button>
+									{#if imgTotalPages > 1}
+										<div class="flex items-center gap-1.5">
+											<button
+												class="flex h-6 w-6 items-center justify-center text-fyra-gray-500 hover:text-fyra-gray-300 disabled:opacity-30"
+												disabled={imgPage === 0}
+												onclick={() => imgPage--}
+											>
+												<ChevronLeft class="h-3.5 w-3.5" />
+											</button>
+											<span class="text-[10px] text-fyra-gray-500"
+												>{imgPage + 1}/{imgTotalPages}</span
+											>
+											<button
+												class="flex h-6 w-6 items-center justify-center text-fyra-gray-500 hover:text-fyra-gray-300 disabled:opacity-30"
+												disabled={imgPage >= imgTotalPages - 1}
+												onclick={() => imgPage++}
+											>
+												<ChevronRight class="h-3.5 w-3.5" />
+											</button>
+										</div>
+									{/if}
 								</div>
-							{:else}
-								<p class="mt-0.5 text-xs text-fyra-gray-400">{selectedServer.name}</p>
+
+								<div class="border-b border-fyra-gray-800">
+									<div class="grid grid-cols-2 gap-px bg-fyra-gray-900">
+										{#each pagedOfficialImages() as img (img.id)}
+											<button
+												class="relative flex gap-3 overflow-hidden bg-fyra-gray-900 p-4 text-left transition-colors hover:bg-fyra-gray-800/40"
+												onclick={() => openImageDetail(img)}
+											>
+												<div
+													class="pointer-events-none absolute inset-0 opacity-[0.05]"
+													style="background: linear-gradient(135deg, {img.iconColor} 0%, transparent 60%)"
+												></div>
+												<div class="relative shrink-0">
+													{#if img.icon}
+														<svg viewBox="0 0 24 24" class="h-10 w-10" fill="var(--fyra-gray-300)"
+															><path d={img.icon} /></svg
+														>
+													{:else}
+														<span
+															class="flex h-10 w-10 items-center justify-center text-lg font-bold text-fyra-gray-300"
+															>{img.shortName}</span
+														>
+													{/if}
+												</div>
+												<div class="relative flex min-w-0 flex-1 flex-col">
+													<div class="flex items-center gap-1.5">
+														<span class="text-sm font-semibold text-fyra-gray-50">{img.name}</span>
+														{#if img.paid}
+															<Badge
+																variant="outline"
+																class="border-fyra-red-700 bg-fyra-red-950/40 text-[8px] text-fyra-red-400"
+															>
+																<DollarSign class="mr-0.5 h-2 w-2" />
+																{img.price}
+															</Badge>
+														{/if}
+													</div>
+													<p
+														class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-fyra-gray-500"
+													>
+														{img.description}
+													</p>
+													<p class="mt-auto pt-1.5 text-[10px] leading-none text-fyra-gray-600">
+														{img.versions[0].archs.join('  ')} | {img.versions.length} version{img
+															.versions.length > 1
+															? 's'
+															: ''}
+													</p>
+												</div>
+											</button>
+										{/each}
+									</div>
+									{#if filteredOfficialImages().length === 0 && imgSearch.trim()}
+										<div class="px-5 py-6 text-center text-xs text-fyra-gray-500">
+											No official images match "{imgSearch}"
+										</div>
+									{/if}
+								</div>
+
+								<!-- User Images -->
+								<div
+									class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5"
+								>
+									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+										>Your Images ({vmUserImages.length})</span
+									>
+								</div>
+								{#if filteredVmUserImages().length > 0}
+									<div class="divide-y divide-fyra-gray-800/20">
+										{#each filteredVmUserImages() as img (img.id)}
+											<div
+												class="flex items-center justify-between px-5 py-3 transition-colors hover:bg-fyra-gray-800/20"
+											>
+												<div class="flex items-center gap-2">
+													<Disc class="h-2.5 w-2.5 shrink-0 text-fyra-gray-600" />
+													<span class="text-xs text-fyra-gray-200">{img.name}</span>
+													<Badge variant="outline" class="text-[7px] {imageTypeColors[img.type]}"
+														>.{img.type}</Badge
+													>
+													<span class="text-[10px] text-fyra-gray-600">{img.size}</span>
+												</div>
+												<div class="flex items-center gap-1.5">
+													{#if img.status === 'ready'}
+														{#if mountedImage === img.name}
+															<Badge
+																variant="outline"
+																class="border-emerald-800 bg-emerald-950/40 text-[9px] text-emerald-400"
+																>Mounted</Badge
+															>
+														{:else}
+															<Button
+																variant="ghost"
+																size="sm"
+																class="h-6 px-2 text-[10px]"
+																onclick={() => mountUserImage(img.name)}>Mount</Button
+															>
+														{/if}
+														<Button
+															variant="outline"
+															size="sm"
+															class="h-6 px-2 text-[10px]"
+															onclick={() => startRebuild(img.name, '')}>Rebuild</Button
+														>
+														<span class="text-[10px] text-fyra-gray-600">{img.uploaded}</span>
+													{:else if img.status === 'uploading'}
+														<div class="flex items-center gap-1">
+															<div class="h-0.5 w-12 bg-fyra-gray-800">
+																<div
+																	class="h-full bg-fyra-red-500 transition-all"
+																	style="width: {img.progress}%"
+																></div>
+															</div>
+															<span class="text-[9px] text-fyra-gray-500">{img.progress}%</span>
+														</div>
+													{:else}
+														<span class="text-[9px] text-amber-500">Processing</span>
+													{/if}
+													<Button
+														variant="ghost"
+														size="sm"
+														class="h-5 w-5 p-0 text-fyra-gray-600 hover:text-fyra-red-400"
+														onclick={() => deleteVmImage(img.id)}
+														disabled={img.status !== 'ready'}
+													>
+														<Trash2 class="h-2.5 w-2.5" />
+													</Button>
+												</div>
+											</div>
+										{/each}
+									</div>
+								{:else if imgSearch.trim()}
+									<div class="px-5 py-3 text-center text-[10px] text-fyra-gray-600">No matches</div>
+								{:else}
+									<div class="flex items-center justify-center gap-1.5 py-3 text-fyra-gray-600">
+										<Upload class="h-3 w-3" />
+										<p class="text-[10px]">No uploaded images</p>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{:else if activeTab === 'snapshots'}
+						<div>
+							<div
+								class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-3"
+							>
+								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									>Snapshots</span
+								>
+								<Button
+									variant="outline"
+									size="sm"
+									class="h-7 gap-1.5 px-3 text-xs"
+									onclick={() => (createSnapOpen = true)}
+								>
+									<Camera class="h-3 w-3" />
+									Take Snapshot
+								</Button>
+							</div>
+							<table class="w-full">
+								<thead>
+									<tr class="border-b border-fyra-gray-800/50">
+										<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
+											>Name</th
+										>
+										<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
+											>Size</th
+										>
+										<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
+											>Date</th
+										>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-fyra-gray-500"></th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-fyra-gray-800/30">
+									{#each snapshots as snap (snap.id)}
+										<tr class="transition-colors duration-100 hover:bg-fyra-gray-800/20">
+											<td class="px-5 py-2.5">
+												<span class="text-sm font-medium text-fyra-gray-100">{snap.name}</span>
+												<span class="ml-2 text-xs text-fyra-gray-600">{snap.id}</span>
+											</td>
+											<td class="px-5 py-2.5 text-sm text-fyra-gray-300">{snap.size}</td>
+											<td class="px-5 py-2.5 text-sm text-fyra-gray-400">{snap.date}</td>
+											<td class="px-5 py-2.5 text-right">
+												<div class="flex items-center justify-end gap-1">
+													<Button variant="ghost" size="sm" class="h-7 gap-1.5 px-2 text-xs">
+														<Download class="h-3 w-3" />
+														Restore
+													</Button>
+													<Button
+														variant="ghost"
+														size="sm"
+														class="h-7 w-7 p-0 text-fyra-red-400 hover:text-fyra-red-300"
+														onclick={() => deleteSnapshot(snap.id)}
+													>
+														<Trash2 class="h-3 w-3" />
+													</Button>
+												</div>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							{#if snapshots.length === 0}
+								<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
+									<Camera class="mb-3 h-8 w-8" />
+									<p class="text-sm">No snapshots</p>
+									<p class="mt-1 text-xs text-fyra-gray-600">
+										Take a snapshot to save your server's current state.
+									</p>
+								</div>
 							{/if}
 						</div>
-						{#if !editingName}
-							<Button
-								variant="ghost"
-								size="sm"
-								class="h-7 gap-1.5 px-2 text-xs"
-								onclick={() => {
-									nameValue = selectedServer.name;
-									editingName = true;
-								}}
-							>
-								<Pencil class="h-3 w-3" />
-								Edit
-							</Button>
-						{/if}
-					</div>
-
-					<!-- Backups toggle -->
-					<div class="flex items-center justify-between px-5 py-4">
+					{:else if activeTab === 'backups'}
 						<div>
-							<p class="text-sm font-medium text-fyra-gray-100">Automatic Backups</p>
-							<p class="mt-0.5 text-xs text-fyra-gray-400">
-								Daily backups at 03:00 UTC — $1/mo
-							</p>
-						</div>
-						<Switch
-							checked={selectedServer.backups}
-							onCheckedChange={(v) => (servers[selectedServerIdx].backups = v)}
-							size="sm"
-						/>
-					</div>
+							<div
+								class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-3"
+							>
+								<div class="flex items-center gap-2">
+									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+										>Automatic Backups</span
+									>
+									<Badge
+										variant="outline"
+										class="text-[10px] {selectedServer.backups
+											? 'border-emerald-800 bg-emerald-950/40 text-emerald-400'
+											: 'text-fyra-gray-500'}"
+									>
+										{selectedServer.backups ? 'Enabled' : 'Disabled'}
+									</Badge>
+								</div>
+								<Switch
+									checked={selectedServer.backups}
+									onCheckedChange={(v) => (servers[selectedServerIdx].backups = v)}
+									size="sm"
+								/>
+							</div>
 
-					<!-- Danger zone -->
-					<div class="px-5 py-4">
-						<p class="text-sm font-medium text-fyra-red-400">Danger Zone</p>
-						<p class="mt-0.5 text-xs text-fyra-gray-500">
-							Permanently delete this server and all associated data.
-						</p>
-						<Button
-							variant="outline"
-							size="sm"
-							class="mt-3 gap-1.5 border-fyra-red-700 px-4 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
-							onclick={() => (deleteOpen = true)}
-						>
-							<Trash2 class="h-3 w-3" />
-							Delete Server
-						</Button>
-					</div>
+							{#if selectedServer.backups}
+								<div class="border-b border-fyra-gray-800/50 px-5 py-2.5">
+									<p class="text-xs text-fyra-gray-500">
+										Backups run daily at 03:00 UTC. Last 7 backups are retained. Cost: $1/mo (20% of
+										plan).
+									</p>
+								</div>
+								<table class="w-full">
+									<thead>
+										<tr class="border-b border-fyra-gray-800/50">
+											<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
+												>Date</th
+											>
+											<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
+												>Size</th
+											>
+											<th class="px-5 py-2.5 text-left text-xs font-medium text-fyra-gray-500"
+												>Status</th
+											>
+											<th class="px-5 py-2.5 text-right text-xs font-medium text-fyra-gray-500"
+											></th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-fyra-gray-800/30">
+										{#each backups as backup (backup.id)}
+											<tr class="transition-colors duration-100 hover:bg-fyra-gray-800/20">
+												<td class="px-5 py-2.5 text-sm text-fyra-gray-200">{backup.date}</td>
+												<td class="px-5 py-2.5 text-sm text-fyra-gray-300">{backup.size}</td>
+												<td class="px-5 py-2.5">
+													<Badge
+														variant="outline"
+														class="border-emerald-800 bg-emerald-950/40 text-[10px] text-emerald-400"
+														>{backup.status}</Badge
+													>
+												</td>
+												<td class="px-5 py-2.5 text-right">
+													<Button variant="ghost" size="sm" class="h-7 gap-1.5 px-2 text-xs">
+														<Download class="h-3 w-3" />
+														Restore
+													</Button>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							{:else}
+								<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
+									<Clock class="mb-3 h-8 w-8" />
+									<p class="text-sm">Backups are disabled</p>
+									<p class="mt-1 text-xs text-fyra-gray-600">
+										Enable automatic daily backups for this server.
+									</p>
+								</div>
+							{/if}
+						</div>
+					{:else if activeTab === 'rebuild'}
+						<div class="max-w-xl px-5 py-5">
+							<h3 class="text-sm font-semibold text-fyra-gray-100">Rebuild Server</h3>
+							<p class="mt-1 text-xs text-fyra-gray-400">
+								This will wipe all data and reinstall the operating system. This action cannot be
+								undone.
+							</p>
+
+							<div class="mt-5 flex flex-col gap-4">
+								<div class="flex flex-col gap-2">
+									<Label class="text-xs">Operating System</Label>
+									<select
+										bind:value={rebuildOs}
+										class="w-full appearance-none border border-fyra-gray-700 bg-fyra-gray-800 px-3 py-2 text-sm text-fyra-gray-100 focus:border-fyra-gray-500 focus:outline-none"
+									>
+										{#each osOptions as os (os)}
+											<option value={os}>{os}</option>
+										{/each}
+									</select>
+								</div>
+								<div class="flex flex-col gap-2">
+									<Label class="text-xs">Type server name to confirm</Label>
+									<Input
+										bind:value={rebuildConfirm}
+										placeholder={selectedServer.id}
+										class="font-mono"
+									/>
+								</div>
+								<Button
+									variant="outline"
+									size="sm"
+									class="w-fit gap-1.5 border-fyra-red-700 px-4 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
+									disabled={rebuildConfirm !== selectedServer.id || rebuilding}
+									onclick={doRebuild}
+								>
+									{#if rebuilding}
+										<RotateCw class="h-3 w-3 animate-spin" />
+										Rebuilding...
+									{:else}
+										<RotateCw class="h-3 w-3" />
+										Rebuild Server
+									{/if}
+								</Button>
+							</div>
+						</div>
+					{:else if activeTab === 'resize'}
+						<div class="px-5 py-5">
+							<h3 class="text-sm font-semibold text-fyra-gray-100">Resize Server</h3>
+							<p class="mt-1 text-xs text-fyra-gray-400">
+								Upgrade or change your server plan. The server will restart during the resize.
+							</p>
+
+							<div class="mt-5 grid grid-cols-2 gap-3">
+								{#each resizePlans as plan (plan.name)}
+									<button
+										class="flex flex-col border px-4 py-3 text-left transition-colors duration-100 {plan.name ===
+										selectedServer.plan
+											? 'cursor-default border-fyra-gray-600 bg-fyra-gray-800/40 opacity-50'
+											: resizePlan === plan.name
+												? 'border-fyra-red-500 bg-fyra-red-950/20'
+												: 'border-fyra-gray-700 hover:border-fyra-gray-600'}"
+										disabled={plan.name === selectedServer.plan}
+										onclick={() => (resizePlan = plan.name)}
+									>
+										<div class="flex items-center justify-between">
+											<span class="text-sm font-semibold text-fyra-gray-100">{plan.name}</span>
+											<span class="text-sm font-medium text-fyra-gray-400">{plan.price}</span>
+										</div>
+										<span class="mt-1 text-xs text-fyra-gray-500">
+											{plan.vcpu} vCPU &bull; {plan.ram} RAM &bull; {plan.disk} SAS3
+										</span>
+										{#if plan.name === selectedServer.plan}
+											<Badge variant="secondary" class="mt-2 w-fit text-[10px]">Current</Badge>
+										{/if}
+									</button>
+								{/each}
+							</div>
+
+							{#if resizePlan && resizePlan !== selectedServer.plan}
+								<Button size="sm" class="mt-4 gap-1.5 px-4 text-xs" onclick={doResize}>
+									<ArrowUpDown class="h-3 w-3" />
+									Resize to {resizePlan}
+								</Button>
+							{/if}
+						</div>
+					{:else if activeTab === 'rescue'}
+						<div class="max-w-xl px-5 py-5">
+							<h3 class="text-sm font-semibold text-fyra-gray-100">Rescue Mode</h3>
+							<p class="mt-1 text-xs text-fyra-gray-400">
+								Boot into a minimal rescue system to recover data or fix boot issues.
+							</p>
+
+							<div class="mt-5">
+								{#if rescueEnabled}
+									<div class="flex flex-col gap-3 border border-amber-800/50 bg-amber-950/20 p-4">
+										<div class="flex items-center gap-2">
+											<span class="h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
+											<span class="text-sm font-medium text-amber-400">Rescue mode is active</span>
+										</div>
+										<div>
+											<p class="text-xs text-fyra-gray-400">Root password:</p>
+											<div class="mt-1 flex items-center gap-2">
+												<code
+													class="bg-fyra-gray-800 px-2 py-1 font-mono text-sm text-fyra-gray-100"
+													>{rescuePassword}</code
+												>
+												<button
+													class="text-fyra-gray-500 hover:text-fyra-gray-300"
+													onclick={() => copyToClipboard(rescuePassword, 'rescue-pw')}
+												>
+													{#if copied === 'rescue-pw'}
+														<Check class="h-3 w-3 text-emerald-500" />
+													{:else}
+														<Copy class="h-3 w-3" />
+													{/if}
+												</button>
+											</div>
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											class="w-fit gap-1.5 px-4 text-xs"
+											onclick={toggleRescue}
+										>
+											<Power class="h-3 w-3" />
+											Disable Rescue Mode
+										</Button>
+									</div>
+								{:else}
+									<Button
+										variant="outline"
+										size="sm"
+										class="gap-1.5 px-4 text-xs"
+										onclick={toggleRescue}
+										disabled={selectedServer.status === 'stopped'}
+									>
+										<Terminal class="h-3 w-3" />
+										Enable Rescue Mode
+									</Button>
+								{/if}
+							</div>
+						</div>
+					{:else if activeTab === 'settings'}
+						<div class="divide-y divide-fyra-gray-800/50">
+							<!-- Rename -->
+							<div class="flex items-center justify-between px-5 py-4">
+								<div>
+									<p class="text-sm font-medium text-fyra-gray-100">Server Name</p>
+									{#if editingName}
+										<div class="mt-2 flex items-center gap-2">
+											<Input bind:value={nameValue} class="h-7 w-48 text-xs" />
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-7 w-7 p-0 text-emerald-500"
+												onclick={saveName}
+											>
+												<Check class="h-3 w-3" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="sm"
+												class="h-7 w-7 p-0"
+												onclick={() => (editingName = false)}
+											>
+												<X class="h-3 w-3" />
+											</Button>
+										</div>
+									{:else}
+										<p class="mt-0.5 text-xs text-fyra-gray-400">{selectedServer.name}</p>
+									{/if}
+								</div>
+								{#if !editingName}
+									<Button
+										variant="ghost"
+										size="sm"
+										class="h-7 gap-1.5 px-2 text-xs"
+										onclick={() => {
+											nameValue = selectedServer.name;
+											editingName = true;
+										}}
+									>
+										<Pencil class="h-3 w-3" />
+										Edit
+									</Button>
+								{/if}
+							</div>
+
+							<!-- Backups toggle -->
+							<div class="flex items-center justify-between px-5 py-4">
+								<div>
+									<p class="text-sm font-medium text-fyra-gray-100">Automatic Backups</p>
+									<p class="mt-0.5 text-xs text-fyra-gray-400">
+										Daily backups at 03:00 UTC — $1/mo
+									</p>
+								</div>
+								<Switch
+									checked={selectedServer.backups}
+									onCheckedChange={(v) => (servers[selectedServerIdx].backups = v)}
+									size="sm"
+								/>
+							</div>
+
+							<!-- Danger zone -->
+							<div class="px-5 py-4">
+								<p class="text-sm font-medium text-fyra-red-400">Danger Zone</p>
+								<p class="mt-0.5 text-xs text-fyra-gray-500">
+									Permanently delete this server and all associated data.
+								</p>
+								<Button
+									variant="outline"
+									size="sm"
+									class="mt-3 gap-1.5 border-fyra-red-700 px-4 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
+									onclick={() => (deleteOpen = true)}
+								>
+									<Trash2 class="h-3 w-3" />
+									Delete Server
+								</Button>
+							</div>
+						</div>
+					{/if}
 				</div>
 			{/if}
-			</div>
-		{/if}
 		</div>
 	{/if}
 </div>
@@ -1786,8 +2162,8 @@
 		<Dialog.Header>
 			<Dialog.Title>Delete Server</Dialog.Title>
 			<Dialog.Description>
-				This will permanently destroy <strong>{selectedServer.name}</strong> and all its data. This
-				cannot be undone.
+				This will permanently destroy <strong>{selectedServer.name}</strong> and all its data. This cannot
+				be undone.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="flex flex-col gap-2 py-4">
@@ -1810,34 +2186,52 @@
 </Dialog.Root>
 
 <!-- Image Detail Sheet -->
-<Sheet.Root bind:open={imgSheetOpen} onOpenChange={(v) => { if (!v) closeImageDetail(); }}>
+<Sheet.Root
+	bind:open={imgSheetOpen}
+	onOpenChange={(v) => {
+		if (!v) closeImageDetail();
+	}}
+>
 	<Sheet.Content side="right" class="border-fyra-gray-800 bg-fyra-gray-900 px-6 py-5 sm:max-w-md">
 		{#if selectedOfficialImage}
 			<Sheet.Header class="border-b border-fyra-gray-800 pb-4">
 				<div class="flex items-start gap-4">
 					<div class="shrink-0">
 						{#if selectedOfficialImage.icon}
-							<svg viewBox="0 0 24 24" class="h-14 w-14" fill="var(--fyra-gray-300)"><path d={selectedOfficialImage.icon} /></svg>
+							<svg viewBox="0 0 24 24" class="h-14 w-14" fill="var(--fyra-gray-300)"
+								><path d={selectedOfficialImage.icon} /></svg
+							>
 						{:else}
-							<span class="flex h-14 w-14 items-center justify-center text-2xl font-bold text-fyra-gray-300">{selectedOfficialImage.shortName}</span>
+							<span
+								class="flex h-14 w-14 items-center justify-center text-2xl font-bold text-fyra-gray-300"
+								>{selectedOfficialImage.shortName}</span
+							>
 						{/if}
 					</div>
 					<div class="flex-1">
 						<div class="flex items-center gap-2">
 							<Sheet.Title class="text-base">{selectedOfficialImage.name}</Sheet.Title>
 							{#if selectedOfficialImage.paid}
-								<Badge variant="outline" class="border-fyra-red-700 bg-fyra-red-950/40 text-[9px] text-fyra-red-400">
-									<DollarSign class="mr-0.5 h-2 w-2" /> {selectedOfficialImage.price}
+								<Badge
+									variant="outline"
+									class="border-fyra-red-700 bg-fyra-red-950/40 text-[9px] text-fyra-red-400"
+								>
+									<DollarSign class="mr-0.5 h-2 w-2" />
+									{selectedOfficialImage.price}
 								</Badge>
 							{/if}
 						</div>
-						<Sheet.Description class="mt-1 text-xs leading-relaxed">{selectedOfficialImage.description}</Sheet.Description>
+						<Sheet.Description class="mt-1 text-xs leading-relaxed"
+							>{selectedOfficialImage.description}</Sheet.Description
+						>
 					</div>
 				</div>
 			</Sheet.Header>
 
 			<div class="flex-1 overflow-auto py-4">
-				<span class="text-[10px] font-semibold uppercase tracking-wider text-fyra-gray-500">Available Versions</span>
+				<span class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+					>Available Versions</span
+				>
 				<div class="mt-3 divide-y divide-fyra-gray-800/30">
 					{#each selectedOfficialImage.versions as ver (ver.version)}
 						<div class="flex items-center justify-between py-3">
@@ -1845,20 +2239,40 @@
 								<span class="text-sm font-medium text-fyra-gray-100">{ver.version}</span>
 								<div class="flex gap-1">
 									{#each ver.archs as arch (arch)}
-										<span class="border border-fyra-gray-700 px-1.5 py-0.5 font-mono text-[9px] text-fyra-gray-400">{arch}</span>
+										<span
+											class="border border-fyra-gray-700 px-1.5 py-0.5 font-mono text-[9px] text-fyra-gray-400"
+											>{arch}</span
+										>
 									{/each}
 								</div>
 							</div>
 							<div class="flex items-center gap-2">
-								<Badge variant="outline" class="text-[8px] {imageTypeColors[ver.type]}">{ver.type.toUpperCase()}</Badge>
+								<Badge variant="outline" class="text-[8px] {imageTypeColors[ver.type]}"
+									>{ver.type.toUpperCase()}</Badge
+								>
 								<span class="text-[10px] text-fyra-gray-500">{ver.size}</span>
 							</div>
 						</div>
 						<div class="flex items-center gap-2 pb-3">
-							<Button variant="ghost" size="sm" class="h-7 gap-1.5 px-3 text-xs" onclick={() => { mountOfficialVersion(selectedOfficialImage!.name, ver.version); }}>
+							<Button
+								variant="ghost"
+								size="sm"
+								class="h-7 gap-1.5 px-3 text-xs"
+								onclick={() => {
+									mountOfficialVersion(selectedOfficialImage!.name, ver.version);
+								}}
+							>
 								<Disc class="h-3 w-3" /> Mount
 							</Button>
-							<Button variant="outline" size="sm" class="h-7 gap-1.5 border-fyra-red-700 px-3 text-xs text-fyra-red-400 hover:bg-fyra-red-950" onclick={() => { startRebuild(selectedOfficialImage!.name, ver.version); imgSheetOpen = false; }}>
+							<Button
+								variant="outline"
+								size="sm"
+								class="h-7 gap-1.5 border-fyra-red-700 px-3 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
+								onclick={() => {
+									startRebuild(selectedOfficialImage!.name, ver.version);
+									imgSheetOpen = false;
+								}}
+							>
 								<RotateCw class="h-3 w-3" /> Rebuild Server
 							</Button>
 						</div>
@@ -1874,7 +2288,9 @@
 	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Upload Image</Dialog.Title>
-			<Dialog.Description>Upload a .iso, .img, or .qcow2 file to use with your servers.</Dialog.Description>
+			<Dialog.Description
+				>Upload a .iso, .img, or .qcow2 file to use with your servers.</Dialog.Description
+			>
 		</Dialog.Header>
 		<div class="flex flex-col gap-4 py-4">
 			<div class="flex flex-col gap-2">
@@ -1884,25 +2300,52 @@
 			<div class="flex flex-col gap-2">
 				<Label>Source</Label>
 				<div class="flex gap-2">
-					<button class="flex-1 border px-3 py-2 text-center text-xs font-medium transition-colors {imgUploadMethod === 'file' ? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100' : 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}" onclick={() => (imgUploadMethod = 'file')}>File Upload</button>
-					<button class="flex-1 border px-3 py-2 text-center text-xs font-medium transition-colors {imgUploadMethod === 'url' ? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100' : 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}" onclick={() => (imgUploadMethod = 'url')}>URL Import</button>
+					<button
+						class="flex-1 border px-3 py-2 text-center text-xs font-medium transition-colors {imgUploadMethod ===
+						'file'
+							? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
+							: 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}"
+						onclick={() => (imgUploadMethod = 'file')}>File Upload</button
+					>
+					<button
+						class="flex-1 border px-3 py-2 text-center text-xs font-medium transition-colors {imgUploadMethod ===
+						'url'
+							? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
+							: 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}"
+						onclick={() => (imgUploadMethod = 'url')}>URL Import</button
+					>
 				</div>
 			</div>
 			{#if imgUploadMethod === 'file'}
-				<label class="flex cursor-pointer flex-col items-center justify-center border border-dashed border-fyra-gray-600 bg-fyra-gray-800/30 px-4 py-6 text-center transition-colors hover:border-fyra-gray-500 hover:bg-fyra-gray-800/50">
+				<label
+					class="flex cursor-pointer flex-col items-center justify-center border border-dashed border-fyra-gray-600 bg-fyra-gray-800/30 px-4 py-6 text-center transition-colors hover:border-fyra-gray-500 hover:bg-fyra-gray-800/50"
+				>
 					<Upload class="mb-2 h-6 w-6 text-fyra-gray-500" />
 					{#if imgUploadFile}
 						<span class="text-xs font-medium text-fyra-gray-200">{imgUploadFile}</span>
-						{#if imgUploadDetectedType}<span class="mt-1 text-[10px] text-fyra-gray-500">Detected: .{imgUploadDetectedType}</span>{/if}
+						{#if imgUploadDetectedType}<span class="mt-1 text-[10px] text-fyra-gray-500"
+								>Detected: .{imgUploadDetectedType}</span
+							>{/if}
 					{:else}
-						<span class="text-xs text-fyra-gray-400">Drop or click to browse (.iso, .img, .qcow2)</span>
+						<span class="text-xs text-fyra-gray-400"
+							>Drop or click to browse (.iso, .img, .qcow2)</span
+						>
 					{/if}
-					<input type="file" accept=".iso,.img,.qcow2" class="hidden" onchange={handleImgFileSelect} />
+					<input
+						type="file"
+						accept=".iso,.img,.qcow2"
+						class="hidden"
+						onchange={handleImgFileSelect}
+					/>
 				</label>
 			{:else}
 				<div class="flex flex-col gap-2">
 					<Label>Image URL</Label>
-					<Input bind:value={imgUploadUrl} placeholder="https://example.com/image.iso" oninput={handleImgUrlChange} />
+					<Input
+						bind:value={imgUploadUrl}
+						placeholder="https://example.com/image.iso"
+						oninput={handleImgUrlChange}
+					/>
 					{#if imgUploadDetectedType}
 						<p class="text-xs text-fyra-gray-500">Detected: .{imgUploadDetectedType}</p>
 					{:else if imgUploadUrl}
@@ -1913,118 +2356,12 @@
 		</div>
 		<Dialog.Footer>
 			<Button variant="outline" size="sm" onclick={() => (imgUploadOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={startImgUpload} disabled={!imgUploadName.trim() && !imgUploadFile && !imgUploadUrl}>
+			<Button
+				size="sm"
+				onclick={startImgUpload}
+				disabled={!imgUploadName.trim() && !imgUploadFile && !imgUploadUrl}
+			>
 				<Upload class="h-3 w-3" /> Upload
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
-
-<!-- Create VM Dialog -->
-<Dialog.Root bind:open={createVmOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-lg">
-		<Dialog.Header>
-			<Dialog.Title>Create Server</Dialog.Title>
-			<Dialog.Description>Provision a new virtual machine.</Dialog.Description>
-		</Dialog.Header>
-		<div class="flex flex-col gap-4 py-4">
-			{#if createVmError}
-				<div class="flex items-center gap-2 border border-fyra-red-700 bg-fyra-red-950 px-3 py-2 text-sm text-fyra-red-400">
-					<AlertTriangle class="h-3.5 w-3.5 shrink-0" />
-					{createVmError}
-				</div>
-			{/if}
-
-			<div class="flex flex-col gap-2">
-				<Label>Server Name</Label>
-				<Input bind:value={createVmName} placeholder="my-server" />
-			</div>
-
-			<!-- Plan selection -->
-			<div class="flex flex-col gap-2">
-				<Label>Plan</Label>
-				{#if vmTypes.length === 0}
-					<p class="text-xs text-fyra-gray-500">No plans available. <a href="/admin" class="text-fyra-red-400 hover:text-fyra-red-300">Create one in Admin</a>.</p>
-				{:else}
-					<div class="grid grid-cols-2 gap-2">
-						{#each vmTypes as vt (vt.id)}
-							<button
-								class="border px-3 py-2 text-left text-xs transition-colors {createVmType === vt.id ? 'border-fyra-red-500 bg-fyra-red-950/30 text-fyra-gray-100' : 'border-fyra-gray-800 text-fyra-gray-400 hover:border-fyra-gray-700'}"
-								onclick={() => (createVmType = vt.id)}
-							>
-								<p class="font-semibold text-fyra-gray-100">{vt.name}</p>
-								<p class="mt-0.5">{vt.cores} vCPU &bull; {vt.ramCapacity} MB &bull; {vt.storageAmount} GB</p>
-								<p class="mt-0.5 text-fyra-gray-500">${vt.rate}/mo</p>
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
-
-			<!-- Image selection -->
-			<div class="flex flex-col gap-2">
-				<Label>Image</Label>
-				{#if dbImages.length === 0}
-					<p class="text-xs text-fyra-gray-500">No images configured. <a href="/admin" class="text-fyra-red-400 hover:text-fyra-red-300">Add one in Admin</a>.</p>
-				{:else}
-					<div class="grid grid-cols-3 gap-2">
-						{#each dbImages as img (img.id)}
-							<button
-								class="flex items-center gap-2 border px-3 py-2 text-left text-xs transition-colors {createVmImage === img.filePath ? 'border-fyra-red-500 bg-fyra-red-950/30 text-fyra-gray-100' : 'border-fyra-gray-800 text-fyra-gray-400 hover:border-fyra-gray-700'}"
-								onclick={() => (createVmImage = img.filePath)}
-							>
-								<span class="flex h-6 w-6 shrink-0 items-center justify-center text-[10px] font-bold text-white {img.color}">
-									{#if img.icon}
-										{@html img.icon}
-									{:else}
-										{img.shortName || img.name.slice(0, 2).toUpperCase()}
-									{/if}
-								</span>
-								<div class="min-w-0">
-									<p class="truncate font-medium text-fyra-gray-100">{img.name}</p>
-									<p class="text-[10px] text-fyra-gray-500">{img.version}</p>
-								</div>
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
-
-			<!-- SSH Keys -->
-			{#if data.sshKeys?.length}
-				<div class="flex flex-col gap-2">
-					<Label>SSH Keys <span class="font-normal text-fyra-gray-500">(optional)</span></Label>
-					<div class="flex flex-col gap-1.5">
-						{#each data.sshKeys as key (key.id)}
-							<label class="flex items-center gap-2 text-xs text-fyra-gray-300">
-								<input
-									type="checkbox"
-									class="accent-fyra-red-500"
-									checked={createVmSshKeys.includes(key.id)}
-									onchange={() => {
-										if (createVmSshKeys.includes(key.id)) {
-											createVmSshKeys = createVmSshKeys.filter((k) => k !== key.id);
-										} else {
-											createVmSshKeys = [...createVmSshKeys, key.id];
-										}
-									}}
-								/>
-								{key.name}
-								<span class="font-mono text-[10px] text-fyra-gray-600">{key.fingerprint.slice(0, 20)}...</span>
-							</label>
-						{/each}
-					</div>
-				</div>
-			{/if}
-		</div>
-		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (createVmOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={doCreateVm} disabled={creatingVm || !createVmName.trim() || !createVmType}>
-				{#if creatingVm}
-					<Loader2 class="h-3 w-3 animate-spin" /> Creating...
-				{:else}
-					<Plus class="h-3 w-3" /> Create
-				{/if}
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
