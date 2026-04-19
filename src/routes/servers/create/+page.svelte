@@ -1,12 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { officialImages, type OfficialImage } from '$lib/data/images';
 	import { createVm } from '$lib/remote/vms.remote';
-	import { listVmTypes } from '$lib/remote/vm-types.remote';
-	import { listImages } from '$lib/remote/images.remote';
 	import {
 		ArrowLeft,
 		HardDrive,
@@ -21,7 +18,18 @@
 		X
 	} from '@lucide/svelte';
 
-	let { data } = $props();
+	type PageData = {
+		currentProject: { id: string } | null;
+		sshKeys: {
+			id: string;
+			name: string;
+			fingerprint: string;
+		}[];
+		vmTypes: VmType[];
+		dbImages: DbImage[];
+	};
+
+	let { data }: { data: PageData } = $props();
 
 	type VmType = {
 		id: string;
@@ -44,10 +52,8 @@
 		description: string;
 	};
 
-	let vmTypes = $state<VmType[]>([]);
-	let dbImages = $state<DbImage[]>([]);
-	let loadingVmTypes = $state(true);
-	let loadingImages = $state(true);
+	const vmTypes = $derived(data.vmTypes ?? []);
+	const dbImages = $derived(data.dbImages ?? []);
 
 	let serverName = $state('');
 	let selectedImageId = $state<string | null>(null);
@@ -113,27 +119,6 @@
 	let imagesSearch = $state('');
 	let imageTab = $state<'os' | 'snapshots' | 'apps'>('os');
 
-	async function loadVmTypes() {
-		loadingVmTypes = true;
-		try {
-			vmTypes = await listVmTypes({});
-		} catch {}
-		loadingVmTypes = false;
-	}
-
-	async function loadDbImages() {
-		loadingImages = true;
-		try {
-			dbImages = await listImages({});
-		} catch {}
-		loadingImages = false;
-	}
-
-	onMount(() => {
-		loadVmTypes();
-		loadDbImages();
-	});
-
 	function filteredOfficialImages(): OfficialImage[] {
 		if (!imagesSearch.trim()) return officialImages;
 		const q = imagesSearch.toLowerCase();
@@ -195,7 +180,7 @@
 	async function handleCreate() {
 		if (!serverName.trim() || !selectedPlanId) return;
 
-		const projectId = data.projects?.[0]?.id;
+		const projectId = data.currentProject?.id;
 		if (!projectId) {
 			createError = 'No project selected. Please select a project.';
 			return;
@@ -217,7 +202,7 @@
 				imageId,
 				sshKeyIds: selectedSshKeyIds.length > 0 ? selectedSshKeyIds : undefined
 			});
-			goto('/');
+			goto('/servers');
 		} catch (err) {
 			createError =
 				err instanceof Error ? err.message : 'Failed to create server. Please try again.';
@@ -238,7 +223,7 @@
 				variant="ghost"
 				size="sm"
 				class="h-7 gap-1.5 px-2 text-xs text-fyra-gray-400 hover:text-fyra-gray-200"
-				onclick={() => goto('/')}
+				onclick={() => goto('/servers')}
 			>
 				<ArrowLeft class="h-3 w-3" />
 				Back
@@ -249,7 +234,7 @@
 
 	<div class="flex flex-1 overflow-hidden">
 		<div class="flex-1 overflow-y-auto">
-			<div class="mx-auto max-w-3xl px-6 py-6">
+			<div class="px-6 py-6">
 				<div class="flex flex-col gap-8">
 					<div id="section-name" class="scroll-mt-4">
 						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
@@ -428,12 +413,7 @@
 							>
 						</div>
 						<div class="mt-3">
-							{#if loadingVmTypes}
-								<div class="flex items-center justify-center py-8 text-fyra-gray-500">
-									<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-									<span class="text-xs">Loading plans...</span>
-								</div>
-							{:else if vmTypes.length === 0}
+							{#if vmTypes.length === 0}
 								<div class="flex flex-col items-center justify-center py-8 text-center">
 									<Server class="mb-3 h-6 w-6 text-fyra-gray-600" />
 									<p class="text-xs text-fyra-gray-500">No VM types available</p>
