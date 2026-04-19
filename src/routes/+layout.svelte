@@ -14,7 +14,9 @@
 	import * as Command from '$lib/components/ui/command';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { rpc } from '$lib/rpc';
+	import { createProject as createProjectRpc, getProject as getProjectRpc, updateProject as updateProjectRpc, deleteProject as deleteProjectRpc, searchUsers as searchUsersRpc, addMember as addMemberRpc, removeMember as removeMemberRpc } from '$lib/remote/projects.remote';
+	import { createSshKey as createSshKeyRpc } from '$lib/remote/ssh-keys.remote';
+	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
 	import { authClient } from '$lib/auth-client';
 	import { deleteSshKey } from '$lib/remote/ssh-keys.remote';
 	import {
@@ -51,9 +53,11 @@
 
 	$effect(() => {
 		const incoming = data.projects ?? [];
+		const currentProjectId = data.currentProject?.id ?? '';
 		untrack(() => {
 			projects = incoming;
-			if (!selectedProjectId && incoming.length) selectedProjectId = incoming[0].id;
+			selectedProjectId =
+				incoming.find((project) => project.id === currentProjectId)?.id ?? incoming[0]?.id ?? '';
 		});
 	});
 	let selectedProject = $derived(projects.find((p) => p.id === selectedProjectId) ?? projects[0]);
@@ -63,7 +67,7 @@
 
 	async function createProject() {
 		if (!newProjectName.trim()) return;
-		const res = await rpc<{ id: string }>('projects.create', { name: newProjectName.trim() });
+		const res = await createProjectRpc({ name: newProjectName.trim() });
 		projects.push({ id: res.id, projectName: newProjectName.trim(), role: 'owner' });
 		selectedProjectId = res.id;
 		newProjectName = '';
@@ -72,15 +76,6 @@
 
 	// Project Sheet
 	type ProjectMember = { userId: string; name: string; email: string; permissions: string };
-	type ProjectInfo = {
-		id: string;
-		projectName: string;
-		ownerUserId: string;
-		ownerName: string;
-		ownerEmail: string;
-		creationDate: number;
-		members: ProjectMember[];
-	};
 	type SearchUser = { id: string; name: string; email: string };
 
 	let projectSheetOpen = $state(false);
@@ -108,7 +103,7 @@
 		projectSheetLoading = true;
 		projectSheetOpen = true;
 		try {
-			const proj = await rpc<ProjectInfo>('projects.get', { projectId: selectedProjectId });
+			const proj = await getProjectRpc({ projectId: selectedProjectId });
 			projectSheetName = proj.projectName;
 			projectSheetOwnerId = proj.ownerUserId;
 			projectSheetOwnerName = proj.ownerName;
@@ -128,7 +123,7 @@
 		projectSheetSaving = true;
 		projectSheetSaved = false;
 		try {
-			await rpc('projects.update', {
+			await updateProjectRpc({
 				projectId: selectedProjectId,
 				name: projectSheetName.trim() || originalName
 			});
@@ -151,7 +146,7 @@
 		if (projectDeleteConfirm.trim() !== selectedProject?.projectName) return;
 		projectDeleting = true;
 		try {
-			await rpc('projects.delete', { projectId: selectedProjectId });
+			await deleteProjectRpc({ projectId: selectedProjectId });
 			projects = projects.filter((p) => p.id !== selectedProjectId);
 			selectedProjectId = projects[0]?.id ?? '';
 			projectSheetOpen = false;
@@ -171,9 +166,7 @@
 		}
 		memberSearchLoading = true;
 		try {
-			const results = await rpc<SearchUser[]>('projects.searchUsers', {
-				query: memberSearchQuery.trim()
-			});
+			const results = await searchUsersRpc({ query: memberSearchQuery.trim() });
 			// Filter out users who are already members
 			memberSearchResults = results.filter(
 				(r) => !projectSheetMembers.some((m) => m.userId === r.id) && r.id !== projectSheetOwnerId
@@ -190,7 +183,7 @@
 		if (!selectedProjectId || addingMember) return;
 		addingMember = true;
 		try {
-			await rpc('projects.addMember', {
+			await addMemberRpc({
 				projectId: selectedProjectId,
 				userId: user.id,
 				permissions: selectedMemberRole
@@ -223,7 +216,7 @@
 		projectSheetMembers = projectSheetMembers.filter((m) => m.userId !== userId);
 
 		try {
-			await rpc('projects.removeMember', {
+			await removeMemberRpc({
 				projectId: selectedProjectId,
 				userId
 			});
@@ -244,7 +237,7 @@
 		projectSheetMembers[idx] = { ...projectSheetMembers[idx], permissions: newRole };
 
 		try {
-			await rpc('projects.addMember', {
+			await addMemberRpc({
 				projectId: selectedProjectId,
 				userId,
 				permissions: newRole as 'admin' | 'read_write'
@@ -343,7 +336,7 @@
 
 	async function addSshKey() {
 		if (!newKeyName.trim() || !newKeyValue.trim()) return;
-		const res = await rpc<{ id: string; fingerprint: string }>('sshKeys.create', {
+		const res = await createSshKeyRpc({
 			name: newKeyName.trim(),
 			publicKey: newKeyValue.trim()
 		});
@@ -374,11 +367,11 @@
 		if (tokensLoading || tokens.length > 0) return;
 		tokensLoading = true;
 		try {
-			const result = await rpc<ApiTokenState[]>('apiTokens.list');
+			const result = await listApiTokens();
 			tokens = result.map((t) => ({
 				id: t.id,
 				name: t.name,
-				created: new Date(t.created).toISOString().slice(0, 10),
+				created: new Date(t.createdAt).toISOString().slice(0, 10),
 				lastUsedAt: t.lastUsedAt
 			}));
 		} catch (e) {
@@ -402,7 +395,7 @@
 		});
 
 		try {
-			const result = await rpc<{ id: string; token: string }>('apiTokens.create', { name });
+			const result = await createApiToken({ name });
 			generatedToken = result.token;
 			const idx = tokens.findIndex((t) => t.id === tempId);
 			if (idx !== -1) tokens[idx] = { ...tokens[idx], id: result.id };
@@ -421,7 +414,7 @@
 		tokens = tokens.filter((t) => t.id !== id);
 
 		try {
-			await rpc('apiTokens.revoke', { tokenId: id });
+			await revokeApiToken({ tokenId: id });
 		} catch (e) {
 			console.error('Failed to revoke token:', e);
 			tokens.splice(idx, 0, tokenToRemove);

@@ -22,13 +22,15 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	if (!event?.locals.user) throw redirect(303, '/login');
 
 	const [projects, sshKeys] = await Promise.all([
-		listProjects({}),
-		listSshKeys({})
+		listProjects(),
+		listSshKeys()
 	]);
+	const currentProject = projects[0] ?? null;
 
 	return {
 		user: locals.user,
 		projects,
+		currentProject,
 		sshKeys
 	};
 };
