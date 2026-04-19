@@ -14,7 +14,15 @@
 	import * as Command from '$lib/components/ui/command';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { createProject as createProjectRpc, getProject as getProjectRpc, updateProject as updateProjectRpc, deleteProject as deleteProjectRpc, searchUsers as searchUsersRpc, addMember as addMemberRpc, removeMember as removeMemberRpc } from '$lib/remote/projects.remote';
+	import {
+		createProject as createProjectRpc,
+		getProject as getProjectRpc,
+		updateProject as updateProjectRpc,
+		deleteProject as deleteProjectRpc,
+		searchUsers as searchUsersRpc,
+		addMember as addMemberRpc,
+		removeMember as removeMemberRpc
+	} from '$lib/remote/projects.remote';
 	import { createSshKey as createSshKeyRpc } from '$lib/remote/ssh-keys.remote';
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
 	import { authClient } from '$lib/auth-client';
@@ -269,6 +277,21 @@
 	function isActive(href: string) {
 		if (href === '/') return page.url.pathname === '/';
 		return page.url.pathname.startsWith(href);
+	}
+
+	function withProjectContext(href: string, projectId = selectedProjectId) {
+		if (!projectId) return href;
+		const nextUrl = new URL(href, page.url);
+		nextUrl.searchParams.set('projectId', projectId);
+		return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+	}
+
+	async function selectProject(projectId: string) {
+		if (!projectId || projectId === selectedProjectId) return;
+		selectedProjectId = projectId;
+		await goto(withProjectContext(page.url.pathname + page.url.search + page.url.hash, projectId), {
+			invalidateAll: true
+		});
 	}
 
 	// User sheet
@@ -533,7 +556,7 @@
 							>Projects</DropdownMenu.Label
 						>
 						{#each projects as project (project.id)}
-							<DropdownMenu.Item class="gap-2" onclick={() => (selectedProjectId = project.id)}>
+							<DropdownMenu.Item class="gap-2" onclick={() => selectProject(project.id)}>
 								<FolderOpen
 									class="h-3.5 w-3.5 {selectedProjectId === project.id
 										? 'text-fyra-red-500'
@@ -607,7 +630,7 @@
 					<Tooltip.Root>
 						<Tooltip.Trigger>
 							<a
-								href={item.href}
+								href={withProjectContext(item.href)}
 								class="flex h-8 w-8 items-center justify-center transition-colors duration-100 {isActive(
 									item.href
 								)
@@ -1228,7 +1251,7 @@
 				<Command.Group heading="Servers">
 					{#each cmdServers as srv (srv.id)}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(`/?server=${srv.id}`))}
+							onSelect={() => runCommand(() => goto(withProjectContext(`/?server=${srv.id}`)))}
 							class="gap-2"
 						>
 							<Server class="h-3.5 w-3.5 shrink-0 text-fyra-gray-500" />
@@ -1247,7 +1270,8 @@
 				<Command.Group heading="Colocation">
 					{#each cmdColo as unit (unit.id)}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(`/colocation?unit=${unit.id}`))}
+							onSelect={() =>
+								runCommand(() => goto(withProjectContext(`/colocation?unit=${unit.id}`)))}
 							class="gap-2"
 						>
 							<Warehouse class="h-3.5 w-3.5 shrink-0 text-fyra-gray-500" />
@@ -1264,27 +1288,42 @@
 
 			{#if cmdFilter === 'all' || cmdFilter === 'navigate'}
 				<Command.Group heading="Navigate">
-					<Command.Item onSelect={() => runCommand(() => goto('/'))} class="gap-2">
+					<Command.Item
+						onSelect={() => runCommand(() => goto(withProjectContext('/')))}
+						class="gap-2"
+					>
 						<Server class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Servers</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => goto('/colocation'))} class="gap-2">
+					<Command.Item
+						onSelect={() => runCommand(() => goto(withProjectContext('/colocation')))}
+						class="gap-2"
+					>
 						<Warehouse class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Colocation</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => goto('/volumes'))} class="gap-2">
+					<Command.Item
+						onSelect={() => runCommand(() => goto(withProjectContext('/volumes')))}
+						class="gap-2"
+					>
 						<HardDrive class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Volumes</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => goto('/firewall'))} class="gap-2">
+					<Command.Item
+						onSelect={() => runCommand(() => goto(withProjectContext('/firewall')))}
+						class="gap-2"
+					>
 						<Shield class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Firewall</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => goto('/images'))} class="gap-2">
+					<Command.Item
+						onSelect={() => runCommand(() => goto(withProjectContext('/images')))}
+						class="gap-2"
+					>
 						<Disc class="h-3.5 w-3.5 text-fyra-gray-500" />
 						<span>Images</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
