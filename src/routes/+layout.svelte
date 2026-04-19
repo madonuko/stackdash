@@ -257,7 +257,7 @@
 	}
 
 	const navItems = [
-		{ icon: Server, label: 'Servers', href: '/' },
+		{ icon: Server, label: 'Servers', href: '/servers' },
 		{ icon: Warehouse, label: 'Colocation', href: '/colocation' },
 		{ icon: HardDrive, label: 'Volumes', href: '/volumes' },
 		{ icon: Shield, label: 'Firewall', href: '/firewall' },
@@ -984,7 +984,12 @@
 						</div>
 						<div class="flex flex-col gap-3">
 							<Input bind:value={projectSheetName} class="font-medium" />
-							<Button size="sm" onclick={saveProjectName} disabled={projectSheetSaving} class="w-fit">
+							<Button
+								size="sm"
+								onclick={saveProjectName}
+								disabled={projectSheetSaving}
+								class="w-fit"
+							>
 								{#if projectSheetSaving}
 									Saving...
 								{:else if projectSheetSaved}
@@ -998,7 +1003,9 @@
 
 					<!-- Members -->
 					<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-						<div class="mb-3 flex items-center justify-between border-b border-fyra-gray-800/50 pb-2">
+						<div
+							class="mb-3 flex items-center justify-between border-b border-fyra-gray-800/50 pb-2"
+						>
 							<div class="flex items-center gap-2">
 								<User class="h-3.5 w-3.5 text-fyra-red-400" />
 								<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
@@ -1151,16 +1158,16 @@
 					</div>
 
 					<!-- Delete Project -->
-					<div class="rounded-xs border border-fyra-red-900/30 bg-fyra-red-950/10 p-4">
-						<div class="mb-3 flex items-center gap-2 border-b border-fyra-red-900/20 pb-2">
+					<div class="border-fyra-red-900/30 rounded-xs border bg-fyra-red-950/10 p-4">
+						<div class="border-fyra-red-900/20 mb-3 flex items-center gap-2 border-b pb-2">
 							<Trash2 class="h-3.5 w-3.5 text-fyra-red-400" />
 							<p class="text-xs font-semibold tracking-wider text-fyra-red-400 uppercase">
 								Delete Project
 							</p>
 						</div>
 						<p class="mb-3 text-xs text-fyra-gray-400">
-							This will permanently delete the project and all its resources. Type the project
-							name to confirm.
+							This will permanently delete the project and all its resources. Type the project name
+							to confirm.
 						</p>
 						<div class="flex flex-col gap-3">
 							<Input
