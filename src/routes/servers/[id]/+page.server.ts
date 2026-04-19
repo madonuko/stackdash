@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 
 	if (!vm.active || vm.ownerProjectId !== projectId) {
 		if (fallbackServer) {
-			throw redirect(303, `/servers/${fallbackServer.id}?projectId=${projectId}`);
+			throw redirect(303, `/servers/${fallbackServer.id}`);
 		}
 
 		error(404, 'Server not found');
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 
 	if (!servers.some((listedServer) => listedServer.id === server.id)) {
 		if (fallbackServer) {
-			throw redirect(303, `/servers/${fallbackServer.id}?projectId=${projectId}`);
+			throw redirect(303, `/servers/${fallbackServer.id}`);
 		}
 
 		error(404, 'Server not found');

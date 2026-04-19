@@ -24,8 +24,10 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	const [projects, sshKeys] = await Promise.all([listProjects(), listSshKeys()]);
 	const requestedProjectId = url.searchParams.get('projectId');
 	const activeProjectId = requestedProjectId ?? locals.activeProjectId;
+	const fallbackProject = projects[0] ?? null;
 	const currentProject =
-		projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? null;
+		projects.find((project) => project.id === activeProjectId) ??
+		(requestedProjectId ? null : fallbackProject);
 	const responseEvent = getRequestEvent();
 
 	if (responseEvent) {
