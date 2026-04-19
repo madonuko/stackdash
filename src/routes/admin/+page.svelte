@@ -4,21 +4,31 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { rpc } from '$lib/rpc';
-	import { onMount } from 'svelte';
 	import {
+		createVmType,
 		updateVmType,
 		deleteVmType
 	} from '$lib/remote/vm-types.remote';
-	import { updateImage, deleteImage } from '$lib/remote/images.remote';
+	import { createImage, updateImage, deleteImage, listProxmoxIsos } from '$lib/remote/images.remote';
 	import { Plus, Pencil, Trash2, Cpu, Disc, Loader2, AlertTriangle, RefreshCw } from '@lucide/svelte';
+
+	type VmType = { id: string; name: string; isa: string; cores: number; ramCapacity: number; storageAmount: number; rate: string; cap: string };
+	type BaseImage = { id: string; name: string; version: string; description: string; shortName: string; icon: string | null; color: string; filePath: string; isa: string };
+	type PageData = {
+		vmTypes: VmType[];
+		images: BaseImage[];
+	};
+
+	let { data }: { data: PageData } = $props();
 
 	type AdminTab = 'vmTypes' | 'images';
 	let activeTab = $state<AdminTab>('vmTypes');
-
-	type VmType = { id: string; name: string; isa: string; cores: number; ramCapacity: number; storageAmount: number; rate: string; cap: string };
 	let vmTypes = $state<VmType[]>([]);
-	let vtLoading = $state(true);
+	let images = $state<BaseImage[]>([]);
+	$effect(() => {
+		vmTypes = [...data.vmTypes];
+		images = [...data.images];
+	});
 	let vtDialogOpen = $state(false);
 	let vtEditing = $state<VmType | null>(null);
 	let vtSaving = $state(false);
@@ -26,9 +36,6 @@
 	let vtName = $state(''); let vtIsa = $state<'x86' | 'arm' | 'risc-v'>('x86');
 	let vtCores = $state(1); let vtRam = $state(512); let vtStorage = $state(10);
 	let vtRate = $state('0.00'); let vtCap = $state('5.00');
-
-	async function loadVmTypes() { vtLoading = true; try { vmTypes = await rpc<VmType[]>('vmTypes.list'); } catch {} vtLoading = false; }
-	onMount(() => { loadVmTypes(); loadImages(); });
 
 	function vtOpenCreate() {
 		vtEditing = null; vtName = ''; vtIsa = 'x86'; vtCores = 1; vtRam = 512; vtStorage = 10; vtRate = '0.00'; vtCap = '5.00'; vtError = ''; vtDialogOpen = true;
@@ -45,7 +52,7 @@
 				const idx = vmTypes.findIndex((v) => v.id === vtEditing!.id);
 				if (idx !== -1) vmTypes[idx] = { ...vmTypes[idx], ...data };
 			} else {
-				const res = await rpc<{ id: string }>('vmTypes.create', data);
+				const res = await createVmType(data);
 				vmTypes.push({ id: res.id, ...data });
 			}
 			vtDialogOpen = false;
@@ -57,11 +64,8 @@
 		catch (err) { alert(err instanceof Error ? err.message : 'Failed to delete'); }
 	}
 
-	type BaseImage = { id: string; name: string; version: string; description: string; shortName: string; icon: string | null; color: string; filePath: string; isa: string };
 	type PveIso = { volid: string; filename: string; size: number; node: string };
-	let images = $state<BaseImage[]>([]);
 	let pveIsos = $state<PveIso[]>([]);
-	let imgLoading = $state(true);
 	let isoLoading = $state(false);
 	let imgDialogOpen = $state(false);
 	let imgEditing = $state<BaseImage | null>(null);
@@ -84,15 +88,9 @@
 		'bg-pink-600', 'bg-gray-600'
 	];
 
-	async function loadImages() {
-		imgLoading = true;
-		try { images = await rpc<BaseImage[]>('images.list'); } catch {}
-		imgLoading = false;
-	}
-
 	async function loadPveIsos() {
 		isoLoading = true;
-		try { pveIsos = await rpc<PveIso[]>('images.listProxmoxIsos'); } catch {}
+		try { pveIsos = await listProxmoxIsos(); } catch {}
 		isoLoading = false;
 	}
 
@@ -119,7 +117,7 @@
 				const idx = images.findIndex((i) => i.id === imgEditing!.id);
 				if (idx !== -1) images[idx] = { ...images[idx], ...data };
 			} else {
-				const res = await rpc<{ id: string }>('images.create', data);
+				const res = await createImage(data);
 				images.push({ id: res.id, ...data });
 			}
 			imgDialogOpen = false;
@@ -173,9 +171,7 @@
 	<div class="flex-1 overflow-auto">
 		<!-- ═══ VM Types Tab ═══ -->
 		{#if activeTab === 'vmTypes'}
-			{#if vtLoading}
-				<div class="flex items-center justify-center py-20 text-fyra-gray-500"><Loader2 class="h-5 w-5 animate-spin" /></div>
-			{:else if vmTypes.length === 0}
+			{#if vmTypes.length === 0}
 				<div class="flex flex-col items-center justify-center py-20 text-fyra-gray-500">
 					<Cpu class="mb-3 h-6 w-6" /><p class="text-xs">No VM types yet</p>
 					<Button variant="outline" size="sm" class="mt-3 gap-1.5 text-xs" onclick={vtOpenCreate}><Plus class="h-3 w-3" /> Create Type</Button>
@@ -216,9 +212,7 @@
 
 		<!-- ═══ Images Tab ═══ -->
 		{:else}
-			{#if imgLoading}
-				<div class="flex items-center justify-center py-20 text-fyra-gray-500"><Loader2 class="h-5 w-5 animate-spin" /></div>
-			{:else if images.length === 0}
+			{#if images.length === 0}
 				<div class="flex flex-col items-center justify-center py-20 text-fyra-gray-500">
 					<Disc class="mb-3 h-6 w-6" /><p class="text-xs">No images configured</p>
 					<Button variant="outline" size="sm" class="mt-3 gap-1.5 text-xs" onclick={imgOpenCreate}><Plus class="h-3 w-3" /> Add Image</Button>
@@ -344,6 +338,7 @@
 						<button
 							class="h-6 w-6 border-2 transition-colors {c} {imgColor === c ? 'border-white' : 'border-transparent hover:border-fyra-gray-500'}"
 							onclick={() => (imgColor = c)}
+							aria-label={`Select ${c}`}
 						></button>
 					{/each}
 				</div>
