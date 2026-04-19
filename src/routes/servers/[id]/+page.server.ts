@@ -5,6 +5,7 @@ import { toServerInfo } from '../lib/server-summary';
 
 export const load: PageServerLoad = async ({ params, parent }) => {
 	const { projectId, servers } = await parent();
+	const fallbackServer = servers[0];
 
 	if (!projectId) {
 		error(404, 'Project not found');
@@ -12,9 +13,9 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 
 	const vm = await getVm({ vmId: params.id });
 
-	if (!vm.active) {
-		if (servers.length > 0) {
-			throw redirect(303, `/servers/${servers[0].id}`);
+	if (!vm.active || vm.ownerProjectId !== projectId) {
+		if (fallbackServer) {
+			throw redirect(303, `/servers/${fallbackServer.id}?projectId=${projectId}`);
 		}
 
 		error(404, 'Server not found');
@@ -23,8 +24,8 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const server = toServerInfo(vm);
 
 	if (!servers.some((listedServer) => listedServer.id === server.id)) {
-		if (servers.length > 0) {
-			throw redirect(303, `/servers/${servers[0].id}`);
+		if (fallbackServer) {
+			throw redirect(303, `/servers/${fallbackServer.id}?projectId=${projectId}`);
 		}
 
 		error(404, 'Server not found');

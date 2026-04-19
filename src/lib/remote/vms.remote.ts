@@ -5,12 +5,12 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { vms, vmTypes, sshKeys } from '$lib/server/db/schema';
 import { getBackend, type VmInfo } from '$lib/server/backends';
-import { requireProjectAccess } from '$lib/server/rpc/context';
+import { requireProjectAccess } from '$lib/server/auth-context';
 
 const listParams = type({ projectId: 'string' });
 export const listVms = query(listParams, async (params) => {
 	const event = getRequestEvent();
-	if (!event?. locals.user) error(401, 'Authentication required');
+	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId);
@@ -50,7 +50,7 @@ export const listVms = query(listParams, async (params) => {
 const getParams = type({ vmId: 'string' });
 export const getVm = query(getParams, async (params) => {
 	const event = getRequestEvent();
-	if (!event?. locals.user) error(401, 'Authentication required');
+	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
 	const row = await db.query.vms.findFirst({
@@ -72,6 +72,7 @@ export const getVm = query(getParams, async (params) => {
 	return {
 		id: row.id,
 		active: row.active,
+		ownerProjectId: row.ownerProjectId,
 		vmTypeId: row.vmTypeId,
 		creationDate: row.creationDate,
 		backend: row.backend,
@@ -96,7 +97,7 @@ const createParams = type({
 });
 export const createVm = command(createParams, async (params) => {
 	const event = getRequestEvent();
-	if (!event?. locals.user) error(401, 'Authentication required');
+	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'read_write');
@@ -160,7 +161,7 @@ export const createVm = command(createParams, async (params) => {
 const deleteParams = type({ vmId: 'string' });
 export const deleteVm = command(deleteParams, async (params) => {
 	const event = getRequestEvent();
-	if (!event?. locals.user) error(401, 'Authentication required');
+	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
 	const row = await db.query.vms.findFirst({ where: eq(vms.id, params.vmId) });
@@ -179,7 +180,7 @@ export const deleteVm = command(deleteParams, async (params) => {
 const powerParams = type({ vmId: 'string' });
 async function powerAction(vmId: string, action: 'startVm' | 'stopVm' | 'killVm' | 'rebootVm') {
 	const event = getRequestEvent();
-	if (!event?. locals.user) error(401, 'Authentication required');
+	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
 	const row = await db.query.vms.findFirst({ where: eq(vms.id, vmId) });
