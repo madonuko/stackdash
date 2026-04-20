@@ -4,6 +4,7 @@ import { listVmTypes } from '$lib/remote/vm-types.remote';
 import { listImages } from '$lib/remote/images.remote';
 import { initDrizzle } from '$lib/server/db';
 import { requireAdmin } from '$lib/server/auth-context';
+import { getFeatureFlags } from '$lib/server/feature-flags';
 
 export const load: PageServerLoad = async () => {
 	const event = getRequestEvent();
@@ -18,10 +19,15 @@ export const load: PageServerLoad = async () => {
 
 	await requireAdmin(initDrizzle(), userId);
 
-	const [vmTypes, images] = await Promise.all([listVmTypes(), listImages()]);
+	const [vmTypes, images, featureFlags] = await Promise.all([
+		listVmTypes(),
+		listImages(),
+		getFeatureFlags()
+	]);
 
 	return {
 		vmTypes,
-		images
+		images,
+		featureFlags
 	};
 };

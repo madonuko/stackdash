@@ -17,6 +17,7 @@ declare global {
 				HYPERDRIVE: {
 					connectionString: string;
 				};
+				FEATURE_FLAGS?: KVNamespace;
 				// OAuth (set as Cloudflare Worker secrets)
 				GITHUB_CLIENT_ID?: string;
 				GITHUB_CLIENT_SECRET?: string;
@@ -29,8 +30,14 @@ declare global {
 			};
 		}
 
-		// interface Error {}
-		// interface PageData {}
+		interface PageData {
+			featureFlags?: {
+				colocation: boolean;
+				firewall: boolean;
+				images: boolean;
+				volumes: boolean;
+			};
+		}
 		// interface PageState {}
 	}
 }

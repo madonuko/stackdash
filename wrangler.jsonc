@@ -14,6 +14,12 @@
 			"id": "5c191e200f394f23a3856fab99593abe"
 		}
 	],
+	"kv_namespaces": [
+		{
+			"binding": "FEATURE_FLAGS",
+			"id": "feature-flags"
+		}
+	],
 	"observability": {
 		"enabled": true
 	}

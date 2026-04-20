@@ -9,6 +9,7 @@ export type RuntimeEnv = {
 	HYPERDRIVE?: {
 		connectionString: string;
 	};
+	FEATURE_FLAGS?: KVNamespace;
 	// OAuth (optional — social providers are conditionally enabled)
 	GITHUB_CLIENT_ID?: string;
 	GITHUB_CLIENT_SECRET?: string;
@@ -30,6 +31,7 @@ export function getRuntimeEnv(): RuntimeEnv {
 			ORIGIN: required('ORIGIN', platformEnv.ORIGIN),
 			BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET', platformEnv.BETTER_AUTH_SECRET),
 			HYPERDRIVE: platformEnv.HYPERDRIVE,
+			FEATURE_FLAGS: platformEnv.FEATURE_FLAGS,
 			GITHUB_CLIENT_ID: platformEnv.GITHUB_CLIENT_ID,
 			GITHUB_CLIENT_SECRET: platformEnv.GITHUB_CLIENT_SECRET,
 			GOOGLE_CLIENT_ID: platformEnv.GOOGLE_CLIENT_ID,

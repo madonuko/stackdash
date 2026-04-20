@@ -3,9 +3,12 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { Switch } from '$lib/components/ui/switch';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import Icon from '$lib/components/icon.svelte';
 	import { createVmType, updateVmType, deleteVmType } from '$lib/remote/vm-types.remote';
+	import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
+	import { featureFlagKeys, featureFlagLabels, type FeatureFlagKey, type FeatureFlags } from '$lib/feature-flags';
 	import {
 		createImage,
 		updateImage,
@@ -47,18 +50,41 @@
 	type PageData = {
 		vmTypes: VmType[];
 		images: BaseImage[];
+		featureFlags: FeatureFlags;
 	};
 
 	let { data }: { data: PageData } = $props();
 
-	type AdminTab = 'vmTypes' | 'images';
+	type AdminTab = 'features' | 'vmTypes' | 'images';
 	let activeTab = $state<AdminTab>('vmTypes');
 	let vmTypes = $state<VmType[]>([]);
 	let images = $state<BaseImage[]>([]);
+	let featureFlags = $state<FeatureFlags>(data.featureFlags);
+	let featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>({
+		colocation: false,
+		firewall: false,
+		images: false,
+		volumes: false
+	});
+	let featureFlagError = $state('');
 	$effect(() => {
 		vmTypes = [...data.vmTypes];
 		images = [...data.images];
+		featureFlags = data.featureFlags;
 	});
+
+	async function toggleFeatureFlag(flag: FeatureFlagKey, enabled: boolean) {
+		featureFlagError = '';
+		featureFlagSaving[flag] = true;
+		try {
+			const result = await updateFeatureFlag({ flag, enabled });
+			featureFlags = result.featureFlags;
+		} catch (err) {
+			featureFlagError = err instanceof Error ? err.message : 'Failed to update feature flag';
+		} finally {
+			featureFlagSaving[flag] = false;
+		}
+	}
 	let vtDialogOpen = $state(false);
 	let vtEditing = $state<VmType | null>(null);
 	let vtSaving = $state(false);
@@ -253,6 +279,18 @@
 	<div class="flex h-10 shrink-0 items-center gap-0 border-b border-gray-800">
 		<button
 			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'features'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			onclick={() => (activeTab = 'features')}
+		>
+			Feature Flags
+			<Badge variant="secondary" class="text-[10px]">
+				{featureFlagKeys.filter((key) => featureFlags[key]).length}
+			</Badge>
+		</button>
+		<button
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
 			'vmTypes'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
@@ -280,7 +318,7 @@
 					><Plus class="h-3 w-3" /> Create Type</Button
 				>
 			</div>
-		{:else}
+		{:else if activeTab === 'images'}
 			<div class="px-4">
 				<Button size="sm" class="h-7 gap-1.5 text-xs" onclick={imgOpenCreate}
 					><Plus class="h-3 w-3" /> Add Image</Button
@@ -291,8 +329,42 @@
 
 	<!-- Content -->
 	<div class="flex-1 overflow-auto">
-		<!-- ═══ VM Types Tab ═══ -->
-		{#if activeTab === 'vmTypes'}
+		{#if activeTab === 'features'}
+			<div class="flex flex-col gap-4 p-5">
+				{#if featureFlagError}
+					<div
+						class="flex items-center gap-2 border border-red-700 bg-red-950 px-3 py-2 text-sm text-red-400"
+					>
+						<AlertTriangle class="h-3.5 w-3.5 shrink-0" />{featureFlagError}
+					</div>
+				{/if}
+				<div class="grid gap-3">
+					{#each featureFlagKeys as flag (flag)}
+						<div class="flex items-center justify-between border border-gray-800 bg-gray-900/50 px-4 py-3">
+							<div class="flex flex-col gap-1">
+								<div class="flex items-center gap-2">
+									<span class="text-sm font-medium text-gray-100">{featureFlagLabels[flag]}</span>
+									<Badge variant={featureFlags[flag] ? 'default' : 'secondary'} class="text-[10px]">
+										{featureFlags[flag] ? 'Enabled' : 'Disabled'}
+									</Badge>
+								</div>
+								<p class="text-xs text-gray-500">Controls route visibility and direct access.</p>
+							</div>
+							<div class="flex items-center gap-3">
+								{#if featureFlagSaving[flag]}
+									<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
+								{/if}
+								<Switch
+									checked={featureFlags[flag]}
+									disabled={featureFlagSaving[flag]}
+									onCheckedChange={(checked) => toggleFeatureFlag(flag, checked)}
+								/>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else if activeTab === 'vmTypes'}
 			{#if vmTypes.length === 0}
 				<div class="flex flex-col items-center justify-center py-20 text-gray-500">
 					<Cpu class="mb-3 h-6 w-6" />

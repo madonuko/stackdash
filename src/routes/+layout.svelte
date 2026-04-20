@@ -27,6 +27,7 @@
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
 	import { authClient } from '$lib/auth-client';
 	import { deleteSshKey } from '$lib/remote/ssh-keys.remote';
+	import type { FeatureFlags } from '$lib/feature-flags';
 	import {
 		Server,
 		HardDrive,
@@ -53,6 +54,7 @@
 	} from '@lucide/svelte';
 
 	let { children, data } = $props();
+	const featureFlags = $derived((data.featureFlags ?? {}) as FeatureFlags);
 
 	// Projects — from server
 	type Project = { id: string; projectName: string; role: string };
@@ -265,14 +267,14 @@
 		}
 	}
 
-	const navItems = [
+	const navItems = $derived([
 		{ icon: Server, label: 'Servers', href: '/servers' },
-		{ icon: Warehouse, label: 'Colocation', href: '/colocation' },
-		{ icon: HardDrive, label: 'Volumes', href: '/volumes' },
-		{ icon: Shield, label: 'Firewall', href: '/firewall' },
-		{ icon: Disc, label: 'Images', href: '/images' },
+		...(featureFlags.colocation ? [{ icon: Warehouse, label: 'Colocation', href: '/colocation' }] : []),
+		...(featureFlags.volumes ? [{ icon: HardDrive, label: 'Volumes', href: '/volumes' }] : []),
+		...(featureFlags.firewall ? [{ icon: Shield, label: 'Firewall', href: '/firewall' }] : []),
+		...(featureFlags.images ? [{ icon: Disc, label: 'Images', href: '/images' }] : []),
 		{ icon: Settings, label: 'Admin', href: '/admin' }
-	];
+	]);
 
 	function isActive(href: string) {
 		if (href === '/') return page.url.pathname === '/';
@@ -511,6 +513,11 @@
 		{ id: 'colo-002', label: 'storage-node', detail: '2U · Rack A12' },
 		{ id: 'colo-003', label: 'gpu-worker', detail: '4U · Rack B03' }
 	];
+
+	const showColocation = $derived(!!featureFlags.colocation);
+	const showVolumes = $derived(!!featureFlags.volumes);
+	const showFirewall = $derived(!!featureFlags.firewall);
+	const showImages = $derived(!!featureFlags.images);
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -1235,7 +1242,7 @@
 				<Command.Separator class="bg-gray-800" />
 			{/if}
 
-			{#if cmdFilter === 'all' || cmdFilter === 'colo'}
+			{#if showColocation && (cmdFilter === 'all' || cmdFilter === 'colo')}
 				<Command.Group heading="Colocation">
 					{#each cmdColo as unit (unit.id)}
 						<Command.Item
@@ -1264,38 +1271,46 @@
 						<span>Servers</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
-					<Command.Item
-						onSelect={() => runCommand(() => goto(withProjectContext('/colocation')))}
-						class="gap-2"
-					>
-						<Warehouse class="h-3.5 w-3.5 text-gray-500" />
-						<span>Colocation</span>
-						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-					</Command.Item>
-					<Command.Item
-						onSelect={() => runCommand(() => goto(withProjectContext('/volumes')))}
-						class="gap-2"
-					>
-						<HardDrive class="h-3.5 w-3.5 text-gray-500" />
-						<span>Volumes</span>
-						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-					</Command.Item>
-					<Command.Item
-						onSelect={() => runCommand(() => goto(withProjectContext('/firewall')))}
-						class="gap-2"
-					>
-						<Shield class="h-3.5 w-3.5 text-gray-500" />
-						<span>Firewall</span>
-						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-					</Command.Item>
-					<Command.Item
-						onSelect={() => runCommand(() => goto(withProjectContext('/images')))}
-						class="gap-2"
-					>
-						<Disc class="h-3.5 w-3.5 text-gray-500" />
-						<span>Images</span>
-						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-					</Command.Item>
+					{#if showColocation}
+						<Command.Item
+							onSelect={() => runCommand(() => goto(withProjectContext('/colocation')))}
+							class="gap-2"
+						>
+							<Warehouse class="h-3.5 w-3.5 text-gray-500" />
+							<span>Colocation</span>
+							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
+						</Command.Item>
+					{/if}
+					{#if showVolumes}
+						<Command.Item
+							onSelect={() => runCommand(() => goto(withProjectContext('/volumes')))}
+							class="gap-2"
+						>
+							<HardDrive class="h-3.5 w-3.5 text-gray-500" />
+							<span>Volumes</span>
+							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
+						</Command.Item>
+					{/if}
+					{#if showFirewall}
+						<Command.Item
+							onSelect={() => runCommand(() => goto(withProjectContext('/firewall')))}
+							class="gap-2"
+						>
+							<Shield class="h-3.5 w-3.5 text-gray-500" />
+							<span>Firewall</span>
+							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
+						</Command.Item>
+					{/if}
+					{#if showImages}
+						<Command.Item
+							onSelect={() => runCommand(() => goto(withProjectContext('/images')))}
+							class="gap-2"
+						>
+							<Disc class="h-3.5 w-3.5 text-gray-500" />
+							<span>Images</span>
+							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
+						</Command.Item>
+					{/if}
 				</Command.Group>
 				<Command.Separator class="bg-gray-800" />
 			{/if}
