@@ -11,9 +11,7 @@
 	"hyperdrive": [
 		{
 			"binding": "HYPERDRIVE",
-			"id": "5c191e200f394f23a3856fab99593abe",
-			// Optional for `wrangler dev` when you want a direct database connection locally:
-			"localConnectionString": "postgresql://postgres.rwlybw3xcu8u:pscale_pw_9RVybUmczJS9B01m34nqlEtWSnXKgLv3@aws-us-east-2-2.pg.psdb.cloud:5432/postgres?sslmode=verify-full&sslrootcert=system"
+			"id": "5c191e200f394f23a3856fab99593abe"
 		}
 	],
 	"observability": {
