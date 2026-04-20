@@ -49,16 +49,16 @@
 
 <div class="flex h-full w-full overflow-hidden">
 	<!-- Server list sidebar -->
-	<div class="flex w-64 shrink-0 flex-col border-r border-fyra-gray-800">
-		<div class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
+	<div class="flex w-64 shrink-0 flex-col border-r border-gray-800">
+		<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center">
-				<span class="text-sm font-semibold text-fyra-gray-100">Servers</span>
+				<span class="text-sm font-semibold text-gray-100">Servers</span>
 				<Badge variant="secondary" class="ml-2 text-[10px]">{servers.length}</Badge>
 			</div>
 			<Button
 				variant="outline"
 				size="sm"
-				class="h-6 w-6 border-fyra-red-500/50 p-0 text-fyra-red-400 hover:border-fyra-red-500 hover:bg-fyra-red-950 hover:text-fyra-gray-100"
+				class="h-6 w-6 border-red-500/50 p-0 text-red-400 hover:border-red-500 hover:bg-red-950 hover:text-gray-100"
 				onclick={() => goto('/servers/create')}
 			>
 				<Plus class="h-3.5 w-3.5" />
@@ -67,15 +67,15 @@
 		<div class="flex-1 overflow-y-auto">
 			{#each servers as server (server.id)}
 				<button
-					class="flex w-full items-start justify-between border-b border-fyra-gray-800 px-4 py-3 text-left transition-colors duration-100 {selectedServerId ===
+					class="flex w-full items-start justify-between border-b border-gray-800 px-4 py-3 text-left transition-colors duration-100 {selectedServerId ===
 					server.id
-						? 'bg-fyra-gray-800/60'
-						: 'hover:bg-fyra-gray-800/30'}"
+						? 'bg-gray-800/60'
+						: 'hover:bg-gray-800/30'}"
 					onclick={() => goto(`/servers/${server.id}`)}
 				>
 					<div class="min-w-0">
-						<p class="truncate text-sm font-semibold text-fyra-gray-100">{server.name}</p>
-						<p class="mt-0.5 truncate text-xs text-fyra-gray-500">
+						<p class="truncate text-sm font-semibold text-gray-100">{server.name}</p>
+						<p class="mt-0.5 truncate text-xs text-gray-500">
 							{server.vcpu} vCPU &bull; {server.ram} &bull; {server.ip}
 						</p>
 					</div>
@@ -86,13 +86,13 @@
 								? 'animate-pulse bg-blue-500'
 								: server.status === 'restarting'
 									? 'animate-pulse bg-amber-500'
-									: 'bg-fyra-red-500'}"
+									: 'bg-red-500'}"
 					></span>
 				</button>
 			{/each}
 
 			{#if servers.length === 0}
-				<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
+				<div class="flex flex-col items-center justify-center py-16 text-gray-500">
 					<HardDrive class="mb-3 h-6 w-6" />
 					<p class="text-xs">No servers</p>
 				</div>

@@ -225,7 +225,7 @@ export const baseImages = pgTable('base_images', {
 	version: text('version').notNull(),
 	description: text('description').notNull(),
 	shortName: text('short_name').notNull().default(''),
-	icon: text('icon'), // SVG markup for the logo
+	icon: text('icon'),
 	color: text('color').notNull().default('bg-gray-600'), // Tailwind bg class
 	isa: vmIsaEnum('isa').notNull()
 });

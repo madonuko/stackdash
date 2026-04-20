@@ -523,11 +523,9 @@
 {#if !data.user}
 	{@render children()}
 {:else}
-	<div class="flex h-screen flex-col overflow-hidden bg-fyra-gray-900">
+	<div class="flex h-screen flex-col overflow-hidden bg-gray-900">
 		<!-- Top bar -->
-		<header
-			class="flex h-12 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4"
-		>
+		<header class="flex h-12 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center gap-2">
 				<a href="/" class="flex items-center gap-2">
 					<svg
@@ -541,36 +539,36 @@
 						<rect x="3" y="10" width="18" height="4" rx="0.5" fill="#c6716d" opacity="0.75" />
 						<rect x="3" y="16" width="18" height="4" rx="0.5" fill="#c6716d" opacity="0.5" />
 					</svg>
-					<span class="text-sm font-semibold tracking-tight text-fyra-gray-50">Stack</span>
+					<span class="text-sm font-semibold tracking-tight text-gray-50">Stack</span>
 				</a>
-				<span class="text-sm text-fyra-gray-600">/</span>
+				<span class="text-sm text-gray-600">/</span>
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger
-						class="flex items-center gap-1 px-1.5 py-0.5 text-sm font-medium text-fyra-gray-200 transition-colors hover:bg-fyra-gray-800 hover:text-fyra-gray-50"
+						class="flex items-center gap-1 px-1.5 py-0.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 hover:text-gray-50"
 					>
 						{currentProject?.projectName ?? 'Select Project'}
-						<ChevronDown class="h-3 w-3 text-fyra-gray-500" />
+						<ChevronDown class="h-3 w-3 text-gray-500" />
 					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="start" class="w-52 border-fyra-gray-800 bg-fyra-gray-900">
-						<DropdownMenu.Label class="text-[10px] tracking-wider text-fyra-gray-500 uppercase"
+					<DropdownMenu.Content align="start" class="w-52 border-gray-800 bg-gray-900">
+						<DropdownMenu.Label class="text-[10px] tracking-wider text-gray-500 uppercase"
 							>Projects</DropdownMenu.Label
 						>
 						{#each projects as project (project.id)}
 							<DropdownMenu.Item class="gap-2" onclick={() => selectProject(project.id)}>
 								<FolderOpen
 									class="h-3.5 w-3.5 {selectedProjectId === project.id
-										? 'text-fyra-red-500'
-										: 'text-fyra-gray-500'}"
+										? 'text-red-500'
+										: 'text-gray-500'}"
 								/>
-								<span class={selectedProjectId === project.id ? 'text-fyra-gray-50' : ''}
+								<span class={selectedProjectId === project.id ? 'text-gray-50' : ''}
 									>{project.projectName}</span
 								>
 								{#if selectedProjectId === project.id}
-									<Check class="ml-auto h-3 w-3 text-fyra-red-500" />
+									<Check class="ml-auto h-3 w-3 text-red-500" />
 								{/if}
 							</DropdownMenu.Item>
 						{/each}
-						<DropdownMenu.Separator class="bg-fyra-gray-800" />
+						<DropdownMenu.Separator class="bg-gray-800" />
 						<DropdownMenu.Item class="gap-2" onclick={() => (createProjectOpen = true)}>
 							<Plus class="h-3.5 w-3.5" />
 							Create Project
@@ -586,28 +584,28 @@
 			<div class="flex flex-1 items-center justify-end gap-3">
 				<!-- Search trigger -->
 				<button
-					class="flex items-center gap-2 border border-fyra-gray-800 bg-fyra-gray-800/30 px-3 py-1.5 text-xs text-fyra-gray-500 transition-colors hover:border-fyra-gray-700 hover:text-fyra-gray-400"
+					class="flex items-center gap-2 border border-gray-800 bg-gray-800/30 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-700 hover:text-gray-400"
 					onclick={() => (commandOpen = true)}
 				>
 					<Search class="h-3 w-3" />
 					<span>Search...</span>
 					<kbd
-						class="ml-2 border border-fyra-gray-700 bg-fyra-gray-800 px-1.5 py-0.5 text-[10px] text-fyra-gray-500"
+						class="ml-2 border border-gray-700 bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500"
 						>⌘K</kbd
 					>
 				</button>
 
 				<!-- Avatar button — opens user sheet -->
 				<button
-					class="flex items-center gap-2.5 rounded-xs px-2 py-1 transition-colors hover:bg-fyra-gray-800"
+					class="flex items-center gap-2.5 rounded-xs px-2 py-1 transition-colors hover:bg-gray-800"
 					onclick={() => openUserSheet()}
 				>
 					<div class="text-right">
-						<p class="text-sm leading-tight font-medium text-fyra-gray-100">{profileName}</p>
-						<p class="text-xs leading-tight text-fyra-gray-500">{data.user?.email}</p>
+						<p class="text-sm leading-tight font-medium text-gray-100">{profileName}</p>
+						<p class="text-xs leading-tight text-gray-500">{data.user?.email}</p>
 					</div>
-					<Avatar.Root class="h-8 w-8 rounded-xs border border-fyra-gray-700">
-						<Avatar.Fallback class="rounded-xs bg-fyra-gray-800 text-xs text-fyra-gray-400"
+					<Avatar.Root class="h-8 w-8 rounded-xs border border-gray-700">
+						<Avatar.Fallback class="rounded-xs bg-gray-800 text-xs text-gray-400"
 							>{(data.user?.name ?? '??')
 								.split(' ')
 								.map((n: string) => n[0])
@@ -623,9 +621,7 @@
 		<!-- Body -->
 		<div class="flex flex-1 overflow-hidden">
 			<!-- Icon sidebar -->
-			<aside
-				class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-fyra-gray-800 py-3"
-			>
+			<aside class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-800 py-3">
 				{#each navItems as item (item.label)}
 					<Tooltip.Root>
 						<Tooltip.Trigger>
@@ -634,8 +630,8 @@
 								class="flex h-8 w-8 items-center justify-center transition-colors duration-100 {isActive(
 									item.href
 								)
-									? 'border border-fyra-red-500 text-fyra-gray-50'
-									: 'text-fyra-gray-500 hover:bg-fyra-gray-800/50 hover:text-fyra-gray-200'}"
+									? 'border border-red-500 text-gray-50'
+									: 'text-gray-500 hover:bg-gray-800/50 hover:text-gray-200'}"
 							>
 								<item.icon class="h-4 w-4" />
 							</a>
@@ -656,15 +652,11 @@
 
 	<!-- User Sheet -->
 	<Sheet.Root bind:open={userSheetOpen}>
-		<Sheet.Content
-			side="right"
-			class="overflow-y-auto border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md"
-		>
+		<Sheet.Content side="right" class="overflow-y-auto border-gray-800 bg-gray-900 sm:max-w-md">
 			<Sheet.Header class="px-6 pt-5 pb-5">
-				<div class="flex items-center gap-3 border-l-2 border-fyra-red-500 pl-3">
-					<Avatar.Root class="h-9 w-9 rounded-xs border border-fyra-gray-700">
-						<Avatar.Fallback
-							class="rounded-xs bg-fyra-red-500/10 text-xs font-semibold text-fyra-red-400"
+				<div class="flex items-center gap-3 border-l-2 border-red-500 pl-3">
+					<Avatar.Root class="h-9 w-9 rounded-xs border border-gray-700">
+						<Avatar.Fallback class="rounded-xs bg-red-500/10 text-xs font-semibold text-red-400"
 							>{(data.user?.name ?? '??')
 								.split(' ')
 								.map((n: string) => n[0])
@@ -674,18 +666,18 @@
 						>
 					</Avatar.Root>
 					<div>
-						<Sheet.Title class="text-sm font-medium text-fyra-gray-100">{profileName}</Sheet.Title>
-						<Sheet.Description class="text-xs text-fyra-gray-500">{profileEmail}</Sheet.Description>
+						<Sheet.Title class="text-sm font-medium text-gray-100">{profileName}</Sheet.Title>
+						<Sheet.Description class="text-xs text-gray-500">{profileEmail}</Sheet.Description>
 					</div>
 				</div>
 			</Sheet.Header>
 
 			<div class="flex flex-col gap-4 px-6 pb-6">
 				<!-- Profile -->
-				<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-					<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-						<User class="h-3.5 w-3.5 text-fyra-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">Profile</p>
+				<div class="rounded-xs border border-gray-800/60 p-4">
+					<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+						<User class="h-3.5 w-3.5 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Profile</p>
 					</div>
 					<div class="flex flex-col gap-3">
 						<div class="flex flex-col gap-1.5">
@@ -709,12 +701,10 @@
 				</div>
 
 				<!-- Password -->
-				<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-					<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-						<Lock class="h-3.5 w-3.5 text-fyra-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
-							Password
-						</p>
+				<div class="rounded-xs border border-gray-800/60 p-4">
+					<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+						<Lock class="h-3.5 w-3.5 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Password</p>
 					</div>
 					<div class="flex flex-col gap-3">
 						<div class="flex flex-col gap-1.5">
@@ -727,7 +717,7 @@
 								/>
 								<button
 									type="button"
-									class="absolute top-1/2 right-2 -translate-y-1/2 text-fyra-gray-500 hover:text-fyra-gray-300"
+									class="absolute top-1/2 right-2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
 									onclick={() => (showPassword = !showPassword)}
 								>
 									{#if showPassword}
@@ -746,7 +736,7 @@
 							<Label>Confirm New Password</Label>
 							<Input bind:value={confirmPassword} type="password" placeholder="********" />
 							{#if confirmPassword && newPassword !== confirmPassword}
-								<p class="text-xs text-fyra-red-400">Passwords do not match.</p>
+								<p class="text-xs text-red-400">Passwords do not match.</p>
 							{/if}
 						</div>
 						<Button
@@ -765,29 +755,27 @@
 				</div>
 
 				<!-- SSH Keys -->
-				<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-					<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-						<Key class="h-3.5 w-3.5 text-fyra-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
-							SSH Keys
-						</p>
+				<div class="rounded-xs border border-gray-800/60 p-4">
+					<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+						<Key class="h-3.5 w-3.5 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">SSH Keys</p>
 					</div>
 
 					{#if sshKeys.length > 0}
 						<div class="max-h-48 overflow-y-auto">
-							<div class="divide-y divide-fyra-gray-800/50">
+							<div class="divide-y divide-gray-800/50">
 								{#each sshKeys as key (key.id)}
 									<div class="flex items-center justify-between py-2.5">
 										<div class="min-w-0">
-											<p class="truncate text-sm font-medium text-fyra-gray-100">{key.name}</p>
-											<p class="mt-0.5 truncate font-mono text-[11px] text-fyra-gray-500">
+											<p class="truncate text-sm font-medium text-gray-100">{key.name}</p>
+											<p class="mt-0.5 truncate font-mono text-[11px] text-gray-500">
 												{key.fingerprint}
 											</p>
 										</div>
 										<Button
 											variant="ghost"
 											size="sm"
-											class="h-7 w-7 shrink-0 p-0 text-fyra-red-400 hover:text-fyra-red-300"
+											class="h-7 w-7 shrink-0 p-0 text-red-400 hover:text-red-300"
 											onclick={() => removeSshKey(key.id)}
 										>
 											<Trash2 class="h-3 w-3" />
@@ -797,16 +785,16 @@
 							</div>
 						</div>
 					{:else}
-						<p class="py-2 text-center text-xs text-fyra-gray-500">No SSH keys added.</p>
+						<p class="py-2 text-center text-xs text-gray-500">No SSH keys added.</p>
 					{/if}
 
-					<div class="mt-3 flex flex-col gap-2 border-t border-fyra-gray-800/50 pt-3">
+					<div class="mt-3 flex flex-col gap-2 border-t border-gray-800/50 pt-3">
 						<Input bind:value={newKeyName} placeholder="Key name" class="h-8 text-xs" />
 						<textarea
 							bind:value={newKeyValue}
 							placeholder="ssh-ed25519 AAAA..."
 							rows="3"
-							class="w-full resize-none border border-fyra-gray-700 bg-fyra-gray-800 px-3 py-2 font-mono text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+							class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
 						></textarea>
 						<Button
 							variant="outline"
@@ -822,12 +810,10 @@
 				</div>
 
 				<!-- API Tokens -->
-				<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-					<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-						<KeyRound class="h-3.5 w-3.5 text-fyra-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
-							API Tokens
-						</p>
+				<div class="rounded-xs border border-gray-800/60 p-4">
+					<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+						<KeyRound class="h-3.5 w-3.5 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">API Tokens</p>
 					</div>
 
 					{#if generatedToken}
@@ -837,13 +823,13 @@
 							</p>
 							<div class="mt-2 flex items-center gap-2">
 								<code
-									class="flex-1 overflow-hidden bg-fyra-gray-800 px-2 py-1 font-mono text-xs text-ellipsis whitespace-nowrap text-fyra-gray-100"
+									class="flex-1 overflow-hidden bg-gray-800 px-2 py-1 font-mono text-xs text-ellipsis whitespace-nowrap text-gray-100"
 								>
 									{generatedToken}
 								</code>
 								<button
 									type="button"
-									class="shrink-0 text-fyra-gray-500 hover:text-fyra-gray-300"
+									class="shrink-0 text-gray-500 hover:text-gray-300"
 									onclick={() => copyToken('new-token', generatedToken)}
 								>
 									{#if copiedTokenId === 'new-token'}
@@ -858,22 +844,20 @@
 
 					{#if tokens.length > 0}
 						<div class="max-h-48 overflow-y-auto">
-							<div class="divide-y divide-fyra-gray-800/50">
+							<div class="divide-y divide-gray-800/50">
 								{#each tokens as token (token.id)}
 									<div class="flex items-center justify-between py-2.5">
 										<div class="min-w-0">
-											<p class="truncate text-sm font-medium text-fyra-gray-100">{token.name}</p>
-											<p class="mt-0.5 truncate font-mono text-[11px] text-fyra-gray-500">
+											<p class="truncate text-sm font-medium text-gray-100">{token.name}</p>
+											<p class="mt-0.5 truncate font-mono text-[11px] text-gray-500">
 												sk-stack-****...****
-												<span class="ml-2 font-sans text-fyra-gray-600"
-													>Created {token.created}</span
-												>
+												<span class="ml-2 font-sans text-gray-600">Created {token.created}</span>
 											</p>
 										</div>
 										<Button
 											variant="ghost"
 											size="sm"
-											class="h-7 shrink-0 px-2 text-xs text-fyra-red-400 hover:text-fyra-red-300"
+											class="h-7 shrink-0 px-2 text-xs text-red-400 hover:text-red-300"
 											onclick={() => revokeToken(token.id)}
 										>
 											Revoke
@@ -883,10 +867,10 @@
 							</div>
 						</div>
 					{:else}
-						<p class="py-2 text-center text-xs text-fyra-gray-500">No API tokens.</p>
+						<p class="py-2 text-center text-xs text-gray-500">No API tokens.</p>
 					{/if}
 
-					<div class="mt-3 flex items-center gap-3 border-t border-fyra-gray-800/50 pt-3">
+					<div class="mt-3 flex items-center gap-3 border-t border-gray-800/50 pt-3">
 						<Input bind:value={newTokenName} placeholder="Token name" class="h-8 text-xs" />
 						<Button
 							variant="outline"
@@ -902,39 +886,39 @@
 				</div>
 
 				<!-- Billing -->
-				<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-					<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-						<CreditCard class="h-3.5 w-3.5 text-fyra-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">Billing</p>
+				<div class="rounded-xs border border-gray-800/60 p-4">
+					<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+						<CreditCard class="h-3.5 w-3.5 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Billing</p>
 					</div>
-					<div class="divide-y divide-fyra-gray-800/50">
+					<div class="divide-y divide-gray-800/50">
 						<div class="flex items-center justify-between py-2.5 first:pt-0">
-							<span class="text-sm text-fyra-gray-400">Current Balance</span>
-							<span class="text-sm font-semibold text-fyra-gray-100 tabular-nums">$0.00</span>
+							<span class="text-sm text-gray-400">Current Balance</span>
+							<span class="text-sm font-semibold text-gray-100 tabular-nums">$0.00</span>
 						</div>
 						<div class="flex items-center justify-between py-2.5">
-							<span class="text-sm text-fyra-gray-400">Monthly Estimate</span>
-							<span class="text-sm font-medium text-fyra-gray-200 tabular-nums">$26.00</span>
+							<span class="text-sm text-gray-400">Monthly Estimate</span>
+							<span class="text-sm font-medium text-gray-200 tabular-nums">$26.00</span>
 						</div>
 						<div class="flex items-center justify-between py-2.5">
-							<span class="text-sm text-fyra-gray-400">Payment Method</span>
-							<span class="text-sm text-fyra-gray-200">Visa ending 4242</span>
+							<span class="text-sm text-gray-400">Payment Method</span>
+							<span class="text-sm text-gray-200">Visa ending 4242</span>
 						</div>
 						<div class="flex items-center justify-between py-2.5 last:pb-0">
-							<span class="text-sm text-fyra-gray-400">Next Invoice</span>
-							<span class="text-sm text-fyra-gray-200">May 1, 2026</span>
+							<span class="text-sm text-gray-400">Next Invoice</span>
+							<span class="text-sm text-gray-200">May 1, 2026</span>
 						</div>
 					</div>
 
-					<div class="mt-3 border-t border-fyra-gray-800/50 pt-3">
-						<p class="mb-2 text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase">
+					<div class="mt-3 border-t border-gray-800/50 pt-3">
+						<p class="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
 							Active Resources
 						</p>
-						<div class="divide-y divide-fyra-gray-800/30">
+						<div class="divide-y divide-gray-800/30">
 							{#each [{ name: 'vps-747762', plan: 'STACK-XXS', cost: '$5.00/mo' }, { name: 'vps-742736', plan: 'STACK-SM', cost: '$20.00/mo' }, { name: 'Backups', plan: '2 servers', cost: '$1.00/mo' }] as resource (resource.name)}
 								<div class="flex items-center justify-between py-2">
-									<span class="text-xs text-fyra-gray-300">{resource.name} ({resource.plan})</span>
-									<span class="text-xs text-fyra-gray-400 tabular-nums">{resource.cost}</span>
+									<span class="text-xs text-gray-300">{resource.name} ({resource.plan})</span>
+									<span class="text-xs text-gray-400 tabular-nums">{resource.cost}</span>
 								</div>
 							{/each}
 						</div>
@@ -944,7 +928,7 @@
 				<!-- Sign Out -->
 				<button
 					type="button"
-					class="flex w-full items-center justify-center gap-2 rounded-xs border border-fyra-red-500/20 bg-fyra-red-500/5 px-4 py-2.5 text-sm font-medium text-fyra-red-400 transition-colors hover:bg-fyra-red-500/10"
+					class="flex w-full items-center justify-center gap-2 rounded-xs border border-red-500/20 bg-red-500/5 px-4 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10"
 					onclick={async () => {
 						await authClient.signOut();
 						goto('/login');
@@ -959,7 +943,7 @@
 
 	<!-- Create Project Dialog -->
 	<Dialog.Root bind:open={createProjectOpen}>
-		<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
+		<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 			<Dialog.Header>
 				<Dialog.Title>Create Project</Dialog.Title>
 				<Dialog.Description
@@ -981,28 +965,25 @@
 
 	<!-- Project Settings Sheet -->
 	<Sheet.Root bind:open={projectSheetOpen}>
-		<Sheet.Content
-			side="right"
-			class="overflow-y-auto border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md"
-		>
+		<Sheet.Content side="right" class="overflow-y-auto border-gray-800 bg-gray-900 sm:max-w-md">
 			<Sheet.Header class="px-6 pt-5 pb-5">
-				<Sheet.Title class="text-sm font-medium text-fyra-gray-100">Project Settings</Sheet.Title>
-				<Sheet.Description class="text-xs text-fyra-gray-500"
+				<Sheet.Title class="text-sm font-medium text-gray-100">Project Settings</Sheet.Title>
+				<Sheet.Description class="text-xs text-gray-500"
 					>Manage your project name and members.</Sheet.Description
 				>
 			</Sheet.Header>
 
 			{#if projectSheetLoading}
 				<div class="flex items-center justify-center py-10">
-					<p class="text-sm text-fyra-gray-500">Loading...</p>
+					<p class="text-sm text-gray-500">Loading...</p>
 				</div>
 			{:else}
 				<div class="flex flex-col gap-4 px-6 pb-6">
 					<!-- Project Name -->
-					<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-						<div class="mb-3 flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-							<Settings class="h-3.5 w-3.5 text-fyra-red-400" />
-							<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
+					<div class="rounded-xs border border-gray-800/60 p-4">
+						<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+							<Settings class="h-3.5 w-3.5 text-red-400" />
+							<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">
 								Project Name
 							</p>
 						</div>
@@ -1026,15 +1007,11 @@
 					</div>
 
 					<!-- Members -->
-					<div class="rounded-xs border border-fyra-gray-800/60 p-4">
-						<div
-							class="mb-3 flex items-center justify-between border-b border-fyra-gray-800/50 pb-2"
-						>
+					<div class="rounded-xs border border-gray-800/60 p-4">
+						<div class="mb-3 flex items-center justify-between border-b border-gray-800/50 pb-2">
 							<div class="flex items-center gap-2">
-								<User class="h-3.5 w-3.5 text-fyra-red-400" />
-								<p class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase">
-									Members
-								</p>
+								<User class="h-3.5 w-3.5 text-red-400" />
+								<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Members</p>
 							</div>
 							<Button
 								variant="outline"
@@ -1051,50 +1028,47 @@
 							{#if projectSheetOwnerId}
 								<div class="flex items-center justify-between py-2.5">
 									<div class="min-w-0">
-										<p class="truncate text-sm font-medium text-fyra-gray-100">
+										<p class="truncate text-sm font-medium text-gray-100">
 											{projectSheetOwnerName}
 										</p>
-										<p class="truncate text-[10px] text-fyra-gray-500">
+										<p class="truncate text-[10px] text-gray-500">
 											{projectSheetOwnerEmail}
 										</p>
 									</div>
 									<span
-										class="shrink-0 rounded-xs bg-fyra-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-fyra-red-400"
+										class="shrink-0 rounded-xs bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400"
 										>Owner</span
 									>
 								</div>
-								<div class="border-b border-fyra-gray-800/30"></div>
+								<div class="border-b border-gray-800/30"></div>
 							{/if}
 							<!-- Other members -->
 							{#if projectSheetMembers.length > 0}
 								{#each projectSheetMembers as member (member.userId)}
 									<div class="flex items-center justify-between py-2.5">
 										<div class="min-w-0">
-											<p class="truncate text-sm font-medium text-fyra-gray-100">
+											<p class="truncate text-sm font-medium text-gray-100">
 												{member.name}
 											</p>
-											<p class="truncate text-[10px] text-fyra-gray-500">
+											<p class="truncate text-[10px] text-gray-500">
 												{member.email}
 											</p>
 											<DropdownMenu.Root>
 												<DropdownMenu.Trigger>
 													<span
-														class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-fyra-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-fyra-gray-400 transition-colors hover:bg-fyra-gray-700"
+														class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-700"
 														>{member.permissions}</span
 													>
 												</DropdownMenu.Trigger>
-												<DropdownMenu.Content
-													align="start"
-													class="border-fyra-gray-800 bg-fyra-gray-900"
-												>
+												<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
 													<DropdownMenu.Item
-														class="cursor-pointer text-xs text-fyra-gray-300 focus:bg-fyra-gray-800 focus:text-fyra-gray-100"
+														class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
 														onclick={() => updateMemberRole(member.userId, 'admin')}
 													>
 														Admin
 													</DropdownMenu.Item>
 													<DropdownMenu.Item
-														class="cursor-pointer text-xs text-fyra-gray-300 focus:bg-fyra-gray-800 focus:text-fyra-gray-100"
+														class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
 														onclick={() => updateMemberRole(member.userId, 'read_write')}
 													>
 														Read Write
@@ -1105,7 +1079,7 @@
 										<Button
 											variant="ghost"
 											size="sm"
-											class="h-7 w-7 shrink-0 p-0 text-fyra-gray-500 hover:text-fyra-red-400"
+											class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
 											onclick={() => removeMember(member.userId)}
 										>
 											<Trash2 class="h-3.5 w-3.5" />
@@ -1113,14 +1087,14 @@
 									</div>
 								{/each}
 							{:else if !projectSheetOwnerId}
-								<p class="py-2 text-center text-xs text-fyra-gray-500">No members added.</p>
+								<p class="py-2 text-center text-xs text-gray-500">No members added.</p>
 							{/if}
 						</div>
 
 						<!-- Add Member Form -->
 						{#if addMemberOpen}
-							<div class="mt-3 border-t border-fyra-gray-800/50 pt-3">
-								<p class="mb-2 text-xs font-medium text-fyra-gray-400">Add member by email</p>
+							<div class="mt-3 border-t border-gray-800/50 pt-3">
+								<p class="mb-2 text-xs font-medium text-gray-400">Add member by email</p>
 								<div class="flex flex-col gap-2">
 									<Input
 										bind:value={memberSearchQuery}
@@ -1129,37 +1103,37 @@
 										oninput={searchUsers}
 									/>
 									{#if memberSearchLoading}
-										<p class="py-1 text-xs text-fyra-gray-500">Searching...</p>
+										<p class="py-1 text-xs text-gray-500">Searching...</p>
 									{:else if memberSearchResults.length > 0}
-										<div class="max-h-32 overflow-y-auto border border-fyra-gray-800">
+										<div class="max-h-32 overflow-y-auto border border-gray-800">
 											{#each memberSearchResults as user (user.id)}
 												<button
 													type="button"
-													class="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-left transition-colors hover:bg-fyra-gray-800"
+													class="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-left transition-colors hover:bg-gray-800"
 													onclick={() => addMember(user)}
 												>
 													<div class="min-w-0">
-														<p class="truncate text-xs font-medium text-fyra-gray-100">
+														<p class="truncate text-xs font-medium text-gray-100">
 															{user.name}
 														</p>
-														<p class="truncate text-[10px] text-fyra-gray-500">{user.email}</p>
+														<p class="truncate text-[10px] text-gray-500">{user.email}</p>
 													</div>
-													<Plus class="h-3 w-3 shrink-0 text-fyra-gray-500" />
+													<Plus class="h-3 w-3 shrink-0 text-gray-500" />
 												</button>
 											{/each}
 										</div>
 									{:else if memberSearchQuery.length >= 2}
-										<p class="py-1 text-xs text-fyra-gray-500">No users found</p>
+										<p class="py-1 text-xs text-gray-500">No users found</p>
 									{/if}
 									<div class="flex items-center gap-2">
-										<span class="text-xs text-fyra-gray-500">Role:</span>
+										<span class="text-xs text-gray-500">Role:</span>
 										<div class="flex gap-1">
 											<button
 												type="button"
 												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
 												'admin'
-													? 'bg-fyra-gray-700 text-fyra-gray-100'
-													: 'text-fyra-gray-500 hover:text-fyra-gray-300'}"
+													? 'bg-gray-700 text-gray-100'
+													: 'text-gray-500 hover:text-gray-300'}"
 												onclick={() => (selectedMemberRole = 'admin')}
 											>
 												Admin
@@ -1168,8 +1142,8 @@
 												type="button"
 												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
 												'read_write'
-													? 'bg-fyra-gray-700 text-fyra-gray-100'
-													: 'text-fyra-gray-500 hover:text-fyra-gray-300'}"
+													? 'bg-gray-700 text-gray-100'
+													: 'text-gray-500 hover:text-gray-300'}"
 												onclick={() => (selectedMemberRole = 'read_write')}
 											>
 												Read Write
@@ -1182,14 +1156,14 @@
 					</div>
 
 					<!-- Delete Project -->
-					<div class="border-fyra-red-900/30 rounded-xs border bg-fyra-red-950/10 p-4">
-						<div class="border-fyra-red-900/20 mb-3 flex items-center gap-2 border-b pb-2">
-							<Trash2 class="h-3.5 w-3.5 text-fyra-red-400" />
-							<p class="text-xs font-semibold tracking-wider text-fyra-red-400 uppercase">
+					<div class="rounded-xs border border-red-900/30 bg-red-950/10 p-4">
+						<div class="mb-3 flex items-center gap-2 border-b border-red-900/20 pb-2">
+							<Trash2 class="h-3.5 w-3.5 text-red-400" />
+							<p class="text-xs font-semibold tracking-wider text-red-400 uppercase">
 								Delete Project
 							</p>
 						</div>
-						<p class="mb-3 text-xs text-fyra-gray-400">
+						<p class="mb-3 text-xs text-gray-400">
 							This will permanently delete the project and all its resources. Type the project name
 							to confirm.
 						</p>
@@ -1197,7 +1171,7 @@
 							<Input
 								bind:value={projectDeleteConfirm}
 								placeholder={currentProject?.projectName ?? 'project name'}
-								class="border-fyra-red-900/50"
+								class="border-red-900/50"
 							/>
 							<Button
 								variant="destructive"
@@ -1223,20 +1197,17 @@
 	<!-- Command Palette -->
 	<Command.Dialog
 		bind:open={commandOpen}
-		class="top-1/2! max-w-xl! -translate-y-1/2! border-fyra-gray-800 bg-fyra-gray-900"
+		class="top-1/2! max-w-xl! -translate-y-1/2! border-gray-800 bg-gray-900"
 	>
-		<Command.Input
-			placeholder="Search resources, actions..."
-			class="border-b border-fyra-gray-800"
-		/>
+		<Command.Input placeholder="Search resources, actions..." class="border-b border-gray-800" />
 		<!-- Filter buttons -->
-		<div class="flex gap-1 border-b border-fyra-gray-800 px-3 py-2">
+		<div class="flex gap-1 border-b border-gray-800 px-3 py-2">
 			{#each cmdFilters as f (f.id)}
 				<button
 					class="flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors {cmdFilter ===
 					f.id
-						? 'bg-fyra-gray-800 text-fyra-gray-100'
-						: 'text-fyra-gray-500 hover:text-fyra-gray-300'}"
+						? 'bg-gray-800 text-gray-100'
+						: 'text-gray-500 hover:text-gray-300'}"
 					onclick={() => (cmdFilter = f.id)}
 				>
 					<f.icon class="h-3 w-3" />
@@ -1244,7 +1215,7 @@
 				</button>
 			{/each}
 		</div>
-		<Command.List class="max-h-[350px] bg-fyra-gray-900">
+		<Command.List class="max-h-[350px] bg-gray-900">
 			<Command.Empty>No results found.</Command.Empty>
 
 			{#if cmdFilter === 'all' || cmdFilter === 'servers'}
@@ -1254,16 +1225,14 @@
 							onSelect={() => runCommand(() => goto(withProjectContext(`/?server=${srv.id}`)))}
 							class="gap-2"
 						>
-							<Server class="h-3.5 w-3.5 shrink-0 text-fyra-gray-500" />
+							<Server class="h-3.5 w-3.5 shrink-0 text-gray-500" />
 							<div class="flex flex-1 items-center justify-between">
-								<span>{srv.label}</span><span class="text-[10px] text-fyra-gray-500"
-									>{srv.detail}</span
-								>
+								<span>{srv.label}</span><span class="text-[10px] text-gray-500">{srv.detail}</span>
 							</div>
 						</Command.Item>
 					{/each}
 				</Command.Group>
-				<Command.Separator class="bg-fyra-gray-800" />
+				<Command.Separator class="bg-gray-800" />
 			{/if}
 
 			{#if cmdFilter === 'all' || cmdFilter === 'colo'}
@@ -1274,16 +1243,15 @@
 								runCommand(() => goto(withProjectContext(`/colocation?unit=${unit.id}`)))}
 							class="gap-2"
 						>
-							<Warehouse class="h-3.5 w-3.5 shrink-0 text-fyra-gray-500" />
+							<Warehouse class="h-3.5 w-3.5 shrink-0 text-gray-500" />
 							<div class="flex flex-1 items-center justify-between">
-								<span>{unit.label}</span><span class="text-[10px] text-fyra-gray-500"
-									>{unit.detail}</span
+								<span>{unit.label}</span><span class="text-[10px] text-gray-500">{unit.detail}</span
 								>
 							</div>
 						</Command.Item>
 					{/each}
 				</Command.Group>
-				<Command.Separator class="bg-fyra-gray-800" />
+				<Command.Separator class="bg-gray-800" />
 			{/if}
 
 			{#if cmdFilter === 'all' || cmdFilter === 'navigate'}
@@ -1292,7 +1260,7 @@
 						onSelect={() => runCommand(() => goto(withProjectContext('/')))}
 						class="gap-2"
 					>
-						<Server class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<Server class="h-3.5 w-3.5 text-gray-500" />
 						<span>Servers</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
@@ -1300,7 +1268,7 @@
 						onSelect={() => runCommand(() => goto(withProjectContext('/colocation')))}
 						class="gap-2"
 					>
-						<Warehouse class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<Warehouse class="h-3.5 w-3.5 text-gray-500" />
 						<span>Colocation</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
@@ -1308,7 +1276,7 @@
 						onSelect={() => runCommand(() => goto(withProjectContext('/volumes')))}
 						class="gap-2"
 					>
-						<HardDrive class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<HardDrive class="h-3.5 w-3.5 text-gray-500" />
 						<span>Volumes</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
@@ -1316,7 +1284,7 @@
 						onSelect={() => runCommand(() => goto(withProjectContext('/firewall')))}
 						class="gap-2"
 					>
-						<Shield class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<Shield class="h-3.5 w-3.5 text-gray-500" />
 						<span>Firewall</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
@@ -1324,44 +1292,44 @@
 						onSelect={() => runCommand(() => goto(withProjectContext('/images')))}
 						class="gap-2"
 					>
-						<Disc class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<Disc class="h-3.5 w-3.5 text-gray-500" />
 						<span>Images</span>
 						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 					</Command.Item>
 				</Command.Group>
-				<Command.Separator class="bg-fyra-gray-800" />
+				<Command.Separator class="bg-gray-800" />
 			{/if}
 
 			{#if cmdFilter === 'all' || cmdFilter === 'account'}
 				<Command.Group heading="Account">
 					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<User class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<User class="h-3.5 w-3.5 text-gray-500" />
 						<span>Profile</span>
 					</Command.Item>
 					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<Key class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<Key class="h-3.5 w-3.5 text-gray-500" />
 						<span>SSH Keys</span>
 					</Command.Item>
 					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<KeyRound class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<KeyRound class="h-3.5 w-3.5 text-gray-500" />
 						<span>API Tokens</span>
 					</Command.Item>
 					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<CreditCard class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<CreditCard class="h-3.5 w-3.5 text-gray-500" />
 						<span>Billing</span>
 					</Command.Item>
 					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<KeyRound class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<KeyRound class="h-3.5 w-3.5 text-gray-500" />
 						<span>Change Password</span>
 					</Command.Item>
 				</Command.Group>
-				<Command.Separator class="bg-fyra-gray-800" />
+				<Command.Separator class="bg-gray-800" />
 			{/if}
 
 			{#if cmdFilter === 'all'}
 				<Command.Group heading="Quick Actions">
 					<Command.Item onSelect={() => runCommand(() => (createProjectOpen = true))} class="gap-2">
-						<Plus class="h-3.5 w-3.5 text-fyra-gray-500" />
+						<Plus class="h-3.5 w-3.5 text-gray-500" />
 						<span>Create Project</span>
 					</Command.Item>
 				</Command.Group>

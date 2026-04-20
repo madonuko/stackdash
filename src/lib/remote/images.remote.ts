@@ -42,7 +42,7 @@ const createParams = type({
 	version: 'string',
 	description: 'string',
 	shortName: 'string',
-	icon: 'string|null',
+	icon: 'string?',
 	color: 'string',
 	filePath: 'string',
 	isa: "'x86' | 'arm' | 'risc-v'"
@@ -76,7 +76,7 @@ const updateParams = type({
 	version: 'string?',
 	description: 'string?',
 	shortName: 'string?',
-	icon: 'string|null',
+	icon: 'string?',
 	color: 'string?',
 	filePath: 'string?',
 	isa: "'x86' | 'arm' | 'risc-v'?"

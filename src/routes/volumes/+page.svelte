@@ -3,7 +3,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import * as Dialog from '$lib/components/ui/dialog';
+	import CreateVolumeDialog from '$lib/components/dialogs/create-volume-dialog.svelte';
+	import AttachVolumeDialog from '$lib/components/dialogs/attach-volume-dialog.svelte';
 	import {
 		attachVolume as attachProjectVolume,
 		createVolume as createProjectVolume,
@@ -201,10 +202,10 @@
 
 <div class="flex flex-1 flex-col overflow-hidden">
 	<!-- Header -->
-	<div class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-5">
+	<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-5">
 		<div class="flex items-center gap-2">
-			<HardDrive class="h-4 w-4 text-fyra-gray-400" />
-			<span class="text-sm font-semibold text-fyra-gray-100">Volumes</span>
+			<HardDrive class="h-4 w-4 text-gray-400" />
+			<span class="text-sm font-semibold text-gray-100">Volumes</span>
 			<Badge variant="secondary" class="text-[10px]">{volumes.length}</Badge>
 		</div>
 		<Button
@@ -218,9 +219,7 @@
 		</Button>
 	</div>
 	{#if actionError}
-		<div
-			class="border-fyra-red-900/40 border-b bg-fyra-red-950/20 px-5 py-2 text-xs text-fyra-red-400"
-		>
+		<div class="border-b border-red-900/40 bg-red-950/20 px-5 py-2 text-xs text-red-400">
 			{actionError}
 		</div>
 	{/if}
@@ -231,7 +230,7 @@
 			{@const colorClass = getUsageColor(vol.used, vol.size)}
 			{@const colorHex = getUsageColorHex(vol.used, vol.size)}
 			<div
-				class="flex items-center gap-4 border-b border-fyra-gray-800 px-5 py-3 transition-colors duration-100 hover:bg-fyra-gray-800/20 {vol.status ===
+				class="flex items-center gap-4 border-b border-gray-800 px-5 py-3 transition-colors duration-100 hover:bg-gray-800/20 {vol.status ===
 				'deleting'
 					? 'opacity-40'
 					: ''}"
@@ -241,17 +240,17 @@
 					class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {vol.status ===
 					'attached'
 						? 'bg-emerald-950/30'
-						: 'bg-fyra-gray-800'}"
+						: 'bg-gray-800'}"
 				>
 					<HardDrive
-						class="h-5 w-5 {vol.status === 'attached' ? 'text-emerald-400' : 'text-fyra-gray-500'}"
+						class="h-5 w-5 {vol.status === 'attached' ? 'text-emerald-400' : 'text-gray-500'}"
 					/>
 				</div>
 
 				<!-- Info -->
 				<div class="min-w-0 flex-1">
 					<div class="flex items-center gap-2">
-						<span class="text-sm font-medium text-fyra-gray-100">{vol.name}</span>
+						<span class="text-sm font-medium text-gray-100">{vol.name}</span>
 						{#if vol.status === 'attached'}
 							<Badge
 								variant="outline"
@@ -264,24 +263,24 @@
 							<Badge variant="secondary" class="text-[10px]">Available</Badge>
 						{/if}
 					</div>
-					<div class="mt-1 flex items-center gap-3 text-xs text-fyra-gray-600">
+					<div class="mt-1 flex items-center gap-3 text-xs text-gray-600">
 						<span>{vol.id}</span>
-						<span class="h-1 w-1 rounded-full bg-fyra-gray-700"></span>
+						<span class="h-1 w-1 rounded-full bg-gray-700"></span>
 						<span>{vol.region}</span>
 					</div>
 					<!-- Storage Graph (mobile only) -->
 					<div class="mt-2 flex items-center gap-2 lg:hidden">
-						<div class="h-1.5 w-20 overflow-hidden rounded-full bg-fyra-gray-800">
+						<div class="h-1.5 w-20 overflow-hidden rounded-full bg-gray-800">
 							<div
 								class="h-full rounded-full transition-all duration-500 {vol.used / vol.size > 0.8
-									? 'bg-fyra-red-500'
+									? 'bg-red-500'
 									: vol.used / vol.size > 0.5
 										? 'bg-amber-500'
-										: 'bg-fyra-red-400'}"
+										: 'bg-red-400'}"
 								style="width: {(vol.used / vol.size) * 100}%"
 							></div>
 						</div>
-						<span class="text-[10px] text-fyra-gray-500">
+						<span class="text-[10px] text-gray-500">
 							{vol.used > 0 ? `${vol.used} used` : 'empty'}
 						</span>
 					</div>
@@ -322,19 +321,19 @@
 							{/if}
 						</svg>
 					</div>
-					<span class="w-14 text-right text-[10px] text-fyra-gray-400 tabular-nums">
+					<span class="w-14 text-right text-[10px] text-gray-400 tabular-nums">
 						{vol.used}/{vol.size} GB
 					</span>
 				</div>
 
 				<!-- Size -->
 				<div class="w-20 text-right">
-					<span class="text-sm font-semibold text-fyra-gray-200">{vol.size} GB</span>
+					<span class="text-sm font-semibold text-gray-200">{vol.size} GB</span>
 				</div>
 
 				<!-- Server -->
 				<div class="w-28">
-					<span class="text-xs text-fyra-gray-500">{vol.server ?? '—'}</span>
+					<span class="text-xs text-gray-500">{vol.server ?? '—'}</span>
 				</div>
 
 				<!-- Actions -->
@@ -363,7 +362,7 @@
 					<Button
 						variant="ghost"
 						size="sm"
-						class="h-7 px-2 text-xs text-fyra-red-400 hover:text-fyra-red-300"
+						class="h-7 px-2 text-xs text-red-400 hover:text-red-300"
 						disabled={vol.status === 'deleting' || vol.status === 'attached'}
 						onclick={() => deleteVolume(vol.id)}
 					>
@@ -374,7 +373,7 @@
 		{/each}
 
 		{#if volumes.length === 0}
-			<div class="flex flex-col items-center justify-center py-20 text-fyra-gray-500">
+			<div class="flex flex-col items-center justify-center py-20 text-gray-500">
 				<HardDrive class="mb-3 h-8 w-8" />
 				<p class="text-sm">No volumes yet</p>
 			</div>
@@ -383,65 +382,18 @@
 </div>
 
 <!-- Create Volume Dialog -->
-<Dialog.Root bind:open={createOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
-		<Dialog.Header>
-			<Dialog.Title>Create Volume</Dialog.Title>
-			<Dialog.Description>Provision a new block storage volume in Chicago.</Dialog.Description>
-		</Dialog.Header>
-		<div class="flex flex-col gap-4 py-4">
-			<div class="flex flex-col gap-2">
-				<Label>Name</Label>
-				<Input bind:value={newName} placeholder="my-volume" />
-			</div>
-			<div class="flex flex-col gap-2">
-				<Label>Size (GB)</Label>
-				<div class="flex items-center gap-3">
-					<input
-						type="range"
-						min="10"
-						max="500"
-						step="10"
-						bind:value={newSize}
-						class="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-fyra-gray-700 accent-fyra-red-500"
-					/>
-					<span class="w-16 text-right text-sm font-medium text-fyra-gray-200">{newSize} GB</span>
-				</div>
-				<p class="text-xs text-fyra-gray-500">
-					${(newSize * 0.1).toFixed(2)}/mo at $0.10/GB
-				</p>
-			</div>
-		</div>
-		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (createOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={createVolume} disabled={!newName.trim()}>Create</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
+<CreateVolumeDialog
+	bind:open={createOpen}
+	bind:name={newName}
+	bind:size={newSize}
+	onSubmit={createVolume}
+/>
 
 <!-- Attach Volume Dialog -->
-<Dialog.Root bind:open={attachOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
-		<Dialog.Header>
-			<Dialog.Title>Attach Volume</Dialog.Title>
-			<Dialog.Description>
-				Attach <strong>{attachTarget?.name}</strong> to a server.
-			</Dialog.Description>
-		</Dialog.Header>
-		<div class="flex flex-col gap-2 py-4">
-			<Label>Server</Label>
-			<select
-				bind:value={attachServer}
-				class="w-full appearance-none border border-fyra-gray-700 bg-fyra-gray-800 px-3 py-2 text-sm text-fyra-gray-100 focus:border-fyra-gray-500 focus:outline-none"
-			>
-				{#each serverOptions as s (s)}
-					<option value={s}>{s}</option>
-				{/each}
-			</select>
-		</div>
-		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (attachOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={confirmAttach}>Attach</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
+<AttachVolumeDialog
+	bind:open={attachOpen}
+	volumeName={attachTarget?.name}
+	bind:server={attachServer}
+	{serverOptions}
+	onSubmit={confirmAttach}
+/>

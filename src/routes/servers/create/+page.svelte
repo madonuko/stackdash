@@ -5,6 +5,7 @@
 	import { officialImages, type OfficialImage } from '$lib/data/images';
 	import { createVolume as createProjectVolume } from '$lib/remote/volumes.remote';
 	import { createVm } from '$lib/remote/vms.remote';
+	import Icon from '$lib/components/icon.svelte';
 	import { untrack } from 'svelte';
 	import {
 		ArrowLeft,
@@ -245,18 +246,18 @@
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
-	<div class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-5">
+	<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-5">
 		<div class="flex items-center gap-3">
 			<Button
 				variant="ghost"
 				size="sm"
-				class="h-7 gap-1.5 px-2 text-xs text-fyra-gray-400 hover:text-fyra-gray-200"
+				class="h-7 gap-1.5 px-2 text-xs text-gray-400 hover:text-gray-200"
 				onclick={() => goto('/servers')}
 			>
 				<ArrowLeft class="h-3 w-3" />
 				Back
 			</Button>
-			<span class="text-sm font-semibold text-fyra-gray-100">Create Server</span>
+			<span class="text-sm font-semibold text-gray-100">Create Server</span>
 		</div>
 	</div>
 
@@ -265,11 +266,9 @@
 			<div class="px-6 py-6">
 				<div class="flex flex-col gap-8">
 					<div id="section-name" class="scroll-mt-4">
-						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
-							<Server class="h-3.5 w-3.5 text-fyra-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
-								>Name</span
-							>
+						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+							<Server class="h-3.5 w-3.5 text-red-400" />
+							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Name</span>
 						</div>
 						<div class="mt-3">
 							<Input bind:value={serverName} placeholder="my-server" class="h-9 text-sm" />
@@ -277,30 +276,29 @@
 					</div>
 
 					<div id="section-image" class="scroll-mt-4">
-						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
-							<HardDrive class="h-3.5 w-3.5 text-fyra-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
-								>Image</span
+						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+							<HardDrive class="h-3.5 w-3.5 text-red-400" />
+							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Image</span
 							>
 						</div>
 						<div class="mt-3 flex gap-2">
 							<button
 								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab === 'os'
-									? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-									: 'border-fyra-gray-700 text-fyra-gray-500 hover:border-fyra-gray-600 hover:text-fyra-gray-300'}"
+									? 'border-red-500 bg-red-950/20 text-gray-100'
+									: 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}"
 								onclick={() => (imageTab = 'os')}>OS Images</button
 							>
 							<button
 								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab ===
 								'snapshots'
-									? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-									: 'border-fyra-gray-700 text-fyra-gray-500 hover:border-fyra-gray-600 hover:text-fyra-gray-300'}"
+									? 'border-red-500 bg-red-950/20 text-gray-100'
+									: 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}"
 								onclick={() => (imageTab = 'snapshots')}>Snapshots</button
 							>
 							<button
 								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab === 'apps'
-									? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-									: 'border-fyra-gray-700 text-fyra-gray-500 hover:border-fyra-gray-600 hover:text-fyra-gray-300'}"
+									? 'border-red-500 bg-red-950/20 text-gray-100'
+									: 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}"
 								onclick={() => (imageTab = 'apps')}>Apps</button
 							>
 						</div>
@@ -310,16 +308,16 @@
 									<input
 										bind:value={imagesSearch}
 										placeholder="Search images..."
-										class="h-8 w-full border border-fyra-gray-700 bg-fyra-gray-800 px-3 text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+										class="h-8 w-full border border-gray-700 bg-gray-800 px-3 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
 									/>
 								</div>
-								<div class="mt-3 grid grid-cols-2 gap-px bg-fyra-gray-900">
+								<div class="mt-3 grid grid-cols-2 gap-px bg-gray-900">
 									{#each filteredOfficialImages() as img (img.id)}
 										{@const isSelected = selectedImageId === img.id}
 										<div class="contents">
 											<button
-												class="relative flex gap-4 overflow-hidden bg-fyra-gray-900 p-5 text-left transition-colors hover:bg-fyra-gray-800/40 {isSelected
-													? 'ring-2 ring-fyra-red-500 ring-inset'
+												class="relative flex gap-4 overflow-hidden bg-gray-900 p-5 text-left transition-colors hover:bg-gray-800/40 {isSelected
+													? 'ring-2 ring-red-500 ring-inset'
 													: ''}"
 												onclick={() => selectImage(img.id)}
 											>
@@ -329,9 +327,7 @@
 												></div>
 												<div class="relative shrink-0">
 													{#if img.icon}
-														<svg viewBox="0 0 24 24" class="h-12 w-12" fill={img.iconColor}>
-															<path d={img.icon} />
-														</svg>
+														<Icon name={img.icon} class="h-12 w-12 text-gray-300" />
 													{:else}
 														<span
 															class="flex h-12 w-12 items-center justify-center text-xl font-bold"
@@ -340,13 +336,11 @@
 													{/if}
 												</div>
 												<div class="relative flex min-w-0 flex-1 flex-col">
-													<span class="text-sm font-semibold text-fyra-gray-50">{img.name}</span>
-													<p
-														class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-fyra-gray-500"
-													>
+													<span class="text-sm font-semibold text-gray-50">{img.name}</span>
+													<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
 														{img.description}
 													</p>
-													<p class="mt-auto pt-2 text-[10px] leading-none text-fyra-gray-600">
+													<p class="mt-auto pt-2 text-[10px] leading-none text-gray-600">
 														{img.versions[0]?.archs?.join('  ') ?? ''}
 														{#if img.versions.length > 1}
 															| {img.versions.length} versions
@@ -355,13 +349,11 @@
 												</div>
 											</button>
 											{#if isSelected && img.versions.length > 0}
-												<div
-													class="col-span-2 border-t border-fyra-gray-800 bg-fyra-gray-900/50 px-5 py-3"
-												>
-													<span class="text-xs text-fyra-gray-400">Version</span>
+												<div class="col-span-2 border-t border-gray-800 bg-gray-900/50 px-5 py-3">
+													<span class="text-xs text-gray-400">Version</span>
 													<select
 														bind:value={selectedImageVersion}
-														class="mt-1.5 h-8 w-full border border-fyra-gray-700 bg-fyra-gray-800 px-2 text-xs text-fyra-gray-100 focus:border-fyra-red-500 focus:outline-none"
+														class="mt-1.5 h-8 w-full border border-gray-700 bg-gray-800 px-2 text-xs text-gray-100 focus:border-red-500 focus:outline-none"
 													>
 														{#each img.versions as v (v.version)}
 															<option value={v.version}>{v.version} ({v.archs.join(', ')})</option>
@@ -373,7 +365,7 @@
 									{/each}
 								</div>
 								{#if filteredOfficialImages().length === 0 && imagesSearch.trim()}
-									<div class="py-6 text-center text-xs text-fyra-gray-500">
+									<div class="py-6 text-center text-xs text-gray-500">
 										No images match "{imagesSearch}"
 									</div>
 								{/if}
@@ -381,18 +373,17 @@
 
 							{#if dbImages.length > 0}
 								<div class="mt-4">
-									<div class="flex items-center gap-2 border-b border-fyra-gray-800/50 pb-2">
-										<span
-											class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<div class="flex items-center gap-2 border-b border-gray-800/50 pb-2">
+										<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
 											>Database Images</span
 										>
 									</div>
-									<div class="mt-2 divide-y divide-fyra-gray-800/30">
+									<div class="mt-2 divide-y divide-gray-800/30">
 										{#each dbImages as img (img.id)}
 											<button
-												class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-fyra-gray-800/20 {selectedImageId ===
+												class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-800/20 {selectedImageId ===
 												`db-${img.id}`
-													? 'border-l-2 border-l-fyra-red-500 bg-fyra-gray-800/40'
+													? 'border-l-2 border-l-red-500 bg-gray-800/40'
 													: ''}"
 												onclick={() => {
 													if (selectedImageId === `db-${img.id}`) {
@@ -404,10 +395,10 @@
 													}
 												}}
 											>
-												<HardDrive class="h-3.5 w-3.5 text-fyra-gray-500" />
-												<span class="text-xs text-fyra-gray-200">{img.name}</span>
+												<HardDrive class="h-3.5 w-3.5 text-gray-500" />
+												<span class="text-xs text-gray-200">{img.name}</span>
 												{#if img.version}
-													<span class="text-[10px] text-fyra-gray-500">{img.version}</span>
+													<span class="text-[10px] text-gray-500">{img.version}</span>
 												{/if}
 											</button>
 										{/each}
@@ -416,17 +407,17 @@
 							{/if}
 						{:else if imageTab === 'snapshots'}
 							<div class="mt-6 flex flex-col items-center justify-center py-8 text-center">
-								<HardDrive class="mb-3 h-8 w-8 text-fyra-gray-600" />
-								<p class="text-xs text-fyra-gray-500">Snapshots coming soon</p>
-								<p class="mt-1 max-w-xs text-[11px] text-fyra-gray-600">
+								<HardDrive class="mb-3 h-8 w-8 text-gray-600" />
+								<p class="text-xs text-gray-500">Snapshots coming soon</p>
+								<p class="mt-1 max-w-xs text-[11px] text-gray-600">
 									Create point-in-time copies of your servers for quick recovery.
 								</p>
 							</div>
 						{:else if imageTab === 'apps'}
 							<div class="mt-6 flex flex-col items-center justify-center py-8 text-center">
-								<Server class="mb-3 h-8 w-8 text-fyra-gray-600" />
-								<p class="text-xs text-fyra-gray-500">Apps coming soon</p>
-								<p class="mt-1 max-w-xs text-[11px] text-fyra-gray-600">
+								<Server class="mb-3 h-8 w-8 text-gray-600" />
+								<p class="text-xs text-gray-500">Apps coming soon</p>
+								<p class="mt-1 max-w-xs text-[11px] text-gray-600">
 									One-click deploy popular applications like WordPress, Nextcloud, and more.
 								</p>
 							</div>
@@ -434,18 +425,16 @@
 					</div>
 
 					<div id="section-plan" class="scroll-mt-4">
-						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
-							<Server class="h-3.5 w-3.5 text-fyra-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
-								>Plan</span
-							>
+						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+							<Server class="h-3.5 w-3.5 text-red-400" />
+							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Plan</span>
 						</div>
 						<div class="mt-3">
 							{#if vmTypes.length === 0}
 								<div class="flex flex-col items-center justify-center py-8 text-center">
-									<Server class="mb-3 h-6 w-6 text-fyra-gray-600" />
-									<p class="text-xs text-fyra-gray-500">No VM types available</p>
-									<p class="mt-1 text-[11px] text-fyra-gray-600">
+									<Server class="mb-3 h-6 w-6 text-gray-600" />
+									<p class="text-xs text-gray-500">No VM types available</p>
+									<p class="mt-1 text-[11px] text-gray-600">
 										Create a plan in the Admin panel to get started.
 									</p>
 								</div>
@@ -455,22 +444,22 @@
 										<button
 											class="flex flex-col gap-1 border p-3 text-left transition-colors {selectedPlanId ===
 											plan.id
-												? 'border-fyra-red-500 bg-fyra-red-950/20'
-												: 'border-fyra-gray-700 hover:border-fyra-gray-600'}"
+												? 'border-red-500 bg-red-950/20'
+												: 'border-gray-700 hover:border-gray-600'}"
 											onclick={() => {
 												selectedPlanId = selectedPlanId === plan.id ? null : plan.id;
 											}}
 										>
-											<span class="text-sm font-semibold text-fyra-gray-100">{plan.name}</span>
-											<div class="flex items-center gap-2 text-[11px] text-fyra-gray-400">
+											<span class="text-sm font-semibold text-gray-100">{plan.name}</span>
+											<div class="flex items-center gap-2 text-[11px] text-gray-400">
 												<span>{plan.cores} vCPU</span>
-												<span class="text-fyra-gray-700">&bull;</span>
+												<span class="text-gray-700">&bull;</span>
 												<span>{formatRam(plan.ramCapacity)}</span>
-												<span class="text-fyra-gray-700">&bull;</span>
+												<span class="text-gray-700">&bull;</span>
 												<span>{plan.storageAmount}GB</span>
 											</div>
 											{#if plan.rate}
-												<span class="text-xs font-medium text-fyra-gray-300">{plan.rate}</span>
+												<span class="text-xs font-medium text-gray-300">{plan.rate}</span>
 											{/if}
 										</button>
 									{/each}
@@ -480,31 +469,30 @@
 					</div>
 
 					<div id="section-storage" class="scroll-mt-4">
-						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
-							<HardDriveUpload class="h-3.5 w-3.5 text-fyra-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
+						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+							<HardDriveUpload class="h-3.5 w-3.5 text-red-400" />
+							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
 								>Storage</span
 							>
 						</div>
 						<div class="mt-3">
 							{#if selectedPlan}
-								<div class="flex items-center gap-2 text-xs text-fyra-gray-300">
-									<span class="text-fyra-gray-500">Included disk:</span>
+								<div class="flex items-center gap-2 text-xs text-gray-300">
+									<span class="text-gray-500">Included disk:</span>
 									<span class="font-medium">{selectedPlan.storageAmount}GB</span>
 								</div>
 							{:else}
-								<p class="text-xs text-fyra-gray-500">Select a plan to see included disk size.</p>
+								<p class="text-xs text-gray-500">Select a plan to see included disk size.</p>
 							{/if}
 
 							<div class="mt-4">
 								<div class="flex items-center justify-between">
-									<span
-										class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
 										>Attach Volumes</span
 									>
 									<button
 										type="button"
-										class="flex items-center gap-1 text-[10px] font-medium text-fyra-red-400 transition-colors hover:text-fyra-red-300"
+										class="flex items-center gap-1 text-[10px] font-medium text-red-400 transition-colors hover:text-red-300"
 										onclick={() => (showCreateVolume = !showCreateVolume)}
 									>
 										{#if showCreateVolume}
@@ -518,9 +506,9 @@
 								</div>
 
 								{#if showCreateVolume}
-									<div class="mt-2 flex gap-2 border border-fyra-gray-700 bg-fyra-gray-800/40 p-3">
+									<div class="mt-2 flex gap-2 border border-gray-700 bg-gray-800/40 p-3">
 										<div class="flex-1">
-											<label for="new-vol-name" class="mb-1 block text-[10px] text-fyra-gray-500"
+											<label for="new-vol-name" class="mb-1 block text-[10px] text-gray-500"
 												>Name</label
 											>
 											<input
@@ -528,11 +516,11 @@
 												name="newVolumeName"
 												bind:value={newVolumeName}
 												placeholder="volume-name"
-												class="h-7 w-full border border-fyra-gray-700 bg-fyra-gray-900 px-2 text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+												class="h-7 w-full border border-gray-700 bg-gray-900 px-2 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
 											/>
 										</div>
 										<div class="w-24">
-											<label for="new-vol-size" class="mb-1 block text-[10px] text-fyra-gray-500"
+											<label for="new-vol-size" class="mb-1 block text-[10px] text-gray-500"
 												>Size (GB)</label
 											>
 											<input
@@ -541,7 +529,7 @@
 												type="number"
 												min="1"
 												bind:value={newVolumeSize}
-												class="h-7 w-full border border-fyra-gray-700 bg-fyra-gray-900 px-2 text-xs text-fyra-gray-100 tabular-nums focus:border-fyra-gray-500 focus:outline-none"
+												class="h-7 w-full border border-gray-700 bg-gray-900 px-2 text-xs text-gray-100 tabular-nums focus:border-gray-500 focus:outline-none"
 											/>
 										</div>
 										<div class="flex items-end">
@@ -567,8 +555,8 @@
 												class="flex cursor-pointer items-center gap-3 border p-3 text-xs transition-colors {selectedVolumeIds.includes(
 													vol.id
 												)
-													? 'border-fyra-red-500 bg-fyra-red-950/20'
-													: 'border-fyra-gray-700 hover:border-fyra-gray-600'}"
+													? 'border-red-500 bg-red-950/20'
+													: 'border-gray-700 hover:border-gray-600'}"
 											>
 												<input
 													type="checkbox"
@@ -580,21 +568,19 @@
 															selectedVolumeIds = [...selectedVolumeIds, vol.id];
 														}
 													}}
-													class="accent-fyra-red-500"
+													class="accent-red-500"
 												/>
-												<span class="font-medium text-fyra-gray-200">{vol.name}</span>
-												<span class="ml-auto text-[11px] text-fyra-gray-500 tabular-nums"
+												<span class="font-medium text-gray-200">{vol.name}</span>
+												<span class="ml-auto text-[11px] text-gray-500 tabular-nums"
 													>{vol.sizeGb}GB</span
 												>
 											</label>
 										{/each}
 									</div>
 								{:else}
-									<div
-										class="mt-2 border border-fyra-gray-800/50 bg-fyra-gray-900/50 p-3 text-center"
-									>
-										<p class="text-xs text-fyra-gray-500">No volumes available.</p>
-										<p class="mt-1 text-[11px] text-fyra-gray-600">
+									<div class="mt-2 border border-gray-800/50 bg-gray-900/50 p-3 text-center">
+										<p class="text-xs text-gray-500">No volumes available.</p>
+										<p class="mt-1 text-[11px] text-gray-600">
 											Create a volume to attach it to this server.
 										</p>
 									</div>
@@ -604,9 +590,9 @@
 					</div>
 
 					<div id="section-networking" class="scroll-mt-4">
-						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
-							<Globe class="h-3.5 w-3.5 text-fyra-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
+						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+							<Globe class="h-3.5 w-3.5 text-red-400" />
+							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
 								>Networking</span
 							>
 						</div>
@@ -616,29 +602,29 @@
 									<label
 										class="flex cursor-pointer items-center gap-2 border p-3 text-xs transition-colors {networkingOption ===
 										opt.value
-											? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-											: 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}"
+											? 'border-red-500 bg-red-950/20 text-gray-100'
+											: 'border-gray-700 text-gray-400 hover:border-gray-600'}"
 									>
 										<input
 											type="radio"
 											name="networking"
 											value={opt.value}
 											bind:group={networkingOption}
-											class="accent-fyra-red-500"
+											class="accent-red-500"
 										/>
 										{opt.label}
 									</label>
 								{/each}
 							</div>
 							<div class="mt-4">
-								<span class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+								<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
 									>VPC</span
 								>
 								<div class="mt-1.5 inline-grid w-full grid-cols-[1fr_--spacing(8)] items-center">
 									<select
 										name="vpc"
 										bind:value={selectedVpcId}
-										class="col-span-full row-start-1 h-8 w-full appearance-none border border-fyra-gray-700 bg-fyra-gray-800 pr-8 pl-2 text-xs text-fyra-gray-100 focus:border-fyra-red-500 focus:outline-none"
+										class="col-span-full row-start-1 h-8 w-full appearance-none border border-gray-700 bg-gray-800 pr-8 pl-2 text-xs text-gray-100 focus:border-red-500 focus:outline-none"
 									>
 										<option value="">Default (no VPC)</option>
 										{#each mockVpcs as vpc (vpc.id)}
@@ -650,7 +636,7 @@
 										width="8"
 										height="5"
 										fill="none"
-										class="pointer-events-none col-start-2 row-start-1 place-self-center text-fyra-gray-400"
+										class="pointer-events-none col-start-2 row-start-1 place-self-center text-gray-400"
 									>
 										<path d="M.5.5L4 4L7.5.5" stroke="currentColor" />
 									</svg>
@@ -660,9 +646,9 @@
 					</div>
 
 					<div id="section-ssh" class="scroll-mt-4 pb-8">
-						<div class="flex items-center gap-2 border-b border-fyra-gray-800 pb-2">
-							<Key class="h-3.5 w-3.5 text-fyra-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
+						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
+							<Key class="h-3.5 w-3.5 text-red-400" />
+							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
 								>SSH Keys</span
 							>
 						</div>
@@ -674,8 +660,8 @@
 											class="flex cursor-pointer items-center gap-3 border p-3 text-xs transition-colors {selectedSshKeyIds.includes(
 												key.id
 											)
-												? 'border-fyra-red-500 bg-fyra-red-950/20'
-												: 'border-fyra-gray-700 hover:border-fyra-gray-600'}"
+												? 'border-red-500 bg-red-950/20'
+												: 'border-gray-700 hover:border-gray-600'}"
 										>
 											<input
 												type="checkbox"
@@ -687,11 +673,11 @@
 														selectedSshKeyIds = [...selectedSshKeyIds, key.id];
 													}
 												}}
-												class="accent-fyra-red-500"
+												class="accent-red-500"
 											/>
 											<div class="flex flex-col">
-												<span class="font-medium text-fyra-gray-200">{key.name}</span>
-												<span class="font-mono text-[10px] text-fyra-gray-500"
+												<span class="font-medium text-gray-200">{key.name}</span>
+												<span class="font-mono text-[10px] text-gray-500"
 													>{truncateFingerprint(key.fingerprint)}</span
 												>
 											</div>
@@ -699,9 +685,9 @@
 									{/each}
 								</div>
 							{:else}
-								<div class="border border-fyra-gray-800/50 bg-fyra-gray-900/50 p-4 text-center">
-									<p class="text-xs text-fyra-gray-500">No SSH keys available.</p>
-									<p class="mt-1 text-[11px] text-fyra-gray-600">
+								<div class="border border-gray-800/50 bg-gray-900/50 p-4 text-center">
+									<p class="text-xs text-gray-500">No SSH keys available.</p>
+									<p class="mt-1 text-[11px] text-gray-600">
 										Password authentication will be used instead.
 									</p>
 								</div>
@@ -712,47 +698,46 @@
 			</div>
 		</div>
 
-		<aside class="sticky top-0 h-full w-72 shrink-0 border-l border-fyra-gray-800 bg-fyra-gray-900">
+		<aside class="sticky top-0 h-full w-72 shrink-0 border-l border-gray-800 bg-gray-900">
 			<div class="flex h-full flex-col">
-				<div class="border-b border-fyra-gray-800 px-4 py-3">
-					<span class="text-xs font-semibold tracking-wider text-fyra-gray-400 uppercase"
-						>Configure</span
+				<div class="border-b border-gray-800 px-4 py-3">
+					<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Configure</span
 					>
 				</div>
 				<div class="flex-1 overflow-y-auto px-4 py-3">
 					<nav class="flex flex-col gap-1">
 						{#each sections as section (section.id)}
 							<button
-								class="flex items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors hover:bg-fyra-gray-800/50"
+								class="flex items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors hover:bg-gray-800/50"
 								onclick={() => scrollTosSection(section.id)}
 							>
 								{#if section.isComplete}
 									<Check class="h-3 w-3 shrink-0 text-emerald-500" />
 								{:else}
-									<Circle class="h-3 w-3 shrink-0 text-fyra-gray-600" />
+									<Circle class="h-3 w-3 shrink-0 text-gray-600" />
 								{/if}
-								<span class={section.isComplete ? 'text-fyra-gray-200' : 'text-fyra-gray-500'}
+								<span class={section.isComplete ? 'text-gray-200' : 'text-gray-500'}
 									>{section.label}</span
 								>
 							</button>
 						{/each}
 					</nav>
 
-					<div class="mt-4 border-t border-fyra-gray-800 pt-4">
-						<span class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+					<div class="mt-4 border-t border-gray-800 pt-4">
+						<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
 							>Summary</span
 						>
 						<div class="mt-2 flex flex-col gap-2">
 							<div class="flex items-center justify-between text-xs">
-								<span class="text-fyra-gray-500">Image</span>
-								<span class="text-fyra-gray-200">
+								<span class="text-gray-500">Image</span>
+								<span class="text-gray-200">
 									{selectedImage?.name ?? '—'}
 									{#if selectedImageVersion}/ {selectedImageVersion}{/if}
 								</span>
 							</div>
 							<div class="flex items-center justify-between text-xs">
-								<span class="text-fyra-gray-500">Plan</span>
-								<span class="text-fyra-gray-200">
+								<span class="text-gray-500">Plan</span>
+								<span class="text-gray-200">
 									{selectedPlan
 										? `${selectedPlan.name} (${selectedPlan.cores} vCPU, ${formatRam(selectedPlan.ramCapacity)})`
 										: '—'}
@@ -760,16 +745,16 @@
 							</div>
 							{#if selectedPlan}
 								<div class="flex items-center justify-between text-xs">
-									<span class="text-fyra-gray-500">Disk</span>
-									<span class="text-fyra-gray-200 tabular-nums"
+									<span class="text-gray-500">Disk</span>
+									<span class="text-gray-200 tabular-nums"
 										>{selectedPlan.storageAmount}GB{#if selectedVolumeIds.length > 0}
 											+ {selectedVolumeIds.length} vol{/if}</span
 									>
 								</div>
 							{/if}
 							<div class="flex items-center justify-between text-xs">
-								<span class="text-fyra-gray-500">Network</span>
-								<span class="text-fyra-gray-200">
+								<span class="text-gray-500">Network</span>
+								<span class="text-gray-200">
 									{networkingOption === 'both'
 										? 'IPv4 + IPv6'
 										: networkingOption === 'ipv4'
@@ -781,29 +766,29 @@
 							</div>
 							{#if selectedVpcId}
 								<div class="flex items-center justify-between text-xs">
-									<span class="text-fyra-gray-500">VPC</span>
-									<span class="text-fyra-gray-200"
+									<span class="text-gray-500">VPC</span>
+									<span class="text-gray-200"
 										>{mockVpcs.find((v) => v.id === selectedVpcId)?.name ?? '—'}</span
 									>
 								</div>
 							{/if}
 							{#if selectedSshKeyIds.length > 0}
 								<div class="flex items-center justify-between text-xs">
-									<span class="text-fyra-gray-500">SSH Keys</span>
-									<span class="text-fyra-gray-200">{selectedSshKeyIds.length} selected</span>
+									<span class="text-gray-500">SSH Keys</span>
+									<span class="text-gray-200">{selectedSshKeyIds.length} selected</span>
 								</div>
 							{/if}
 							{#if selectedPlan?.rate}
 								<div class="flex items-center justify-between text-xs">
-									<span class="text-fyra-gray-500">Estimated</span>
-									<span class="font-medium text-fyra-gray-100">{selectedPlan.rate}</span>
+									<span class="text-gray-500">Estimated</span>
+									<span class="font-medium text-gray-100">{selectedPlan.rate}</span>
 								</div>
 							{/if}
 						</div>
 					</div>
 				</div>
 
-				<div class="border-t border-fyra-gray-800 px-4 py-3">
+				<div class="border-t border-gray-800 px-4 py-3">
 					<Button
 						class="w-full"
 						disabled={!serverName.trim() || !selectedPlanId || creating}
@@ -817,7 +802,7 @@
 						{/if}
 					</Button>
 					{#if createError}
-						<p class="mt-2 text-xs text-fyra-red-400">{createError}</p>
+						<p class="mt-2 text-xs text-red-400">{createError}</p>
 					{/if}
 				</div>
 			</div>

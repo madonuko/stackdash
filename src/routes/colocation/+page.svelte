@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import Icon from '$lib/components/icon.svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import {
 		officialImages,
@@ -514,11 +515,11 @@
 
 <div class="flex flex-1 overflow-hidden">
 	<!-- Unit list -->
-	<div class="flex w-64 shrink-0 flex-col border-r border-fyra-gray-800">
-		<div class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-4">
+	<div class="flex w-64 shrink-0 flex-col border-r border-gray-800">
+		<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center gap-2">
-				<Warehouse class="h-4 w-4 text-fyra-gray-400" />
-				<span class="text-sm font-semibold text-fyra-gray-100">Colocation</span>
+				<Warehouse class="h-4 w-4 text-gray-400" />
+				<span class="text-sm font-semibold text-gray-100">Colocation</span>
 				<Badge variant="secondary" class="text-[10px]">{units.length}</Badge>
 			</div>
 			<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={() => (addOpen = true)}>
@@ -528,30 +529,30 @@
 		<div class="flex-1 overflow-y-auto">
 			{#each units as unit (unit.id)}
 				<button
-					class="flex w-full items-center justify-between border-b border-fyra-gray-800 px-4 py-3 text-left transition-colors duration-100 {selectedUnitId ===
+					class="flex w-full items-center justify-between border-b border-gray-800 px-4 py-3 text-left transition-colors duration-100 {selectedUnitId ===
 					unit.id
-						? 'bg-fyra-gray-800/60'
-						: 'hover:bg-fyra-gray-800/30'}"
+						? 'bg-gray-800/60'
+						: 'hover:bg-gray-800/30'}"
 					onclick={() => {
 						selectedUnitId = unit.id;
 						activeTab = 'overview';
 					}}
 				>
 					<div class="min-w-0">
-						<p class="truncate text-sm font-semibold text-fyra-gray-100">{unit.name}</p>
-						<p class="mt-0.5 text-xs text-fyra-gray-500">{unit.rackSize} &bull; {unit.location}</p>
+						<p class="truncate text-sm font-semibold text-gray-100">{unit.name}</p>
+						<p class="mt-0.5 text-xs text-gray-500">{unit.rackSize} &bull; {unit.location}</p>
 					</div>
 					<span
 						class="ml-2 h-2 w-2 shrink-0 rounded-full {unit.status === 'online'
 							? 'bg-emerald-500'
 							: unit.status === 'provisioning'
 								? 'animate-pulse bg-amber-500'
-								: 'bg-fyra-red-500'}"
+								: 'bg-red-500'}"
 					></span>
 				</button>
 			{/each}
 			{#if units.length === 0}
-				<div class="flex flex-col items-center justify-center py-16 text-fyra-gray-500">
+				<div class="flex flex-col items-center justify-center py-16 text-gray-500">
 					<Warehouse class="mb-3 h-6 w-6" />
 					<p class="text-xs">No colocation units</p>
 				</div>
@@ -563,35 +564,31 @@
 	{#if selectedUnit}
 		<div class="flex flex-1 flex-col overflow-hidden">
 			<!-- Header -->
-			<div
-				class="flex h-10 shrink-0 items-center justify-between border-b border-fyra-gray-800 px-5"
-			>
+			<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-5">
 				<div class="flex items-center gap-2">
-					<span class="text-sm font-medium text-fyra-gray-200">{selectedUnit.name}</span>
+					<span class="text-sm font-medium text-gray-200">{selectedUnit.name}</span>
 					<Badge
 						variant="outline"
 						class="text-[10px] {selectedUnit.status === 'online'
 							? 'border-emerald-800 bg-emerald-950/40 text-emerald-400'
 							: selectedUnit.status === 'provisioning'
 								? 'border-amber-800 bg-amber-950/40 text-amber-400'
-								: 'border-fyra-red-800 bg-fyra-red-950/40 text-fyra-red-400'}"
+								: 'border-red-800 bg-red-950/40 text-red-400'}"
 					>
 						{selectedUnit.status}
 					</Badge>
 				</div>
-				<span class="text-xs font-medium text-fyra-gray-400">{selectedUnit.monthlyRate}/mo</span>
+				<span class="text-xs font-medium text-gray-400">{selectedUnit.monthlyRate}/mo</span>
 			</div>
 
 			<!-- Tab nav -->
-			<div
-				class="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-fyra-gray-800 px-2"
-			>
+			<div class="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-gray-800 px-2">
 				{#each tabs as tab (tab.id)}
 					<button
 						class="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors duration-100 {activeTab ===
 						tab.id
-							? 'border-b-2 border-fyra-red-500 text-fyra-gray-50'
-							: 'text-fyra-gray-500 hover:text-fyra-gray-300'}"
+							? 'border-b-2 border-red-500 text-gray-50'
+							: 'text-gray-500 hover:text-gray-300'}"
 						onclick={() => (activeTab = tab.id)}
 					>
 						<tab.icon class="h-3 w-3" />
@@ -608,15 +605,15 @@
 						<div class="shrink-0">
 							<!-- Charts -->
 							<div
-								class="grid shrink-0 grid-cols-4 divide-x divide-fyra-gray-800 border-b border-fyra-gray-800"
+								class="grid shrink-0 grid-cols-4 divide-x divide-gray-800 border-b border-gray-800"
 							>
 								{#each charts as chart (chart.label)}
 									<div class="relative flex flex-col">
 										<div class="flex items-baseline justify-between px-4 pt-3 pb-1">
-											<span class="relative z-10 text-xs font-medium text-fyra-gray-400"
+											<span class="relative z-10 text-xs font-medium text-gray-400"
 												>{chart.label}</span
 											>
-											<span class="relative z-10 text-xs font-semibold text-fyra-gray-200"
+											<span class="relative z-10 text-xs font-semibold text-gray-200"
 												>{chart.value}</span
 											>
 										</div>
@@ -647,8 +644,8 @@
 							</div>
 						</div>
 
-						<div class="border-b border-fyra-gray-800/50 px-5 py-3">
-							<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+						<div class="border-b border-gray-800/50 px-5 py-3">
+							<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 								>Hardware Details</span
 							>
 						</div>
@@ -658,34 +655,33 @@
 							<!-- Details -->
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center justify-between px-5 py-2">
-									<span class="text-xs text-fyra-gray-500">Rack Size</span>
-									<span class="text-xs font-medium text-fyra-gray-200">{selectedUnit.rackSize}</span
-									>
+									<span class="text-xs text-gray-500">Rack Size</span>
+									<span class="text-xs font-medium text-gray-200">{selectedUnit.rackSize}</span>
 								</div>
 								<div class="flex items-center justify-between px-5 py-2">
-									<span class="text-xs text-fyra-gray-500">Location</span>
-									<span class="text-xs font-medium text-fyra-gray-200"
+									<span class="text-xs text-gray-500">Location</span>
+									<span class="text-xs font-medium text-gray-200"
 										>Chicago, IL — {selectedUnit.location}</span
 									>
 								</div>
-								<div class="divide-y divide-fyra-gray-800/50 border-t border-fyra-gray-800/50">
+								<div class="divide-y divide-gray-800/50 border-t border-gray-800/50">
 									{#each [['Created', selectedUnit.created], ['Power Draw', selectedUnit.powerDraw], ['Power Budget', selectedUnit.powerBudget], ['Uplink', '1 Gbps fair-use'], ['Primary IP', selectedUnit.ip]] as [label, value]}
 										<div class="flex items-center justify-between px-5 py-2">
-											<span class="text-xs text-fyra-gray-500">{label}</span>
-											<span class="text-xs font-medium text-fyra-gray-200">{value}</span>
+											<span class="text-xs text-gray-500">{label}</span>
+											<span class="text-xs font-medium text-gray-200">{value}</span>
 										</div>
 									{/each}
 									<div class="px-5 py-3">
 										<div class="flex items-center justify-between">
-											<span class="text-xs text-fyra-gray-500">Power Usage</span>
-											<span class="text-xs text-fyra-gray-400"
+											<span class="text-xs text-gray-500">Power Usage</span>
+											<span class="text-xs text-gray-400"
 												>{selectedUnit.powerDraw} / {selectedUnit.powerBudget}</span
 											>
 										</div>
-										<div class="mt-2 h-1.5 w-full bg-fyra-gray-800">
+										<div class="mt-2 h-1.5 w-full bg-gray-800">
 											<div
 												class="h-full transition-all duration-500 {powerPct() > 80
-													? 'bg-fyra-red-500'
+													? 'bg-red-500'
 													: powerPct() > 50
 														? 'bg-amber-500'
 														: 'bg-emerald-500'}"
@@ -699,7 +695,7 @@
 							<!-- Rack diagram -->
 							<div class="relative w-32 shrink-0 p-2">
 								<div
-									class="absolute top-[2.25rem] bottom-0 left-0 border-l border-fyra-gray-800/50"
+									class="absolute top-[2.25rem] bottom-0 left-0 border-l border-gray-800/50"
 								></div>
 								<svg
 									viewBox="0 0 120 {totalRackSlots * 8 + 16}"
@@ -712,27 +708,27 @@
 										y="0"
 										width="7"
 										height={totalRackSlots * 8 + 16}
-										fill="var(--fyra-gray-800)"
+										fill="var(--gray-800)"
 									/>
 									<rect
 										x="113"
 										y="0"
 										width="7"
 										height={totalRackSlots * 8 + 16}
-										fill="var(--fyra-gray-800)"
+										fill="var(--gray-800)"
 									/>
-									<rect x="0" y="0" width="120" height="3" fill="var(--fyra-gray-700)" />
+									<rect x="0" y="0" width="120" height="3" fill="var(--gray-700)" />
 									<rect
 										x="0"
 										y={totalRackSlots * 8 + 13}
 										width="120"
 										height="3"
-										fill="var(--fyra-gray-700)"
+										fill="var(--gray-700)"
 									/>
 									<!-- Screw holes -->
 									{#each Array(totalRackSlots) as _, i}
-										<circle cx="3.5" cy={i * 8 + 8} r="1" fill="var(--fyra-gray-600)" />
-										<circle cx="116.5" cy={i * 8 + 8} r="1" fill="var(--fyra-gray-600)" />
+										<circle cx="3.5" cy={i * 8 + 8} r="1" fill="var(--gray-600)" />
+										<circle cx="116.5" cy={i * 8 + 8} r="1" fill="var(--gray-600)" />
 									{/each}
 									<!-- Slots -->
 									{#each Array(totalRackSlots) as _, i}
@@ -743,8 +739,8 @@
 											{y}
 											width="102"
 											height="7"
-											fill="var(--fyra-gray-950)"
-											stroke="var(--fyra-gray-800)"
+											fill="var(--gray-950)"
+											stroke="var(--gray-800)"
 											stroke-width="0.5"
 										/>
 										{#if slotNum % 5 === 0}
@@ -752,7 +748,7 @@
 												x="13"
 												y={y + 5.5}
 												font-size="4"
-												fill="var(--fyra-gray-600)"
+												fill="var(--gray-600)"
 												font-family="monospace">{slotNum}</text
 											>
 										{/if}
@@ -769,11 +765,11 @@
 												height={h}
 												fill={unit.isCurrent
 													? unit.status === 'online'
-														? 'var(--fyra-red-500)'
-														: 'var(--fyra-gray-600)'
-													: 'var(--fyra-gray-700)'}
+														? 'var(--red-500)'
+														: 'var(--gray-600)'
+													: 'var(--gray-700)'}
 												opacity={unit.isCurrent ? 0.25 : 0.12}
-												stroke={unit.isCurrent ? 'var(--fyra-red-500)' : 'var(--fyra-gray-600)'}
+												stroke={unit.isCurrent ? 'var(--red-500)' : 'var(--gray-600)'}
 												stroke-width={unit.isCurrent ? 1.5 : 0.5}
 											/>
 											{@const midY = startY + h / 2}
@@ -784,7 +780,7 @@
 													width="7"
 													height="4"
 													fill="none"
-													stroke={unit.isCurrent ? 'var(--fyra-red-400)' : 'var(--fyra-gray-500)'}
+													stroke={unit.isCurrent ? 'var(--red-400)' : 'var(--gray-500)'}
 													stroke-width="0.4"
 													opacity="0.4"
 												/>
@@ -796,14 +792,14 @@
 												fill={unit.status === 'online'
 													? '#4ade80'
 													: unit.status === 'offline'
-														? 'var(--fyra-gray-600)'
+														? 'var(--gray-600)'
 														: '#fbbf24'}
 											/>
 											<text
 												x="108"
 												y={midY + 1.5}
 												font-size="4"
-												fill={unit.isCurrent ? 'var(--fyra-gray-200)' : 'var(--fyra-gray-500)'}
+												fill={unit.isCurrent ? 'var(--gray-200)' : 'var(--gray-500)'}
 												font-family="monospace"
 												text-anchor="end">{unit.name}</text
 											>
@@ -815,10 +811,10 @@
 					</div>
 				{:else if activeTab === 'networking'}
 					<div class="flex-1 overflow-auto">
-						<div class="divide-y divide-fyra-gray-800/50">
+						<div class="divide-y divide-gray-800/50">
 							<div class="px-5 py-3">
 								<div class="flex items-center justify-between">
-									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 										>IP Addresses</span
 									>
 									<Button
@@ -840,7 +836,7 @@
 								<div class="flex items-center justify-between px-5 py-2.5">
 									<div>
 										<div class="flex items-center gap-2">
-											<span class="font-mono text-xs text-fyra-gray-200">{ip.address}</span>
+											<span class="font-mono text-xs text-gray-200">{ip.address}</span>
 											<Badge variant="secondary" class="text-[9px]">{ip.type}</Badge>
 										</div>
 										{#if editingColoRdns === idx}
@@ -864,7 +860,7 @@
 												>
 											</div>
 										{:else}
-											<p class="mt-0.5 font-mono text-[11px] text-fyra-gray-500">
+											<p class="mt-0.5 font-mono text-[11px] text-gray-500">
 												{ip.rdns || 'No rDNS'}
 											</p>
 										{/if}
@@ -872,7 +868,7 @@
 									{#if editingColoRdns !== idx}
 										<div class="flex items-center gap-1">
 											<button
-												class="text-fyra-gray-500 hover:text-fyra-gray-300"
+												class="text-gray-500 hover:text-gray-300"
 												onclick={() => copyText(ip.address, `colo-ip-${idx}`)}
 											>
 												{#if copied === `colo-ip-${idx}`}<Check
@@ -892,7 +888,7 @@
 												<Button
 													variant="ghost"
 													size="sm"
-													class="h-7 w-7 p-0 text-fyra-red-400"
+													class="h-7 w-7 p-0 text-red-400"
 													onclick={() => deleteColoIp(idx)}><X class="h-3 w-3" /></Button
 												>
 											{/if}
@@ -901,17 +897,17 @@
 								</div>
 							{/each}
 							<div class="px-5 py-3">
-								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 									>Network</span
 								>
 							</div>
 							<div class="flex items-center justify-between px-5 py-2.5">
-								<span class="text-xs text-fyra-gray-500">Uplink</span>
-								<span class="text-xs font-medium text-fyra-gray-200">1 Gbps fair-use</span>
+								<span class="text-xs text-gray-500">Uplink</span>
+								<span class="text-xs font-medium text-gray-200">1 Gbps fair-use</span>
 							</div>
 							<div class="flex items-center justify-between px-5 py-2.5">
-								<span class="text-xs text-fyra-gray-500">Bandwidth This Month</span>
-								<span class="text-xs font-medium text-fyra-gray-200">1.2 TB</span>
+								<span class="text-xs text-gray-500">Bandwidth This Month</span>
+								<span class="text-xs font-medium text-gray-200">1.2 TB</span>
 							</div>
 						</div>
 					</div>
@@ -920,13 +916,11 @@
 						<!-- Mounted image banner -->
 						{#if mountedColoImage}
 							<div
-								class="flex items-center justify-between border-b border-fyra-gray-800 bg-fyra-gray-800/20 px-5 py-2.5"
+								class="flex items-center justify-between border-b border-gray-800 bg-gray-800/20 px-5 py-2.5"
 							>
 								<div class="flex items-center gap-2">
-									<Disc class="h-3 w-3 text-fyra-red-400" />
-									<span class="text-xs font-medium text-fyra-gray-200"
-										>Mounted: {mountedColoImage}</span
-									>
+									<Disc class="h-3 w-3 text-red-400" />
+									<span class="text-xs font-medium text-gray-200">Mounted: {mountedColoImage}</span>
 								</div>
 								<div class="flex items-center gap-1.5">
 									<Button
@@ -948,23 +942,21 @@
 								</div>
 							</div>
 						{:else}
-							<div class="border-b border-fyra-gray-800 px-5 py-2.5 text-xs text-fyra-gray-500">
+							<div class="border-b border-gray-800 px-5 py-2.5 text-xs text-gray-500">
 								No image mounted. Select an image below to mount via IPMI virtual media.
 							</div>
 						{/if}
 
 						<!-- Search + Upload -->
-						<div
-							class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5"
-						>
+						<div class="flex items-center justify-between border-b border-gray-800 px-5 py-2.5">
 							<div class="relative">
 								<Search
-									class="pointer-events-none absolute top-1/2 left-2.5 h-3 w-3 -translate-y-1/2 text-fyra-gray-500"
+									class="pointer-events-none absolute top-1/2 left-2.5 h-3 w-3 -translate-y-1/2 text-gray-500"
 								/>
 								<input
 									bind:value={coloImgSearch}
 									placeholder="Search images..."
-									class="h-7 w-44 border border-fyra-gray-700 bg-fyra-gray-800 pr-2 pl-7 text-xs text-fyra-gray-100 placeholder:text-fyra-gray-600 focus:border-fyra-gray-500 focus:outline-none"
+									class="h-7 w-44 border border-gray-700 bg-gray-800 pr-2 pl-7 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
 								/>
 							</div>
 							<Button
@@ -986,26 +978,24 @@
 
 						<div class="flex-1 overflow-auto">
 							<!-- Official Images -->
-							<div
-								class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5"
-							>
-								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+							<div class="flex items-center justify-between border-b border-gray-800 px-5 py-2.5">
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 									>Official Images</span
 								>
 								{#if coloImgTotalPages > 1}
 									<div class="flex items-center gap-1.5">
 										<button
-											class="flex h-6 w-6 items-center justify-center text-fyra-gray-500 hover:text-fyra-gray-300 disabled:opacity-30"
+											class="flex h-6 w-6 items-center justify-center text-gray-500 hover:text-gray-300 disabled:opacity-30"
 											disabled={coloImgPage === 0}
 											onclick={() => coloImgPage--}
 										>
 											<ChevronLeft class="h-3.5 w-3.5" />
 										</button>
-										<span class="text-[10px] text-fyra-gray-500"
+										<span class="text-[10px] text-gray-500"
 											>{coloImgPage + 1}/{coloImgTotalPages}</span
 										>
 										<button
-											class="flex h-6 w-6 items-center justify-center text-fyra-gray-500 hover:text-fyra-gray-300 disabled:opacity-30"
+											class="flex h-6 w-6 items-center justify-center text-gray-500 hover:text-gray-300 disabled:opacity-30"
 											disabled={coloImgPage >= coloImgTotalPages - 1}
 											onclick={() => coloImgPage++}
 										>
@@ -1015,11 +1005,11 @@
 								{/if}
 							</div>
 
-							<div class="border-b border-fyra-gray-800">
-								<div class="grid grid-cols-2 gap-px bg-fyra-gray-900">
+							<div class="border-b border-gray-800">
+								<div class="grid grid-cols-2 gap-px bg-gray-900">
 									{#each pagedColoOfficialImages() as img (img.id)}
 										<button
-											class="relative flex gap-3 overflow-hidden bg-fyra-gray-900 p-4 text-left transition-colors hover:bg-fyra-gray-800/40"
+											class="relative flex gap-3 overflow-hidden bg-gray-900 p-4 text-left transition-colors hover:bg-gray-800/40"
 											onclick={() => openColoImageDetail(img)}
 										>
 											<div
@@ -1028,35 +1018,31 @@
 											></div>
 											<div class="relative shrink-0">
 												{#if img.icon}
-													<svg viewBox="0 0 24 24" class="h-10 w-10" fill="var(--fyra-gray-300)"
-														><path d={img.icon} /></svg
-													>
+													<Icon name={img.icon} class="h-10 w-10 text-gray-300" />
 												{:else}
 													<span
-														class="flex h-10 w-10 items-center justify-center text-lg font-bold text-fyra-gray-300"
+														class="flex h-10 w-10 items-center justify-center text-lg font-bold text-gray-300"
 														>{img.shortName}</span
 													>
 												{/if}
 											</div>
 											<div class="relative flex min-w-0 flex-1 flex-col">
 												<div class="flex items-center gap-1.5">
-													<span class="text-sm font-semibold text-fyra-gray-50">{img.name}</span>
+													<span class="text-sm font-semibold text-gray-50">{img.name}</span>
 													{#if img.paid}
 														<Badge
 															variant="outline"
-															class="border-fyra-red-700 bg-fyra-red-950/40 text-[8px] text-fyra-red-400"
+															class="border-red-700 bg-red-950/40 text-[8px] text-red-400"
 														>
 															<DollarSign class="mr-0.5 h-2 w-2" />
 															{img.price}
 														</Badge>
 													{/if}
 												</div>
-												<p
-													class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-fyra-gray-500"
-												>
+												<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
 													{img.description}
 												</p>
-												<p class="mt-auto pt-1.5 text-[10px] leading-none text-fyra-gray-600">
+												<p class="mt-auto pt-1.5 text-[10px] leading-none text-gray-600">
 													{img.versions[0].archs.join('  ')} | {img.versions.length} version{img
 														.versions.length > 1
 														? 's'
@@ -1067,33 +1053,31 @@
 									{/each}
 								</div>
 								{#if filteredColoOfficialImages().length === 0 && coloImgSearch.trim()}
-									<div class="px-5 py-6 text-center text-xs text-fyra-gray-500">
+									<div class="px-5 py-6 text-center text-xs text-gray-500">
 										No official images match "{coloImgSearch}"
 									</div>
 								{/if}
 							</div>
 
 							<!-- User Images -->
-							<div
-								class="flex items-center justify-between border-b border-fyra-gray-800 px-5 py-2.5"
-							>
-								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+							<div class="flex items-center justify-between border-b border-gray-800 px-5 py-2.5">
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 									>Your Images ({coloUserImages.length})</span
 								>
 							</div>
 							{#if filteredColoUserImages().length > 0}
-								<div class="divide-y divide-fyra-gray-800/20">
+								<div class="divide-y divide-gray-800/20">
 									{#each filteredColoUserImages() as img (img.id)}
 										<div
-											class="flex items-center justify-between px-5 py-3 transition-colors hover:bg-fyra-gray-800/20"
+											class="flex items-center justify-between px-5 py-3 transition-colors hover:bg-gray-800/20"
 										>
 											<div class="flex items-center gap-2">
-												<Disc class="h-2.5 w-2.5 shrink-0 text-fyra-gray-600" />
-												<span class="text-xs text-fyra-gray-200">{img.name}</span>
+												<Disc class="h-2.5 w-2.5 shrink-0 text-gray-600" />
+												<span class="text-xs text-gray-200">{img.name}</span>
 												<Badge variant="outline" class="text-[7px] {imageTypeColors[img.type]}"
 													>.{img.type}</Badge
 												>
-												<span class="text-[10px] text-fyra-gray-600">{img.size}</span>
+												<span class="text-[10px] text-gray-600">{img.size}</span>
 											</div>
 											<div class="flex items-center gap-1.5">
 												{#if img.status === 'ready'}
@@ -1111,16 +1095,16 @@
 															onclick={() => mountColoUserImage(img.name)}>Mount</Button
 														>
 													{/if}
-													<span class="text-[10px] text-fyra-gray-600">{img.uploaded}</span>
+													<span class="text-[10px] text-gray-600">{img.uploaded}</span>
 												{:else if img.status === 'uploading'}
 													<div class="flex items-center gap-1">
-														<div class="h-0.5 w-12 bg-fyra-gray-800">
+														<div class="h-0.5 w-12 bg-gray-800">
 															<div
-																class="h-full bg-fyra-red-500 transition-all"
+																class="h-full bg-red-500 transition-all"
 																style="width: {img.progress}%"
 															></div>
 														</div>
-														<span class="text-[9px] text-fyra-gray-500">{img.progress}%</span>
+														<span class="text-[9px] text-gray-500">{img.progress}%</span>
 													</div>
 												{:else}
 													<span class="text-[9px] text-amber-500">Processing</span>
@@ -1128,7 +1112,7 @@
 												<Button
 													variant="ghost"
 													size="sm"
-													class="h-5 w-5 p-0 text-fyra-gray-600 hover:text-fyra-red-400"
+													class="h-5 w-5 p-0 text-gray-600 hover:text-red-400"
 													onclick={() => deleteColoImage(img.id)}
 													disabled={img.status !== 'ready'}
 												>
@@ -1139,9 +1123,9 @@
 									{/each}
 								</div>
 							{:else if coloImgSearch.trim()}
-								<div class="px-5 py-3 text-center text-[10px] text-fyra-gray-600">No matches</div>
+								<div class="px-5 py-3 text-center text-[10px] text-gray-600">No matches</div>
 							{:else}
-								<div class="flex items-center justify-center gap-1.5 py-3 text-fyra-gray-600">
+								<div class="flex items-center justify-center gap-1.5 py-3 text-gray-600">
 									<Upload class="h-3 w-3" />
 									<p class="text-[10px]">No uploaded images</p>
 								</div>
@@ -1150,9 +1134,9 @@
 					</div>
 				{:else if activeTab === 'ipmi'}
 					<div class="flex-1 overflow-auto">
-						<div class="divide-y divide-fyra-gray-800/50">
+						<div class="divide-y divide-gray-800/50">
 							<div class="px-5 py-3">
-								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 									>IPMI Credentials</span
 								>
 							</div>
@@ -1160,13 +1144,13 @@
 								<div class="px-5 py-3">
 									<div class="flex flex-col gap-2.5">
 										<div class="flex items-center justify-between">
-											<span class="text-xs text-fyra-gray-500">IPMI Address</span>
+											<span class="text-xs text-gray-500">IPMI Address</span>
 											<div class="flex items-center gap-1.5">
-												<span class="font-mono text-xs text-fyra-gray-200"
+												<span class="font-mono text-xs text-gray-200"
 													>ipmi-{selectedUnit.id}.stack.sh</span
 												>
 												<button
-													class="text-fyra-gray-500 hover:text-fyra-gray-300"
+													class="text-gray-500 hover:text-gray-300"
 													onclick={() => copyText(`ipmi-${selectedUnit.id}.stack.sh`, 'ipmi-host')}
 												>
 													{#if copied === 'ipmi-host'}<Check
@@ -1176,18 +1160,17 @@
 											</div>
 										</div>
 										<div class="flex items-center justify-between">
-											<span class="text-xs text-fyra-gray-500">Username</span>
-											<span class="font-mono text-xs text-fyra-gray-200">admin</span>
+											<span class="text-xs text-gray-500">Username</span>
+											<span class="font-mono text-xs text-gray-200">admin</span>
 										</div>
 										<div class="flex items-center justify-between">
-											<span class="text-xs text-fyra-gray-500">Password</span>
+											<span class="text-xs text-gray-500">Password</span>
 											<div class="flex items-center gap-1.5">
-												<code
-													class="bg-fyra-gray-800 px-2 py-0.5 font-mono text-xs text-fyra-gray-100"
+												<code class="bg-gray-800 px-2 py-0.5 font-mono text-xs text-gray-100"
 													>{ipmiPassword}</code
 												>
 												<button
-													class="text-fyra-gray-500 hover:text-fyra-gray-300"
+													class="text-gray-500 hover:text-gray-300"
 													onclick={() => copyText(ipmiPassword, 'ipmi-pw')}
 												>
 													{#if copied === 'ipmi-pw'}<Check
@@ -1221,7 +1204,7 @@
 							{/if}
 
 							<div class="px-5 py-3">
-								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 									>Power Control</span
 								>
 							</div>
@@ -1240,7 +1223,7 @@
 									<Button
 										variant="outline"
 										size="sm"
-										class="h-9 gap-1.5 border-fyra-red-700 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
+										class="h-9 gap-1.5 border-red-700 text-xs text-red-400 hover:bg-red-950"
 										disabled={ipmiAction !== '' || selectedUnit.status === 'offline'}
 										onclick={() => ipmiCommand('power-off')}
 									>
@@ -1273,7 +1256,7 @@
 							</div>
 
 							<div class="px-5 py-3">
-								<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 									>Boot Options</span
 								>
 							</div>
@@ -1303,19 +1286,19 @@
 					<div class="flex-1 overflow-auto">
 						{#if sensorData()}
 							{@const s = sensorData()!}
-							<div class="divide-y divide-fyra-gray-800/50">
+							<div class="divide-y divide-gray-800/50">
 								<div class="px-5 py-3">
-									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 										>Temperatures</span
 									>
 								</div>
-								{#each [['CPU Package', `${s.cpuTemp}°C`, s.cpuTemp > 70 ? 'text-fyra-red-400' : s.cpuTemp > 55 ? 'text-amber-400' : 'text-fyra-gray-200', 85], ['Inlet Ambient', `${s.inletTemp}°C`, 'text-fyra-gray-200', 40], ['Exhaust', `${s.exhaustTemp}°C`, s.exhaustTemp > 45 ? 'text-amber-400' : 'text-fyra-gray-200', 55], ['Disk 0 (sda)', `${s.disk1Temp}°C`, s.disk1Temp > 45 ? 'text-amber-400' : 'text-fyra-gray-200', 60], ['Disk 1 (sdb)', `${s.disk2Temp}°C`, s.disk2Temp > 45 ? 'text-amber-400' : 'text-fyra-gray-200', 60]] as [name, val, color, max]}
+								{#each [['CPU Package', `${s.cpuTemp}°C`, s.cpuTemp > 70 ? 'text-red-400' : s.cpuTemp > 55 ? 'text-amber-400' : 'text-gray-200', 85], ['Inlet Ambient', `${s.inletTemp}°C`, 'text-gray-200', 40], ['Exhaust', `${s.exhaustTemp}°C`, s.exhaustTemp > 45 ? 'text-amber-400' : 'text-gray-200', 55], ['Disk 0 (sda)', `${s.disk1Temp}°C`, s.disk1Temp > 45 ? 'text-amber-400' : 'text-gray-200', 60], ['Disk 1 (sdb)', `${s.disk2Temp}°C`, s.disk2Temp > 45 ? 'text-amber-400' : 'text-gray-200', 60]] as [name, val, color, max]}
 									<div class="flex items-center gap-4 px-5 py-2">
-										<Thermometer class="h-3 w-3 shrink-0 text-fyra-gray-600" />
-										<span class="w-28 shrink-0 text-xs text-fyra-gray-400">{name}</span>
-										<div class="h-1 flex-1 bg-fyra-gray-800">
+										<Thermometer class="h-3 w-3 shrink-0 text-gray-600" />
+										<span class="w-28 shrink-0 text-xs text-gray-400">{name}</span>
+										<div class="h-1 flex-1 bg-gray-800">
 											<div
-												class="h-full bg-fyra-gray-600 transition-all"
+												class="h-full bg-gray-600 transition-all"
 												style="width: {(parseInt(String(val)) / Number(max)) * 100}%"
 											></div>
 										</div>
@@ -1324,37 +1307,37 @@
 								{/each}
 
 								<div class="px-5 py-3">
-									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 										>Fan Speeds</span
 									>
 								</div>
 								{#each [['Fan 1', s.fan1], ['Fan 2', s.fan2], ['Fan 3', s.fan3], ['Fan 4', s.fan4]] as [name, rpm]}
 									<div class="flex items-center gap-4 px-5 py-2">
-										<Fan class="h-3 w-3 shrink-0 text-fyra-gray-600" />
-										<span class="w-28 shrink-0 text-xs text-fyra-gray-400">{name}</span>
-										<div class="h-1 flex-1 bg-fyra-gray-800">
+										<Fan class="h-3 w-3 shrink-0 text-gray-600" />
+										<span class="w-28 shrink-0 text-xs text-gray-400">{name}</span>
+										<div class="h-1 flex-1 bg-gray-800">
 											<div
-												class="h-full bg-fyra-gray-600 transition-all"
+												class="h-full bg-gray-600 transition-all"
 												style="width: {(Number(rpm) / 10000) * 100}%"
 											></div>
 										</div>
-										<span class="w-16 shrink-0 text-right text-xs font-medium text-fyra-gray-200"
+										<span class="w-16 shrink-0 text-right text-xs font-medium text-gray-200"
 											>{rpm} RPM</span
 										>
 									</div>
 								{/each}
 
 								<div class="px-5 py-3">
-									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 										>Voltages</span
 									>
 								</div>
 								{#each [['Vcore', `${s.vCore}V`, 0.9, 1.4], ['+3.3V', `${s.v33}V`, 3.1, 3.5], ['+5V', `${s.v5}V`, 4.7, 5.3], ['+12V', `${s.v12}V`, 11.5, 12.5]] as [name, val, lo, hi]}
 									<div class="flex items-center gap-4 px-5 py-2">
-										<Cpu class="h-3 w-3 shrink-0 text-fyra-gray-600" />
-										<span class="w-28 shrink-0 text-xs text-fyra-gray-400">{name}</span>
-										<span class="text-xs text-fyra-gray-600">{lo}V</span>
-										<div class="h-1 flex-1 bg-fyra-gray-800">
+										<Cpu class="h-3 w-3 shrink-0 text-gray-600" />
+										<span class="w-28 shrink-0 text-xs text-gray-400">{name}</span>
+										<span class="text-xs text-gray-600">{lo}V</span>
+										<div class="h-1 flex-1 bg-gray-800">
 											<div
 												class="h-full bg-emerald-600 transition-all"
 												style="width: {((parseFloat(String(val)) - Number(lo)) /
@@ -1362,36 +1345,32 @@
 													100}%"
 											></div>
 										</div>
-										<span class="text-xs text-fyra-gray-600">{hi}V</span>
+										<span class="text-xs text-gray-600">{hi}V</span>
 										<span
-											class="w-16 shrink-0 text-right font-mono text-xs font-medium text-fyra-gray-200"
+											class="w-16 shrink-0 text-right font-mono text-xs font-medium text-gray-200"
 											>{val}</span
 										>
 									</div>
 								{/each}
 
 								<div class="px-5 py-3">
-									<span class="text-xs font-semibold tracking-wider text-fyra-gray-500 uppercase"
+									<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
 										>Power</span
 									>
 								</div>
 								<div class="flex items-center justify-between px-5 py-2.5">
-									<span class="text-xs text-fyra-gray-400">Current Draw</span>
-									<span class="text-xs font-medium text-fyra-gray-200"
-										>{selectedUnit.powerDraw}</span
-									>
+									<span class="text-xs text-gray-400">Current Draw</span>
+									<span class="text-xs font-medium text-gray-200">{selectedUnit.powerDraw}</span>
 								</div>
 								<div class="flex items-center justify-between px-5 py-2.5">
-									<span class="text-xs text-fyra-gray-400">Budget</span>
-									<span class="text-xs font-medium text-fyra-gray-200"
-										>{selectedUnit.powerBudget}</span
-									>
+									<span class="text-xs text-gray-400">Budget</span>
+									<span class="text-xs font-medium text-gray-200">{selectedUnit.powerBudget}</span>
 								</div>
 								<div class="px-5 py-3">
-									<div class="h-1.5 w-full bg-fyra-gray-800">
+									<div class="h-1.5 w-full bg-gray-800">
 										<div
 											class="h-full transition-all duration-500 {powerPct() > 80
-												? 'bg-fyra-red-500'
+												? 'bg-red-500'
 												: powerPct() > 50
 													? 'bg-amber-500'
 													: 'bg-emerald-500'}"
@@ -1401,21 +1380,19 @@
 								</div>
 							</div>
 						{:else}
-							<div class="flex flex-col items-center justify-center py-20 text-fyra-gray-500">
+							<div class="flex flex-col items-center justify-center py-20 text-gray-500">
 								<Activity class="mb-3 h-8 w-8" />
 								<p class="text-sm">Server is powered off</p>
-								<p class="mt-1 text-xs text-fyra-gray-600">
-									Power on via IPMI to view sensor data.
-								</p>
+								<p class="mt-1 text-xs text-gray-600">Power on via IPMI to view sensor data.</p>
 							</div>
 						{/if}
 					</div>
 				{:else if activeTab === 'settings'}
 					<div class="flex-1 overflow-auto">
-						<div class="divide-y divide-fyra-gray-800/50">
+						<div class="divide-y divide-gray-800/50">
 							<div class="flex items-center justify-between px-5 py-4">
 								<div>
-									<p class="text-sm font-medium text-fyra-gray-100">Equipment Name</p>
+									<p class="text-sm font-medium text-gray-100">Equipment Name</p>
 									{#if editingName}
 										<div class="mt-2 flex items-center gap-2">
 											<Input bind:value={nameValue} class="h-7 w-48 text-xs" />
@@ -1433,7 +1410,7 @@
 											>
 										</div>
 									{:else}
-										<p class="mt-0.5 text-xs text-fyra-gray-400">{selectedUnit.name}</p>
+										<p class="mt-0.5 text-xs text-gray-400">{selectedUnit.name}</p>
 									{/if}
 								</div>
 								{#if !editingName}
@@ -1453,19 +1430,19 @@
 							</div>
 							{#each [['Rack Size', selectedUnit.rackSize], ['Location', selectedUnit.location], ['Monthly Rate', `${selectedUnit.monthlyRate}/mo`], ['Created', selectedUnit.created]] as [label, value]}
 								<div class="flex items-center justify-between px-5 py-3">
-									<span class="text-sm text-fyra-gray-400">{label}</span>
-									<span class="text-sm text-fyra-gray-200">{value}</span>
+									<span class="text-sm text-gray-400">{label}</span>
+									<span class="text-sm text-gray-200">{value}</span>
 								</div>
 							{/each}
 							<div class="px-5 py-4">
-								<p class="text-sm font-medium text-fyra-red-400">Danger Zone</p>
-								<p class="mt-0.5 text-xs text-fyra-gray-500">
+								<p class="text-sm font-medium text-red-400">Danger Zone</p>
+								<p class="mt-0.5 text-xs text-gray-500">
 									Remove this colocation slot and release the rack space.
 								</p>
 								<Button
 									variant="outline"
 									size="sm"
-									class="mt-3 gap-1.5 border-fyra-red-700 px-4 text-xs text-fyra-red-400 hover:bg-fyra-red-950"
+									class="mt-3 gap-1.5 border-red-700 px-4 text-xs text-red-400 hover:bg-red-950"
 									onclick={() => (deleteOpen = true)}
 								>
 									<Trash2 class="h-3 w-3" />
@@ -1482,7 +1459,7 @@
 
 <!-- Add IP Dialog -->
 <Dialog.Root bind:open={addIpOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Add IP Address</Dialog.Title>
 			<Dialog.Description>Request an additional IP for {selectedUnit.name}.</Dialog.Description>
@@ -1506,7 +1483,7 @@
 
 <!-- Add Unit Dialog -->
 <Dialog.Root bind:open={addOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Add Colocation Unit</Dialog.Title>
 			<Dialog.Description>Request a new colocation slot in Chicago, IL.</Dialog.Description>
@@ -1522,12 +1499,12 @@
 					{#each rackSizes as size (size)}
 						<button
 							class="border px-3 py-2 text-center text-sm transition-colors {newRackSize === size
-								? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-								: 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}"
+								? 'border-red-500 bg-red-950/20 text-gray-100'
+								: 'border-gray-700 text-gray-400 hover:border-gray-600'}"
 							onclick={() => (newRackSize = size)}
 						>
 							{size}
-							<span class="mt-0.5 block text-[10px] text-fyra-gray-500">{rackPrices[size]}</span>
+							<span class="mt-0.5 block text-[10px] text-gray-500">{rackPrices[size]}</span>
 						</button>
 					{/each}
 				</div>
@@ -1542,7 +1519,7 @@
 
 <!-- Delete Unit Dialog -->
 <Dialog.Root bind:open={deleteOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Remove Colocation Unit</Dialog.Title>
 			<Dialog.Description
@@ -1559,7 +1536,7 @@
 			<Button
 				variant="outline"
 				size="sm"
-				class="border-fyra-red-700 text-fyra-red-400 hover:bg-fyra-red-950"
+				class="border-red-700 text-red-400 hover:bg-red-950"
 				disabled={deleteConfirm !== selectedUnit.id}
 				onclick={doDelete}
 			>
@@ -1576,18 +1553,16 @@
 		if (!v) closeColoImageDetail();
 	}}
 >
-	<Sheet.Content side="right" class="border-fyra-gray-800 bg-fyra-gray-900 px-6 py-5 sm:max-w-md">
+	<Sheet.Content side="right" class="border-gray-800 bg-gray-900 px-6 py-5 sm:max-w-md">
 		{#if selectedColoImage}
-			<Sheet.Header class="border-b border-fyra-gray-800 pb-4">
+			<Sheet.Header class="border-b border-gray-800 pb-4">
 				<div class="flex items-start gap-4">
 					<div class="shrink-0">
 						{#if selectedColoImage.icon}
-							<svg viewBox="0 0 24 24" class="h-14 w-14" fill="var(--fyra-gray-300)"
-								><path d={selectedColoImage.icon} /></svg
-							>
+							<Icon name={selectedColoImage.icon} class="h-14 w-14 text-gray-300" />
 						{:else}
 							<span
-								class="flex h-14 w-14 items-center justify-center text-2xl font-bold text-fyra-gray-300"
+								class="flex h-14 w-14 items-center justify-center text-2xl font-bold text-gray-300"
 								>{selectedColoImage.shortName}</span
 							>
 						{/if}
@@ -1598,7 +1573,7 @@
 							{#if selectedColoImage.paid}
 								<Badge
 									variant="outline"
-									class="border-fyra-red-700 bg-fyra-red-950/40 text-[9px] text-fyra-red-400"
+									class="border-red-700 bg-red-950/40 text-[9px] text-red-400"
 								>
 									<DollarSign class="mr-0.5 h-2 w-2" />
 									{selectedColoImage.price}
@@ -1613,18 +1588,18 @@
 			</Sheet.Header>
 
 			<div class="flex-1 overflow-auto py-4">
-				<span class="text-[10px] font-semibold tracking-wider text-fyra-gray-500 uppercase"
+				<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
 					>Available Versions</span
 				>
-				<div class="mt-3 divide-y divide-fyra-gray-800/30">
+				<div class="mt-3 divide-y divide-gray-800/30">
 					{#each selectedColoImage.versions as ver (ver.version)}
 						<div class="flex items-center justify-between py-3">
 							<div class="flex items-center gap-3">
-								<span class="text-sm font-medium text-fyra-gray-100">{ver.version}</span>
+								<span class="text-sm font-medium text-gray-100">{ver.version}</span>
 								<div class="flex gap-1">
 									{#each ver.archs as arch (arch)}
 										<span
-											class="border border-fyra-gray-700 px-1.5 py-0.5 font-mono text-[9px] text-fyra-gray-400"
+											class="border border-gray-700 px-1.5 py-0.5 font-mono text-[9px] text-gray-400"
 											>{arch}</span
 										>
 									{/each}
@@ -1634,7 +1609,7 @@
 								<Badge variant="outline" class="text-[8px] {imageTypeColors[ver.type]}"
 									>{ver.type.toUpperCase()}</Badge
 								>
-								<span class="text-[10px] text-fyra-gray-500">{ver.size}</span>
+								<span class="text-[10px] text-gray-500">{ver.size}</span>
 							</div>
 						</div>
 						<div class="flex items-center gap-2 pb-3">
@@ -1670,7 +1645,7 @@
 
 <!-- Upload Image Dialog (Colo) -->
 <Dialog.Root bind:open={coloImgUploadOpen}>
-	<Dialog.Content class="border-fyra-gray-800 bg-fyra-gray-900 sm:max-w-md">
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Upload Image</Dialog.Title>
 			<Dialog.Description
@@ -1688,33 +1663,31 @@
 					<button
 						class="flex-1 border px-3 py-2 text-center text-xs font-medium transition-colors {coloImgUploadMethod ===
 						'file'
-							? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-							: 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}"
+							? 'border-red-500 bg-red-950/20 text-gray-100'
+							: 'border-gray-700 text-gray-400 hover:border-gray-600'}"
 						onclick={() => (coloImgUploadMethod = 'file')}>File Upload</button
 					>
 					<button
 						class="flex-1 border px-3 py-2 text-center text-xs font-medium transition-colors {coloImgUploadMethod ===
 						'url'
-							? 'border-fyra-red-500 bg-fyra-red-950/20 text-fyra-gray-100'
-							: 'border-fyra-gray-700 text-fyra-gray-400 hover:border-fyra-gray-600'}"
+							? 'border-red-500 bg-red-950/20 text-gray-100'
+							: 'border-gray-700 text-gray-400 hover:border-gray-600'}"
 						onclick={() => (coloImgUploadMethod = 'url')}>URL Import</button
 					>
 				</div>
 			</div>
 			{#if coloImgUploadMethod === 'file'}
 				<label
-					class="flex cursor-pointer flex-col items-center justify-center border border-dashed border-fyra-gray-600 bg-fyra-gray-800/30 px-4 py-6 text-center transition-colors hover:border-fyra-gray-500 hover:bg-fyra-gray-800/50"
+					class="flex cursor-pointer flex-col items-center justify-center border border-dashed border-gray-600 bg-gray-800/30 px-4 py-6 text-center transition-colors hover:border-gray-500 hover:bg-gray-800/50"
 				>
-					<Upload class="mb-2 h-6 w-6 text-fyra-gray-500" />
+					<Upload class="mb-2 h-6 w-6 text-gray-500" />
 					{#if coloImgUploadFile}
-						<span class="text-xs font-medium text-fyra-gray-200">{coloImgUploadFile}</span>
-						{#if coloImgUploadDetectedType}<span class="mt-1 text-[10px] text-fyra-gray-500"
+						<span class="text-xs font-medium text-gray-200">{coloImgUploadFile}</span>
+						{#if coloImgUploadDetectedType}<span class="mt-1 text-[10px] text-gray-500"
 								>Detected: .{coloImgUploadDetectedType}</span
 							>{/if}
 					{:else}
-						<span class="text-xs text-fyra-gray-400"
-							>Drop or click to browse (.iso, .img, .qcow2)</span
-						>
+						<span class="text-xs text-gray-400">Drop or click to browse (.iso, .img, .qcow2)</span>
 					{/if}
 					<input
 						type="file"
@@ -1732,7 +1705,7 @@
 						oninput={handleColoImgUrlChange}
 					/>
 					{#if coloImgUploadDetectedType}
-						<p class="text-xs text-fyra-gray-500">Detected: .{coloImgUploadDetectedType}</p>
+						<p class="text-xs text-gray-500">Detected: .{coloImgUploadDetectedType}</p>
 					{:else if coloImgUploadUrl}
 						<p class="text-xs text-amber-500">Could not detect format. Will default to .img</p>
 					{/if}

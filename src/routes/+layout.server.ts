@@ -35,7 +35,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			responseEvent.cookies.set(ACTIVE_PROJECT_COOKIE, currentProject.id, {
 				path: '/',
 				httpOnly: true,
-				sameSite: 'lax',
+				sameSite: 'strict',
 				secure: url.protocol === 'https:',
 				maxAge: 60 * 60 * 24 * 365
 			});
