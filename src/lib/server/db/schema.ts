@@ -90,6 +90,8 @@ export const vmTypesRelations = relations(vmTypes, ({ many }) => ({
 
 export const vms = pgTable('vms', {
 	id: ulidPk(),
+	name: text('name').notNull(),
+	proxmoxId: integer('proxmox_id'),
 	active: boolean('active').notNull().default(true),
 	ownerProjectId: ulidFk('owner_project_id').references(() => projects.id),
 	vmTypeId: ulidFk('vm_type_id')

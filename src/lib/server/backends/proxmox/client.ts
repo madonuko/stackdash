@@ -1,4 +1,4 @@
-import ky, { type KyInstance } from 'ky';
+import ky, { HTTPError, type KyInstance } from 'ky';
 import { Agent } from 'undici';
 import type {
 	PveResponse,
@@ -63,6 +63,32 @@ export class ProxmoxClient {
 		return form;
 	}
 
+	private async logHttpError(context: string, error: unknown, payload?: Record<string, unknown>) {
+		if (!(error instanceof HTTPError)) {
+			return;
+		}
+
+		let body: unknown;
+		try {
+			body = await error.response.clone().json();
+		} catch {
+			try {
+				body = await error.response.clone().text();
+			} catch {
+				body = '<unreadable response body>';
+			}
+		}
+
+		console.error(`[Proxmox] ${context} failed`, {
+			url: error.request.url,
+			method: error.request.method,
+			status: error.response.status,
+			statusText: error.response.statusText,
+			payload,
+			body
+		});
+	}
+
 	// Nodes
 
 	async listNodes(): Promise<PveNode[]> {
@@ -101,13 +127,18 @@ export class ProxmoxClient {
 	}
 
 	async createQemuVm(node: string, params: PveCreateQemuParams): Promise<string> {
-		const res = await this.api
-			.post(`nodes/${encodeURIComponent(node)}/qemu`, {
-				body: this.toForm(params as Record<string, unknown>),
-				timeout: 120_000
-			})
-			.json<PveResponse<string>>();
-		return res.data;
+		try {
+			const res = await this.api
+				.post(`nodes/${encodeURIComponent(node)}/qemu`, {
+					body: this.toForm(params as Record<string, unknown>),
+					timeout: 120_000
+				})
+				.json<PveResponse<string>>();
+			return res.data;
+		} catch (error) {
+			await this.logHttpError(`createQemuVm(${node})`, error, params as Record<string, unknown>);
+			throw error;
+		}
 	}
 
 	/**
@@ -119,12 +150,17 @@ export class ProxmoxClient {
 		vmid: number,
 		params: Record<string, unknown>
 	): Promise<string> {
-		const res = await this.api
-			.post(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/config`, {
-				body: this.toForm(params)
-			})
-			.json<PveResponse<string>>();
-		return res.data;
+		try {
+			const res = await this.api
+				.post(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/config`, {
+					body: this.toForm(params)
+				})
+				.json<PveResponse<string>>();
+			return res.data;
+		} catch (error) {
+			await this.logHttpError(`updateQemuConfigAsync(${node}, ${vmid})`, error, params);
+			throw error;
+		}
 	}
 
 	async resizeDisk(node: string, vmid: number, disk: string, size: string): Promise<void> {

@@ -28,12 +28,18 @@ export class ProxmoxBackend implements VmBackend {
 		}
 	}
 
-	private async resolve(id: string): Promise<ResolvedVm> {
+	private async resolve(id: string, proxmoxId?: number): Promise<ResolvedVm> {
 		const resources = await this.client.getClusterResources('vm');
-		const match = resources.find((r) => r.type === 'qemu' && r.name === id);
+		const match = resources.find(
+			(r) => r.type === 'qemu' && (proxmoxId != null ? r.vmid === proxmoxId : r.name === id)
+		);
 
 		if (!match || !match.node || match.vmid == null) {
-			throw new Error(`VM "${id}" not found on any Proxmox node`);
+			throw new Error(
+				proxmoxId != null
+					? `VM with Proxmox ID "${proxmoxId}" not found on any Proxmox node`
+					: `VM "${id}" not found on any Proxmox node`
+			);
 		}
 
 		return { node: match.node, vmid: match.vmid };
@@ -42,6 +48,7 @@ export class ProxmoxBackend implements VmBackend {
 	private resourceToInfo(r: PveClusterResource): VmInfo {
 		return {
 			id: r.name ?? String(r.vmid),
+			proxmoxId: r.vmid,
 			name: r.name ?? `VM ${r.vmid}`,
 			status: this.mapStatus(r.status ?? 'unknown'),
 			cores: r.maxcpu ?? 0,
@@ -56,8 +63,8 @@ export class ProxmoxBackend implements VmBackend {
 		return resources.filter((r) => r.type === 'qemu').map((r) => this.resourceToInfo(r));
 	}
 
-	async getVm(id: string): Promise<VmInfo> {
-		const { node, vmid } = await this.resolve(id);
+	async getVm(id: string, proxmoxId?: number): Promise<VmInfo> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const status = await this.client.getQemuVm(node, vmid);
 
 		let networkInterfaces: VmInfo['networkInterfaces'] | undefined;
@@ -77,6 +84,7 @@ export class ProxmoxBackend implements VmBackend {
 
 		return {
 			id,
+			proxmoxId: vmid,
 			name: status.name ?? `VM ${status.vmid}`,
 			status: this.mapStatus(status.status),
 			cores: status.cpus ?? 0,
@@ -98,11 +106,12 @@ export class ProxmoxBackend implements VmBackend {
 		const sshKeysEncoded = params.sshKeys
 			? encodeURIComponent(params.sshKeys.join('\n'))
 			: undefined;
+		const bootDisk = 'virtio0';
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
 			vmid,
-			name: params.id,
+			name: params.name,
 			cores: params.cores,
 			sockets: 1,
 			memory: params.memoryMb,
@@ -111,29 +120,35 @@ export class ProxmoxBackend implements VmBackend {
 			bios: 'ovmf',
 			machine: 'q35',
 			efidisk0: 'local-lvm:0,efitype=4m,pre-enrolled-keys=1',
-			// blank disk when no image; cloud images are imported in phase 2
-			...(params.imageId ? {} : { virtio0: `local-lvm:${params.diskGb}` }),
+			...(params.imageSource ? {} : { virtio0: `local-lvm:${params.diskGb}` }),
 			net0: 'virtio,bridge=vmbr0',
-			boot: 'order=virtio0',
-			ide2: 'local-lvm:cloudinit',
+			boot: `order=${bootDisk}`,
 			serial0: 'socket',
-			agent: '1',
-			...(sshKeysEncoded ? { ciuser: 'root', sshkeys: sshKeysEncoded, ipconfig0: 'ip=dhcp' } : {})
+			agent: '1'
 		});
 
 		// Phase 2 — import cloud image as boot disk (runs in background)
-		if (params.imageId) {
+		if (params.imageSource) {
 			const importUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
-				virtio0: `local-lvm:0,import-from=${params.imageId}`
+				virtio0: `local-lvm:0,import-from=${params.imageSource}`
 			});
 
-			// Don't block the request — finish import + resize in the background
 			this.client
 				.waitForTask(node.node, importUpid)
 				.then(async () => {
+					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
+						ide2: 'local-lvm:cloudinit',
+						boot: `order=${bootDisk}`,
+						...(sshKeysEncoded
+							? { ciuser: 'root', sshkeys: sshKeysEncoded, ipconfig0: 'ip=dhcp' }
+							: {})
+					});
+					await this.client.waitForTask(node.node, cloudInitUpid);
 					if (params.diskGb > 0) {
 						await this.client.resizeDisk(node.node, vmid, 'virtio0', `${params.diskGb}G`);
 					}
+					const startUpid = await this.client.startVm(node.node, vmid);
+					await this.client.waitForTask(node.node, startUpid);
 					params.onProvisionSettled?.({ ok: true });
 				})
 				.catch((err) => {
@@ -144,15 +159,16 @@ export class ProxmoxBackend implements VmBackend {
 					});
 				});
 		} else {
-			// No image import needed — VM is ready immediately
+			const startUpid = await this.client.startVm(node.node, vmid);
+			await this.client.waitForTask(node.node, startUpid);
 			params.onProvisionSettled?.({ ok: true });
 		}
 
-		return { id: params.id, taskId: String(vmid) };
+		return { id: params.id, proxmoxId: vmid, taskId: String(vmid) };
 	}
 
-	async deleteVm(id: string): Promise<void> {
-		const { node, vmid } = await this.resolve(id);
+	async deleteVm(id: string, proxmoxId?: number): Promise<void> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
 
 		try {
 			const status = await this.client.getQemuVm(node, vmid);
@@ -168,26 +184,26 @@ export class ProxmoxBackend implements VmBackend {
 		await this.client.waitForTask(node, upid);
 	}
 
-	async startVm(id: string): Promise<void> {
-		const { node, vmid } = await this.resolve(id);
+	async startVm(id: string, proxmoxId?: number): Promise<void> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.startVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
 
-	async stopVm(id: string): Promise<void> {
-		const { node, vmid } = await this.resolve(id);
+	async stopVm(id: string, proxmoxId?: number): Promise<void> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.shutdownVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
 
-	async killVm(id: string): Promise<void> {
-		const { node, vmid } = await this.resolve(id);
+	async killVm(id: string, proxmoxId?: number): Promise<void> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.stopVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
 
-	async rebootVm(id: string): Promise<void> {
-		const { node, vmid } = await this.resolve(id);
+	async rebootVm(id: string, proxmoxId?: number): Promise<void> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.rebootVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
