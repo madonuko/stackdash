@@ -1,13 +1,22 @@
 import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';
-import { defaultFeatureFlags, developmentFeatureFlags, featureFlagKeys, type FeatureFlagKey, type FeatureFlags } from '$lib/feature-flags';
+import {
+	defaultFeatureFlags,
+	developmentFeatureFlags,
+	featureFlagKeys,
+	type FeatureFlagKey,
+	type FeatureFlags
+} from '$lib/feature-flags';
 import { getRuntimeEnv } from '$lib/server/env';
 
 const FEATURE_FLAGS_KEY = 'feature-flags';
 
-function normalizeFeatureFlags(value: Partial<Record<FeatureFlagKey, unknown>> | null | undefined): FeatureFlags {
+function normalizeFeatureFlags(
+	value: Partial<Record<FeatureFlagKey, unknown>> | null | undefined
+): FeatureFlags {
 	return {
-		colocation: typeof value?.colocation === 'boolean' ? value.colocation : defaultFeatureFlags.colocation,
+		colocation:
+			typeof value?.colocation === 'boolean' ? value.colocation : defaultFeatureFlags.colocation,
 		firewall: typeof value?.firewall === 'boolean' ? value.firewall : defaultFeatureFlags.firewall,
 		images: typeof value?.images === 'boolean' ? value.images : defaultFeatureFlags.images,
 		volumes: typeof value?.volumes === 'boolean' ? value.volumes : defaultFeatureFlags.volumes
@@ -30,7 +39,10 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
 	return normalizeFeatureFlags(storedFlags as Partial<Record<FeatureFlagKey, unknown>> | null);
 }
 
-export async function setFeatureFlag(flag: FeatureFlagKey, enabled: boolean): Promise<FeatureFlags> {
+export async function setFeatureFlag(
+	flag: FeatureFlagKey,
+	enabled: boolean
+): Promise<FeatureFlags> {
 	const runtimeEnv = getRuntimeEnv();
 	const kv = runtimeEnv.FEATURE_FLAGS;
 

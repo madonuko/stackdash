@@ -3,12 +3,16 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { Switch } from '$lib/components/ui/switch';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import Icon from '$lib/components/icon.svelte';
 	import { createVmType, updateVmType, deleteVmType } from '$lib/remote/vm-types.remote';
 	import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
-	import { featureFlagKeys, featureFlagLabels, type FeatureFlagKey, type FeatureFlags } from '$lib/feature-flags';
+	import {
+		featureFlagKeys,
+		featureFlagLabels,
+		type FeatureFlagKey,
+		type FeatureFlags
+	} from '$lib/feature-flags';
 	import {
 		createImage,
 		updateImage,
@@ -21,10 +25,22 @@
 		Trash2,
 		Cpu,
 		Disc,
+		Flag,
+		Server,
+		Shield,
+		Image,
+		HardDrive,
 		Loader2,
 		AlertTriangle,
 		RefreshCw
 	} from '@lucide/svelte';
+
+	const featureFlagIcons: Record<FeatureFlagKey, typeof Server> = {
+		colocation: Server,
+		firewall: Shield,
+		images: Image,
+		volumes: HardDrive
+	};
 
 	type VmType = {
 		id: string;
@@ -59,7 +75,12 @@
 	let activeTab = $state<AdminTab>('vmTypes');
 	let vmTypes = $state<VmType[]>([]);
 	let images = $state<BaseImage[]>([]);
-	let featureFlags = $state<FeatureFlags>(data.featureFlags);
+	let featureFlags = $state<FeatureFlags>({
+		colocation: false,
+		firewall: false,
+		images: false,
+		volumes: false
+	});
 	let featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>({
 		colocation: false,
 		firewall: false,
@@ -279,24 +300,12 @@
 	<div class="flex h-10 shrink-0 items-center gap-0 border-b border-gray-800">
 		<button
 			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
-			'features'
-				? 'border-red-500 text-gray-100'
-				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			onclick={() => (activeTab = 'features')}
-		>
-			Feature Flags
-			<Badge variant="secondary" class="text-[10px]">
-				{featureFlagKeys.filter((key) => featureFlags[key]).length}
-			</Badge>
-		</button>
-		<button
-			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
 			'vmTypes'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
 			onclick={() => (activeTab = 'vmTypes')}
 		>
-			<Cpu class="h-3.5 w-3.5" />
+			<Cpu class="h-3.5 w-3.5 shrink-0" />
 			VM Types
 			<Badge variant="secondary" class="text-[10px]">{vmTypes.length}</Badge>
 		</button>
@@ -307,9 +316,22 @@
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
 			onclick={() => (activeTab = 'images')}
 		>
-			<Disc class="h-3.5 w-3.5" />
+			<Disc class="h-3.5 w-3.5 shrink-0" />
 			Images
 			<Badge variant="secondary" class="text-[10px]">{images.length}</Badge>
+		</button>
+		<button
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'features'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			onclick={() => (activeTab = 'features')}
+		>
+			<Flag class="h-3.5 w-3.5 shrink-0" />
+			Feature Flags
+			<Badge variant="secondary" class="text-[10px]">
+				{featureFlagKeys.filter((key) => featureFlags[key]).length}
+			</Badge>
 		</button>
 		<div class="flex-1"></div>
 		{#if activeTab === 'vmTypes'}
@@ -338,29 +360,49 @@
 						<AlertTriangle class="h-3.5 w-3.5 shrink-0" />{featureFlagError}
 					</div>
 				{/if}
-				<div class="grid gap-3">
+				<div class="flex flex-col gap-2">
 					{#each featureFlagKeys as flag (flag)}
-						<div class="flex items-center justify-between border border-gray-800 bg-gray-900/50 px-4 py-3">
-							<div class="flex flex-col gap-1">
-								<div class="flex items-center gap-2">
+						{@const enabled = featureFlags[flag]}
+						{@const Icon = featureFlagIcons[flag]}
+						<div class="flex items-center justify-between px-4 py-3">
+							<div class="flex items-start gap-3">
+								<Icon class="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
+								<div class="flex flex-col gap-0.5">
 									<span class="text-sm font-medium text-gray-100">{featureFlagLabels[flag]}</span>
-									<Badge variant={featureFlags[flag] ? 'default' : 'secondary'} class="text-[10px]">
-										{featureFlags[flag] ? 'Enabled' : 'Disabled'}
-									</Badge>
+									<p class="text-xs text-gray-500">Route visibility and direct access</p>
 								</div>
-								<p class="text-xs text-gray-500">Controls route visibility and direct access.</p>
 							</div>
-							<div class="flex items-center gap-3">
+							<div class="flex items-center gap-2">
 								{#if featureFlagSaving[flag]}
 									<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
 								{/if}
-								<Switch
-									checked={featureFlags[flag]}
-									disabled={featureFlagSaving[flag]}
-									onCheckedChange={(checked) => toggleFeatureFlag(flag, checked)}
-								/>
+								<div class="flex overflow-hidden border border-gray-800">
+									<button
+										type="button"
+										class="px-3 py-1 text-xs font-medium transition-colors {enabled
+											? 'bg-red-500/15 text-red-400'
+											: 'text-gray-500 hover:text-gray-300'}"
+										onclick={() => !featureFlagSaving[flag] && toggleFeatureFlag(flag, true)}
+										disabled={featureFlagSaving[flag]}
+									>
+										On
+									</button>
+									<button
+										type="button"
+										class="px-3 py-1 text-xs font-medium transition-colors {!enabled
+											? 'bg-gray-800 text-gray-300'
+											: 'text-gray-500 hover:text-gray-300'}"
+										onclick={() => !featureFlagSaving[flag] && toggleFeatureFlag(flag, false)}
+										disabled={featureFlagSaving[flag]}
+									>
+										Off
+									</button>
+								</div>
 							</div>
 						</div>
+						{#if flag !== featureFlagKeys[featureFlagKeys.length - 1]}
+							<div class="border-t border-gray-800/50"></div>
+						{/if}
 					{/each}
 				</div>
 			</div>

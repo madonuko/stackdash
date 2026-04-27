@@ -17,7 +17,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "FEATURE_FLAGS",
-			"id": "feature-flags"
+			"id": "0ad17de8747747bca1975d473e66e295"
 		}
 	],
 	"observability": {

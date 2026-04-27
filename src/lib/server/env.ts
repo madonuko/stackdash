@@ -1,3 +1,4 @@
+import type { KVNamespace } from '@cloudflare/workers-types';
 import { getRequestEvent } from '$app/server';
 import { dev } from '$app/environment';
 import { env as privateEnv } from '$env/dynamic/private';
