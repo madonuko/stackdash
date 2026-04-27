@@ -3,17 +3,17 @@ import { listVms } from '$lib/remote/vms.remote';
 import { toServerInfo } from './lib/server-summary';
 
 export const load: LayoutServerLoad = async ({ parent }) => {
-	const { currentProject } = await parent();
+	const { project } = await parent();
 
-	if (!currentProject) {
+	if (!project) {
 		return { projectId: null, servers: [] };
 	}
 
-	const vms = await listVms({ projectId: currentProject.id });
+	const vms = await listVms({ projectId: project.id });
 	const servers = vms.filter((vm) => vm.active).map(toServerInfo);
 
 	return {
-		projectId: currentProject.id,
+		projectId: project.id,
 		servers
 	};
 };

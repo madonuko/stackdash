@@ -28,11 +28,14 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		getFeatureFlags()
 	]);
 	const requestedProjectId = url.searchParams.get('projectId');
-	const activeProjectId = requestedProjectId ?? locals.activeProjectId;
-	const fallbackProject = projects[0] ?? null;
-	const currentProject =
-		projects.find((project) => project.id === activeProjectId) ??
-		(requestedProjectId ? null : fallbackProject);
+	// Detect project from URL path: /projects/[id]/...
+	const pathMatch = url.pathname.match(/^\/projects\/([^/]+)/);
+	const activeProjectId = requestedProjectId ?? pathMatch?.[1] ?? locals.activeProjectId;
+	const isOnRootPage = url.pathname === '/';
+	const currentProject = isOnRootPage
+		? null
+		: (projects.find((project) => project.id === activeProjectId) ??
+			(requestedProjectId ? null : (projects[0] ?? null)));
 	const responseEvent = getRequestEvent();
 
 	if (responseEvent) {

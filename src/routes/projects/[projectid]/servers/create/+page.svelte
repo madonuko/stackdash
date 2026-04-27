@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -186,7 +187,7 @@
 	async function createVolume() {
 		const name = newVolumeName.trim();
 		const size = parseInt(newVolumeSize, 10);
-		const projectId = data.currentProject?.id;
+		const projectId = page.params.projectid;
 		if (!name || !size || size < 1 || !projectId) return;
 		try {
 			const created = await createProjectVolume({ projectId, name, size });
@@ -209,7 +210,7 @@
 	async function handleCreate() {
 		if (!serverName.trim() || !selectedPlanId) return;
 
-		const projectId = data.currentProject?.id;
+		const projectId = page.params.projectid;
 		if (!projectId) {
 			createError = 'No project selected. Please select a project.';
 			return;
@@ -224,14 +225,15 @@
 		}
 
 		try {
-			await createVm({
+			const payload = {
 				projectId,
 				vmTypeId: selectedPlanId,
 				name: serverName.trim(),
-				imageId,
-				sshKeyIds: selectedSshKeyIds.length > 0 ? selectedSshKeyIds : undefined
-			});
-			goto('/servers');
+				...(imageId ? { imageId } : {}),
+				...(selectedSshKeyIds.length > 0 ? { sshKeyIds: selectedSshKeyIds } : {})
+			};
+			await createVm(payload);
+			goto(`/projects/${page.params.projectid}/servers`);
 		} catch (err) {
 			createError =
 				err instanceof Error ? err.message : 'Failed to create server. Please try again.';
@@ -252,7 +254,7 @@
 				variant="ghost"
 				size="sm"
 				class="h-7 gap-1.5 px-2 text-xs text-gray-400 hover:text-gray-200"
-				onclick={() => goto('/servers')}
+				onclick={() => goto(`/projects/${page.params.projectid}/servers`)}
 			>
 				<ArrowLeft class="h-3 w-3" />
 				Back

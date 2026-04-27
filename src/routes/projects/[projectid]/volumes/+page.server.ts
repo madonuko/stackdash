@@ -7,15 +7,15 @@ import { requireFeatureFlag } from '$lib/server/feature-flags';
 export const load: PageServerLoad = async ({ parent }) => {
 	await requireFeatureFlag('volumes');
 
-	const { currentProject } = await parent();
+	const { project } = await parent();
 
-	if (!currentProject) {
+	if (!project) {
 		error(404, 'Project not found');
 	}
 
 	const [volumes, vms] = await Promise.all([
-		listVolumes({ projectId: currentProject.id }),
-		listVms({ projectId: currentProject.id })
+		listVolumes({ projectId: project.id }),
+		listVms({ projectId: project.id })
 	]);
 
 	return {

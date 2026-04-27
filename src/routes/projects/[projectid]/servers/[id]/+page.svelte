@@ -370,9 +370,9 @@
 		]
 	};
 
-	let logId = $state(0);
 	function logsForServer(server: ServerInfo | null): LogEntry[] {
 		if (!server) return [];
+		let logId = 0;
 		const timestamps = Array.from({ length: 12 }, (_, index) => {
 			const time = new Date(Date.now() - index * 5 * 60 * 1000);
 			return time.toISOString().replace('T', ' ').slice(0, 19);

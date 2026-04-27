@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
@@ -116,7 +117,7 @@
 	});
 
 	async function createVolume() {
-		const projectId = data.currentProject?.id;
+		const projectId = page.params.projectid;
 		if (!projectId || !newName.trim()) return;
 		actionError = '';
 		try {

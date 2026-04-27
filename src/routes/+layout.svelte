@@ -267,33 +267,64 @@
 		}
 	}
 
-	const navItems = $derived([
-		{ icon: Server, label: 'Servers', href: '/servers' },
-		...(featureFlags.colocation ? [{ icon: Warehouse, label: 'Colocation', href: '/colocation' }] : []),
-		...(featureFlags.volumes ? [{ icon: HardDrive, label: 'Volumes', href: '/volumes' }] : []),
-		...(featureFlags.firewall ? [{ icon: Shield, label: 'Firewall', href: '/firewall' }] : []),
-		...(featureFlags.images ? [{ icon: Disc, label: 'Images', href: '/images' }] : []),
-		{ icon: Settings, label: 'Admin', href: '/admin' }
-	]);
+	const isOnProjectRoute = $derived(page.url.pathname.startsWith('/projects/'));
+	const isRootPage = $derived(page.url.pathname === '/');
+	const isAdminPage = $derived(page.url.pathname.startsWith('/admin'));
+	const currentProjectSection = $derived.by(() => {
+		const segment = page.url.pathname.match(/^\/projects\/[^/]+\/([^/]+)/)?.[1];
+		if (!segment) return '';
+		return segment
+			.split('-')
+			.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+			.join(' ');
+	});
+
+	const projectUrlPrefix = $derived(currentProject ? `/projects/${currentProject.id}` : '');
+
+	const navItems = $derived.by(() => {
+		const items: { icon: typeof Server; label: string; href: string }[] = [];
+		if (!currentProject) return items;
+		const prefix = `/projects/${currentProject.id}`;
+		items.push({ icon: Server, label: 'Servers', href: `${prefix}/servers` });
+		if (featureFlags.colocation)
+			items.push({ icon: Warehouse, label: 'Colocation', href: `${prefix}/colocation` });
+		if (featureFlags.volumes)
+			items.push({ icon: HardDrive, label: 'Volumes', href: `${prefix}/volumes` });
+		if (featureFlags.firewall)
+			items.push({ icon: Shield, label: 'Firewall', href: `${prefix}/firewall` });
+		if (featureFlags.images) items.push({ icon: Disc, label: 'Images', href: `${prefix}/images` });
+		items.push({ icon: Settings, label: 'Settings', href: `${prefix}/settings` });
+		return items;
+	});
 
 	function isActive(href: string) {
 		if (href === '/') return page.url.pathname === '/';
+		if (href.startsWith('/projects/')) {
+			return page.url.pathname.startsWith(href);
+		}
 		return page.url.pathname.startsWith(href);
 	}
 
 	function withProjectContext(href: string, projectId = selectedProjectId) {
 		if (!projectId) return href;
-		const nextUrl = new URL(href, page.url);
-		nextUrl.searchParams.set('projectId', projectId);
-		return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+		if (href.startsWith('/projects/')) return href;
+		return `/projects/${projectId}${href}`;
 	}
+
+	$effect(() => {
+		// Sync selectedProjectId from URL when on a project route
+		if (isOnProjectRoute) {
+			const match = page.url.pathname.match(/^\/projects\/([^/]+)/);
+			if (match) {
+				selectedProjectId = match[1];
+			}
+		}
+	});
 
 	async function selectProject(projectId: string) {
 		if (!projectId || projectId === selectedProjectId) return;
 		selectedProjectId = projectId;
-		await goto(withProjectContext(page.url.pathname + page.url.search + page.url.hash, projectId), {
-			invalidateAll: true
-		});
+		await goto(`/projects/${projectId}/servers`);
 	}
 
 	// User sheet
@@ -400,7 +431,7 @@
 		if (tokensLoading || tokens.length > 0) return;
 		tokensLoading = true;
 		try {
-			const result = await listApiTokens();
+			const result = await listApiTokens().run();
 			tokens = result.map((t) => ({
 				id: t.id,
 				name: t.name,
@@ -535,60 +566,64 @@
 		<header class="flex h-12 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center gap-2">
 				<a href="/" class="flex items-center gap-2">
-					<svg
-						class="h-5 w-5"
-						viewBox="0 0 24 24"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
-						aria-hidden="true"
-					>
-						<rect x="3" y="4" width="18" height="4" rx="0.5" fill="#c6716d" />
-						<rect x="3" y="10" width="18" height="4" rx="0.5" fill="#c6716d" opacity="0.75" />
-						<rect x="3" y="16" width="18" height="4" rx="0.5" fill="#c6716d" opacity="0.5" />
-					</svg>
+					<img src="/logo.svg" alt="Stack" class="h-5 w-5" />
 					<span class="text-sm font-semibold tracking-tight text-gray-50">Stack</span>
 				</a>
-				<span class="text-sm text-gray-600">/</span>
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger
-						class="flex items-center gap-1 px-1.5 py-0.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 hover:text-gray-50"
-					>
-						{currentProject?.projectName ?? 'Select Project'}
-						<ChevronDown class="h-3 w-3 text-gray-500" />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="start" class="w-52 border-gray-800 bg-gray-900">
-						<DropdownMenu.Label class="text-[10px] tracking-wider text-gray-500 uppercase"
-							>Projects</DropdownMenu.Label
+				{#if isOnProjectRoute}
+					<span class="text-sm text-gray-600">/</span>
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger
+							class="flex items-center gap-1 px-1.5 py-0.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 hover:text-gray-50"
 						>
-						{#each projects as project (project.id)}
-							<DropdownMenu.Item class="gap-2" onclick={() => selectProject(project.id)}>
-								<FolderOpen
-									class="h-3.5 w-3.5 {selectedProjectId === project.id
-										? 'text-red-500'
-										: 'text-gray-500'}"
-								/>
-								<span class={selectedProjectId === project.id ? 'text-gray-50' : ''}
-									>{project.projectName}</span
-								>
-								{#if selectedProjectId === project.id}
-									<Check class="ml-auto h-3 w-3 text-red-500" />
-								{/if}
+							{currentProject?.projectName ?? 'Select Project'}
+							<ChevronDown class="h-3 w-3 text-gray-500" />
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="start" class="w-52 border-gray-800 bg-gray-900">
+							<DropdownMenu.Label class="text-[10px] tracking-wider text-gray-500 uppercase"
+								>Projects</DropdownMenu.Label
+							>
+							{#each projects as project (project.id)}
+								<DropdownMenu.Item class="gap-2" onclick={() => selectProject(project.id)}>
+									<FolderOpen
+										class="h-3.5 w-3.5 {selectedProjectId === project.id
+											? 'text-red-500'
+											: 'text-gray-500'}"
+									/>
+									<span class={selectedProjectId === project.id ? 'text-gray-50' : ''}
+										>{project.projectName}</span
+									>
+									{#if selectedProjectId === project.id}
+										<Check class="ml-auto h-3 w-3 text-red-500" />
+									{/if}
+								</DropdownMenu.Item>
+							{/each}
+							<DropdownMenu.Separator class="bg-gray-800" />
+							<DropdownMenu.Item class="gap-2" onclick={() => (createProjectOpen = true)}>
+								<Plus class="h-3.5 w-3.5" />
+								Create Project
 							</DropdownMenu.Item>
-						{/each}
-						<DropdownMenu.Separator class="bg-gray-800" />
-						<DropdownMenu.Item class="gap-2" onclick={() => (createProjectOpen = true)}>
-							<Plus class="h-3.5 w-3.5" />
-							Create Project
-						</DropdownMenu.Item>
-						<DropdownMenu.Item class="gap-2" onclick={() => openProjectSheet()}>
-							<Settings class="h-3.5 w-3.5" />
-							Settings
-						</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+							<DropdownMenu.Item class="gap-2" onclick={() => openProjectSheet()}>
+								<Settings class="h-3.5 w-3.5" />
+								Settings
+							</DropdownMenu.Item>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+					{#if currentProjectSection}
+						<span class="text-sm text-gray-600">/</span>
+						<p class="text-sm font-medium text-gray-400">{currentProjectSection}</p>
+					{/if}
+				{/if}
 			</div>
 
 			<div class="flex flex-1 items-center justify-end gap-3">
+				<a
+					href="/admin"
+					class="flex h-8 items-center gap-1.5 border border-gray-800 bg-gray-800/30 px-2.5 text-xs font-medium text-gray-400 transition-colors hover:border-gray-700 hover:text-gray-100"
+				>
+					<Settings class="h-3.5 w-3.5" />
+					Admin
+				</a>
+
 				<!-- Search trigger -->
 				<button
 					class="flex items-center gap-2 border border-gray-800 bg-gray-800/30 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-700 hover:text-gray-400"
@@ -626,35 +661,41 @@
 		</header>
 
 		<!-- Body -->
-		<div class="flex flex-1 overflow-hidden">
-			<!-- Icon sidebar -->
-			<aside class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-800 py-3">
-				{#each navItems as item (item.label)}
-					<Tooltip.Root>
-						<Tooltip.Trigger>
-							<a
-								href={withProjectContext(item.href)}
-								class="flex h-8 w-8 items-center justify-center transition-colors duration-100 {isActive(
-									item.href
-								)
-									? 'border border-red-500 text-gray-50'
-									: 'text-gray-500 hover:bg-gray-800/50 hover:text-gray-200'}"
-							>
-								<item.icon class="h-4 w-4" />
-							</a>
-						</Tooltip.Trigger>
-						<Tooltip.Content side="right">
-							<p>{item.label}</p>
-						</Tooltip.Content>
-					</Tooltip.Root>
-				{/each}
-			</aside>
-
-			<!-- Page content -->
+		{#if isRootPage || isAdminPage}
 			<div class="flex flex-1 overflow-hidden">
 				{@render children()}
 			</div>
-		</div>
+		{:else}
+			<div class="flex flex-1 overflow-hidden">
+				<!-- Icon sidebar -->
+				<aside class="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-800 py-3">
+					{#each navItems as item (item.label)}
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								<a
+									href={withProjectContext(item.href)}
+									class="flex h-8 w-8 items-center justify-center transition-colors duration-100 {isActive(
+										item.href
+									)
+										? 'border border-red-500 text-gray-50'
+										: 'text-gray-500 hover:bg-gray-800/50 hover:text-gray-200'}"
+								>
+									<item.icon class="h-4 w-4" />
+								</a>
+							</Tooltip.Trigger>
+							<Tooltip.Content side="right">
+								<p>{item.label}</p>
+							</Tooltip.Content>
+						</Tooltip.Root>
+					{/each}
+				</aside>
+
+				<!-- Page content -->
+				<div class="flex flex-1 overflow-hidden">
+					{@render children()}
+				</div>
+			</div>
+		{/if}
 	</div>
 
 	<!-- User Sheet -->

@@ -2,6 +2,7 @@ type ServerStatus = 'running' | 'stopped' | 'restarting' | 'provisioning';
 
 type VmSummary = {
 	id: string;
+	name: string;
 	active: boolean;
 	creationDate: string;
 	status?: string | null;
@@ -79,7 +80,7 @@ function getFirstIp(
 export function toServerInfo(vm: VmSummary): ServerInfo {
 	return {
 		id: vm.id,
-		name: vm.live?.name ?? vm.id,
+		name: vm.name,
 		vcpu: vm.live?.cores ?? vm.vmType?.cores ?? 0,
 		ram: formatBytes(vm.live?.memory ?? (vm.vmType?.ramCapacity ?? 0) * 1024 * 1024),
 		disk: formatBytes(vm.live?.disk ?? (vm.vmType?.storageAmount ?? 0) * 1024 * 1024 * 1024),

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { setContext } from 'svelte';
+	import { setContext, untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { HardDrive, Plus } from '@lucide/svelte';
+	import { listVmStatuses } from '$lib/remote/vms.remote';
 
 	let { data, children } = $props();
 
@@ -32,7 +33,82 @@
 		backups: boolean;
 	};
 
-	let servers = $derived(data.servers ?? []);
+	function formatUptime(seconds: number): string {
+		if (!seconds) return '—';
+		const d = Math.floor(seconds / 86400);
+		const h = Math.floor((seconds % 86400) / 3600);
+		const m = Math.floor((seconds % 3600) / 60);
+		return `${d}d ${h}h ${m}m`;
+	}
+
+	function getFirstIp(
+		networkInterfaces: Record<string, { ipAddresses?: string[] | null }> | null | undefined,
+		match: (address: string) => boolean
+	): string | null {
+		return (
+			Object.values(networkInterfaces ?? {})
+				.flatMap((networkInterface) => networkInterface.ipAddresses ?? [])
+				.find((address) => address && match(address)) ?? null
+		);
+	}
+
+	const initialServers = $derived(data.servers ?? []);
+	let servers = $state<ServerInfo[]>([]);
+	let projectId = $derived(data.projectId ?? null);
+	let statusRefreshing = $state(false);
+
+	$effect(() => {
+		servers = initialServers;
+	});
+
+	async function refreshStatuses() {
+		if (!projectId) return;
+		statusRefreshing = true;
+
+		try {
+			const statuses = await listVmStatuses({ projectId });
+			const byId = new Map(statuses.map((server) => [server.id, server]));
+
+			untrack(() => {
+				servers = servers.map((server) => {
+					const next = byId.get(server.id);
+					if (!next) return server;
+
+					const ipv4 =
+						getFirstIp(
+							next.networkInterfaces,
+							(address) => !address.startsWith('127.') && !address.includes(':')
+						) ?? server.ip;
+					const ipv6 =
+						getFirstIp(next.networkInterfaces, (address) => address.includes(':')) ?? server.ipv6;
+
+					return {
+						...server,
+						status:
+							server.status === 'provisioning' || server.status === 'restarting'
+								? server.status
+								: next.status,
+						agentConnected: next.liveStatus === 'running',
+						ip: ipv4,
+						ipv6,
+						uptime: formatUptime(next.uptime)
+					};
+				});
+			});
+		} catch {
+		} finally {
+			statusRefreshing = false;
+		}
+	}
+
+	$effect(() => {
+		if (!projectId) return;
+
+		refreshStatuses();
+		const interval = window.setInterval(refreshStatuses, 5000);
+
+		return () => window.clearInterval(interval);
+	});
 
 	setContext(SERVER_CONTEXT_KEY, {
 		get servers() {
@@ -41,9 +117,14 @@
 	});
 
 	const currentPath = $derived(page.url.pathname);
-	const isCreatePage = $derived(currentPath === '/servers/create');
+	const serversPath = $derived(`/projects/${projectId}/servers`);
+	const isCreatePage = $derived(currentPath === `${serversPath}/create`);
 	const selectedServerId = $derived(
-		isCreatePage ? null : currentPath.startsWith('/servers/') ? currentPath.split('/').pop() : null
+		isCreatePage
+			? null
+			: currentPath.startsWith(`${serversPath}/`)
+				? currentPath.split('/').pop()
+				: null
 	);
 </script>
 
@@ -54,12 +135,15 @@
 			<div class="flex items-center">
 				<span class="text-sm font-semibold text-gray-100">Servers</span>
 				<Badge variant="secondary" class="ml-2 text-[10px]">{servers.length}</Badge>
+				{#if statusRefreshing && servers.length > 0}
+					<span class="ml-2 h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500"></span>
+				{/if}
 			</div>
 			<Button
 				variant="outline"
 				size="sm"
 				class="h-6 w-6 border-red-500/50 p-0 text-red-400 hover:border-red-500 hover:bg-red-950 hover:text-gray-100"
-				onclick={() => goto('/servers/create')}
+				onclick={() => goto(`/projects/${page.params.projectid}/servers/create`)}
 			>
 				<Plus class="h-3.5 w-3.5" />
 			</Button>
@@ -71,7 +155,7 @@
 					server.id
 						? 'bg-gray-800/60'
 						: 'hover:bg-gray-800/30'}"
-					onclick={() => goto(`/servers/${server.id}`)}
+					onclick={() => goto(`/projects/${page.params.projectid}/servers/${server.id}`)}
 				>
 					<div class="min-w-0">
 						<p class="truncate text-sm font-semibold text-gray-100">{server.name}</p>

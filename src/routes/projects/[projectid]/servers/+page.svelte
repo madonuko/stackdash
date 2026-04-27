@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Plus, Server } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -18,7 +19,7 @@
 				variant="outline"
 				size="sm"
 				class="mt-2 gap-1.5 border-gray-700 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100"
-				onclick={() => goto('/servers/create')}
+				onclick={() => goto(`/projects/${page.params.projectid}/servers/create`)}
 			>
 				<Plus class="size-3.5" />
 				New Server
