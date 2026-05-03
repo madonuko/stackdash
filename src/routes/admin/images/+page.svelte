@@ -32,7 +32,7 @@
 
 	type AdminTab = 'features' | 'vmTypes' | 'images';
 	let { data }: { data: AdminPageData } = $props();
-	const activeTab = 'vmTypes' as AdminTab;
+	const activeTab = 'images' as AdminTab;
 	const admin = new AdminState();
 	$effect(() => {
 		admin.sync(data);
