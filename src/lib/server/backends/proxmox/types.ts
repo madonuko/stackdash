@@ -52,9 +52,16 @@ export interface PveQemuStatus {
 	vmid: number;
 	name?: string;
 	cpus?: number;
+	cpu?: number;
 	maxmem?: number;
+	mem?: number;
 	maxdisk?: number;
+	disk?: number;
 	uptime?: number;
+	diskread?: number;
+	diskwrite?: number;
+	netin?: number;
+	netout?: number;
 	pid?: number;
 	qmpstatus?: string;
 	ha?: { managed: number };

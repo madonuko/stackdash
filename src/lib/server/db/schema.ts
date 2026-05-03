@@ -35,12 +35,16 @@ export const vmStatusEnum = pgEnum('vm_status', ['provisioning', 'ready', 'error
 
 // Projects
 
-export const projects = pgTable('projects', {
-	id: ulidPk(),
-	projectName: text('project_name').notNull(),
-	ownerUserId: text('owner_user_id').notNull(),
-	creationDate: bigint('creation_date', { mode: 'number' }).notNull()
-});
+export const projects = pgTable(
+	'projects',
+	{
+		id: ulidPk(),
+		projectName: text('project_name').notNull(),
+		ownerUserId: text('owner_user_id').notNull(),
+		creationDate: bigint('creation_date', { mode: 'number' }).notNull()
+	},
+	(table) => [index('projects_owner_user_id_index').on(table.ownerUserId)]
+);
 
 export const projectsRelations = relations(projects, ({ many }) => ({
 	permissions: many(projectPermissions),
@@ -88,20 +92,33 @@ export const vmTypesRelations = relations(vmTypes, ({ many }) => ({
 
 // VMs
 
-export const vms = pgTable('vms', {
-	id: ulidPk(),
-	name: text('name').notNull(),
-	proxmoxId: integer('proxmox_id'),
-	active: boolean('active').notNull().default(true),
-	ownerProjectId: ulidFk('owner_project_id').references(() => projects.id),
-	vmTypeId: ulidFk('vm_type_id')
-		.notNull()
-		.references(() => vmTypes.id),
-	creationDate: date('creation_date').notNull(),
-	backend: vmBackendEnum('backend').notNull(),
-	status: vmStatusEnum('status').notNull().default('provisioning'),
-	statusError: text('status_error')
-});
+export const vms = pgTable(
+	'vms',
+	{
+		id: ulidPk(),
+		name: text('name').notNull(),
+		proxmoxId: integer('proxmox_id'),
+		lastKnownIpv4: inet('last_known_ipv4'),
+		lastKnownIpv6: inet('last_known_ipv6'),
+		lastKnownStatus: text('last_known_status'),
+		lastKnownUptime: integer('last_known_uptime').notNull().default(0),
+		lastKnownAt: bigint('last_known_at', { mode: 'number' }),
+		active: boolean('active').notNull().default(true),
+		ownerProjectId: ulidFk('owner_project_id').references(() => projects.id),
+		vmTypeId: ulidFk('vm_type_id')
+			.notNull()
+			.references(() => vmTypes.id),
+		creationDate: date('creation_date').notNull(),
+		backend: vmBackendEnum('backend').notNull(),
+		status: vmStatusEnum('status').notNull().default('provisioning'),
+		statusError: text('status_error')
+	},
+	(table) => [
+		index('vms_owner_project_id_index').on(table.ownerProjectId),
+		index('vms_owner_project_active_index').on(table.ownerProjectId, table.active),
+		index('vms_proxmox_id_index').on(table.proxmoxId)
+	]
+);
 
 export const vmsRelations = relations(vms, ({ one, many }) => ({
 	project: one(projects, {
@@ -119,15 +136,22 @@ export const vmsRelations = relations(vms, ({ one, many }) => ({
 
 // Volumes
 
-export const volumes = pgTable('volumes', {
-	id: ulidPk(),
-	name: text('name').notNull(),
-	size: integer('size').notNull(),
-	ownerProjectId: ulidFk('owner_project_id')
-		.notNull()
-		.references(() => projects.id),
-	associatedVmId: ulidFk('associated_vm_id').references(() => vms.id)
-});
+export const volumes = pgTable(
+	'volumes',
+	{
+		id: ulidPk(),
+		name: text('name').notNull(),
+		size: integer('size').notNull(),
+		ownerProjectId: ulidFk('owner_project_id')
+			.notNull()
+			.references(() => projects.id),
+		associatedVmId: ulidFk('associated_vm_id').references(() => vms.id)
+	},
+	(table) => [
+		index('volumes_owner_project_id_index').on(table.ownerProjectId),
+		index('volumes_associated_vm_id_index').on(table.associatedVmId)
+	]
+);
 
 export const volumesRelations = relations(volumes, ({ one }) => ({
 	project: one(projects, {
@@ -142,17 +166,24 @@ export const volumesRelations = relations(volumes, ({ one }) => ({
 
 // Payment Periods
 
-export const paymentPeriods = pgTable('payment_periods', {
-	id: ulidPk(),
-	vmId: ulidFk('vm_id')
-		.notNull()
-		.references(() => vms.id),
-	userId: text('user_id').notNull(),
-	startDate: integer('start_date').notNull(),
-	endDate: integer('end_date'),
-	rate: numeric('rate').notNull(),
-	cap: numeric('cap').notNull()
-});
+export const paymentPeriods = pgTable(
+	'payment_periods',
+	{
+		id: ulidPk(),
+		vmId: ulidFk('vm_id')
+			.notNull()
+			.references(() => vms.id),
+		userId: text('user_id').notNull(),
+		startDate: integer('start_date').notNull(),
+		endDate: integer('end_date'),
+		rate: numeric('rate').notNull(),
+		cap: numeric('cap').notNull()
+	},
+	(table) => [
+		index('payment_periods_vm_id_index').on(table.vmId),
+		index('payment_periods_user_id_index').on(table.userId)
+	]
+);
 
 export const paymentPeriodsRelations = relations(paymentPeriods, ({ one }) => ({
 	vm: one(vms, {
@@ -174,13 +205,20 @@ export const ipBlocksRelations = relations(ipBlocks, ({ many }) => ({
 
 // IP Assignments
 
-export const ipAssignments = pgTable('ip_assignments', {
-	ip: inet('ip').notNull(),
-	ipBlockId: ulidFk('ip_block_id')
-		.notNull()
-		.references(() => ipBlocks.id),
-	associatedVmId: ulidFk('associated_vm_id').references(() => vms.id)
-});
+export const ipAssignments = pgTable(
+	'ip_assignments',
+	{
+		ip: inet('ip').notNull(),
+		ipBlockId: ulidFk('ip_block_id')
+			.notNull()
+			.references(() => ipBlocks.id),
+		associatedVmId: ulidFk('associated_vm_id').references(() => vms.id)
+	},
+	(table) => [
+		index('ip_assignments_ip_block_id_index').on(table.ipBlockId),
+		index('ip_assignments_associated_vm_id_index').on(table.associatedVmId)
+	]
+);
 
 export const ipAssignmentsRelations = relations(ipAssignments, ({ one }) => ({
 	ipBlock: one(ipBlocks, {
@@ -195,14 +233,18 @@ export const ipAssignmentsRelations = relations(ipAssignments, ({ one }) => ({
 
 // SSH Keys
 
-export const sshKeys = pgTable('ssh_keys', {
-	id: ulidPk(),
-	userId: text('user_id').notNull(),
-	fingerprint: text('fingerprint').notNull(),
-	publicKey: text('public_key').notNull(),
-	name: text('name').notNull(),
-	description: text('description')
-});
+export const sshKeys = pgTable(
+	'ssh_keys',
+	{
+		id: ulidPk(),
+		userId: text('user_id').notNull(),
+		fingerprint: text('fingerprint').notNull(),
+		publicKey: text('public_key').notNull(),
+		name: text('name').notNull(),
+		description: text('description')
+	},
+	(table) => [index('ssh_keys_user_id_index').on(table.userId)]
+);
 
 // API Tokens
 

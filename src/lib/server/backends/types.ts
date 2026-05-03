@@ -10,6 +10,24 @@ export interface VmInfo {
 	disk: number;
 	uptime: number;
 	networkInterfaces?: Record<string, { ipAddresses?: string[] }>;
+	metrics?: VmMetrics;
+}
+
+export interface VmMetrics {
+	cpu?: number;
+	memory?: number;
+	disk?: number;
+	networkIn?: number;
+	networkOut?: number;
+	diskRead?: number;
+	diskWrite?: number;
+}
+
+export interface BackendIso {
+	volid: string;
+	filename: string;
+	size: number;
+	node: string;
 }
 
 export interface VmCreateParams {
@@ -42,4 +60,5 @@ export interface VmBackend {
 	stopVm(id: string, proxmoxId?: number): Promise<void>;
 	killVm(id: string, proxmoxId?: number): Promise<void>;
 	rebootVm(id: string, proxmoxId?: number): Promise<void>;
+	listIsos(): Promise<BackendIso[]>;
 }

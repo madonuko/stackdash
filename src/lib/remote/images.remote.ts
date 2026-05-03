@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { baseImages } from '$lib/server/db/schema';
 import { getBackend } from '$lib/server/backends';
+import { requireAdmin } from '$lib/server/auth-context';
 
 type ImageRow = {
 	id: string;
@@ -52,6 +53,7 @@ export const createImage = command(createParams, async (params) => {
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
+	await requireAdmin(db, event.locals.user.id);
 
 	const [inserted] = await db
 		.insert(baseImages)
@@ -86,6 +88,8 @@ export const updateImage = command(updateParams, async (params) => {
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
+	await requireAdmin(db, event.locals.user.id);
+
 	const existing = await db.query.baseImages.findFirst({
 		where: eq(baseImages.id, params.imageId)
 	});
@@ -104,6 +108,8 @@ export const deleteImage = command(deleteParams, async (params) => {
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
+	await requireAdmin(db, event.locals.user.id);
+
 	const existing = await db.query.baseImages.findFirst({
 		where: eq(baseImages.id, params.imageId)
 	});
@@ -112,49 +118,12 @@ export const deleteImage = command(deleteParams, async (params) => {
 	await db.delete(baseImages).where(eq(baseImages.id, params.imageId));
 });
 
-type ProxmoxIso = {
-	volid: string;
-	filename: string;
-	size: number;
-	node: string;
-};
-
 export const listProxmoxIsos = query(async () => {
 	const event = getRequestEvent();
 	if (!event?.locals.user) error(401, 'Authentication required');
 
+	await requireAdmin(initDrizzle(), event.locals.user.id);
+
 	const backend = getBackend('proxmox');
-	const client = (backend as any).client;
-	if (!client) error(500, 'Proxmox client not available');
-
-	const nodes = await client.listNodes();
-	const results: ProxmoxIso[] = [];
-	const seen = new Set<string>();
-
-	for (const node of nodes) {
-		try {
-			const storages = await client.listStorage(node.node);
-			const isoStorages = storages.filter((s: any) => s.content?.includes('iso') && s.active !== 0);
-
-			for (const storage of isoStorages) {
-				try {
-					const contents = await client.listStorageContent(node.node, storage.storage, 'iso');
-					for (const item of contents) {
-						if (!seen.has(item.volid)) {
-							seen.add(item.volid);
-							const parts = item.volid.split('/');
-							results.push({
-								volid: item.volid,
-								filename: parts[parts.length - 1] ?? item.volid,
-								size: item.size,
-								node: node.node
-							});
-						}
-					}
-				} catch {}
-			}
-		} catch {}
-	}
-
-	return results;
+	return backend.listIsos();
 });

@@ -1,6 +1,13 @@
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
-import type { VmBackend, VmInfo, VmCreateParams, VmCreateResult, VmStatus } from '../types';
+import type {
+	BackendIso,
+	VmBackend,
+	VmInfo,
+	VmCreateParams,
+	VmCreateResult,
+	VmStatus
+} from '../types';
 
 interface ResolvedVm {
 	node: string;
@@ -46,6 +53,9 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	private resourceToInfo(r: PveClusterResource): VmInfo {
+		const memoryUsage = r.mem != null && r.maxmem ? r.mem / r.maxmem : undefined;
+		const diskUsage = r.disk != null && r.maxdisk ? r.disk / r.maxdisk : undefined;
+
 		return {
 			id: r.name ?? String(r.vmid),
 			proxmoxId: r.vmid,
@@ -54,13 +64,49 @@ export class ProxmoxBackend implements VmBackend {
 			cores: r.maxcpu ?? 0,
 			memory: r.maxmem ?? 0,
 			disk: r.maxdisk ?? 0,
-			uptime: r.uptime ?? 0
+			uptime: r.uptime ?? 0,
+			metrics: {
+				cpu: r.cpu,
+				memory: memoryUsage,
+				disk: diskUsage
+			}
 		};
 	}
 
 	async listVms(): Promise<VmInfo[]> {
 		const resources = await this.client.getClusterResources('vm');
 		return resources.filter((r) => r.type === 'qemu').map((r) => this.resourceToInfo(r));
+	}
+
+	async listIsos(): Promise<BackendIso[]> {
+		const nodes = await this.client.listNodes();
+		const results: BackendIso[] = [];
+		const seen = new Set<string>();
+
+		for (const node of nodes) {
+			const storages = await this.client.listStorage(node.node);
+			const isoStorages = storages.filter((storage) => {
+				return storage.content?.includes('iso') && storage.active !== 0;
+			});
+
+			for (const storage of isoStorages) {
+				const contents = await this.client.listStorageContent(node.node, storage.storage, 'iso');
+				for (const item of contents) {
+					if (seen.has(item.volid)) continue;
+					seen.add(item.volid);
+
+					const parts = item.volid.split('/');
+					results.push({
+						volid: item.volid,
+						filename: parts.at(-1) ?? item.volid,
+						size: item.size,
+						node: node.node
+					});
+				}
+			}
+		}
+
+		return results;
 	}
 
 	async getVm(id: string, proxmoxId?: number): Promise<VmInfo> {
@@ -82,6 +128,11 @@ export class ProxmoxBackend implements VmBackend {
 			}
 		}
 
+		const memoryUsage =
+			status.mem != null && status.maxmem ? status.mem / status.maxmem : undefined;
+		const diskUsage =
+			status.disk != null && status.maxdisk ? status.disk / status.maxdisk : undefined;
+
 		return {
 			id,
 			proxmoxId: vmid,
@@ -91,7 +142,16 @@ export class ProxmoxBackend implements VmBackend {
 			memory: status.maxmem ?? 0,
 			disk: status.maxdisk ?? 0,
 			uptime: status.uptime ?? 0,
-			networkInterfaces
+			networkInterfaces,
+			metrics: {
+				cpu: status.cpu,
+				memory: memoryUsage,
+				disk: diskUsage,
+				networkIn: status.netin,
+				networkOut: status.netout,
+				diskRead: status.diskread,
+				diskWrite: status.diskwrite
+			}
 		};
 	}
 
@@ -115,11 +175,12 @@ export class ProxmoxBackend implements VmBackend {
 			cores: params.cores,
 			sockets: 1,
 			memory: params.memoryMb,
-			cpu: 'host',
+			cpu: 'x86-64-v3',
 			ostype: 'l26',
 			bios: 'ovmf',
 			machine: 'q35',
 			efidisk0: 'local-lvm:0,efitype=4m,pre-enrolled-keys=1',
+			scsihw: 'virtio-scsi-single',
 			...(params.imageSource ? {} : { virtio0: `local-lvm:${params.diskGb}` }),
 			net0: 'virtio,bridge=vmbr0',
 			boot: `order=${bootDisk}`,

@@ -6,6 +6,7 @@ import { initDrizzle } from '$lib/server/db';
 import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
 import { getBackend, type VmInfo } from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
+import { getCachedProxmoxVms, refreshProxmoxVmCache } from '$lib/server/vm-live-cache';
 
 type VmRow = {
 	id: string;
@@ -17,11 +18,40 @@ type VmRow = {
 	creationDate: string;
 	backend: 'proxmox';
 	status: 'provisioning' | 'ready' | 'error';
+	lastKnownIpv4: string | null;
+	lastKnownIpv6: string | null;
+	lastKnownStatus: VmInfo['status'] | null;
+	lastKnownUptime: number;
+	lastKnownAt: number | null;
 	vmTypeName: string | null;
 	vmTypeCores: number | null;
 	vmTypeRamCapacity: number | null;
 	vmTypeStorageAmount: number | null;
 };
+
+function getKnownLive(row: VmRow): VmInfo | null {
+	if (!row.lastKnownStatus && !row.lastKnownIpv4 && !row.lastKnownIpv6) return null;
+
+	return {
+		id: row.name,
+		proxmoxId: row.proxmoxId ?? undefined,
+		name: row.name,
+		status: row.lastKnownStatus ?? 'unknown',
+		cores: row.vmTypeCores ?? 0,
+		memory: (row.vmTypeRamCapacity ?? 0) * 1024 * 1024,
+		disk: (row.vmTypeStorageAmount ?? 0) * 1024 * 1024 * 1024,
+		uptime: row.lastKnownUptime ?? 0,
+		networkInterfaces:
+			row.lastKnownIpv4 || row.lastKnownIpv6
+				? {
+						cached: {
+							ipAddresses: [row.lastKnownIpv4, row.lastKnownIpv6].filter(Boolean) as string[]
+						}
+					}
+				: undefined,
+		metrics: undefined
+	};
+}
 
 function mapVmRow(row: VmRow, live: VmInfo | null) {
 	return {
@@ -42,7 +72,7 @@ function mapVmRow(row: VmRow, live: VmInfo | null) {
 					storageAmount: row.vmTypeStorageAmount ?? 0
 				}
 			: null,
-		live
+		live: live ?? getKnownLive(row)
 	};
 }
 
@@ -75,6 +105,11 @@ export const listVms = query(listParams, async (params) => {
 			${vms.creationDate} as "creationDate",
 			${vms.backend} as backend,
 			${vms.status} as status,
+			${vms.lastKnownIpv4} as "lastKnownIpv4",
+			${vms.lastKnownIpv6} as "lastKnownIpv6",
+			${vms.lastKnownStatus} as "lastKnownStatus",
+			${vms.lastKnownUptime} as "lastKnownUptime",
+			${vms.lastKnownAt} as "lastKnownAt",
 			${vmTypes.name} as "vmTypeName",
 			${vmTypes.cores} as "vmTypeCores",
 			${vmTypes.ramCapacity} as "vmTypeRamCapacity",
@@ -85,25 +120,7 @@ export const listVms = query(listParams, async (params) => {
 	`);
 	const rows = result.rows as VmRow[];
 
-	let liveVms: VmInfo[] = [];
-	try {
-		const backend = getBackend('proxmox');
-		liveVms = await backend.listVms();
-	} catch {}
-
-	const liveByProxmoxId = new Map(
-		liveVms.filter((vm) => vm.proxmoxId != null).map((vm) => [vm.proxmoxId!, vm] as const)
-	);
-	const liveById = new Map(liveVms.map((vm) => [vm.id, vm]));
-
-	return rows.map((row) =>
-		mapVmRow(
-			row,
-			(row.proxmoxId != null ? liveByProxmoxId.get(row.proxmoxId) : null) ??
-				liveById.get(row.id) ??
-				null
-		)
-	);
+	return rows.map((row) => mapVmRow(row, null));
 });
 
 const getParams = type({ vmId: 'string' });
@@ -123,6 +140,11 @@ export const getVm = query(getParams, async (params) => {
 			${vms.creationDate} as "creationDate",
 			${vms.backend} as backend,
 			${vms.status} as status,
+			${vms.lastKnownIpv4} as "lastKnownIpv4",
+			${vms.lastKnownIpv6} as "lastKnownIpv6",
+			${vms.lastKnownStatus} as "lastKnownStatus",
+			${vms.lastKnownUptime} as "lastKnownUptime",
+			${vms.lastKnownAt} as "lastKnownAt",
 			${vmTypes.name} as "vmTypeName",
 			${vmTypes.cores} as "vmTypeCores",
 			${vmTypes.ramCapacity} as "vmTypeRamCapacity",
@@ -143,7 +165,9 @@ export const getVm = query(getParams, async (params) => {
 	try {
 		const backend = getBackend(row.backend);
 		live = await backend.getVm(row.id, row.proxmoxId ?? undefined);
-	} catch {}
+	} catch (err) {
+		console.warn(`Failed to load live VM state for ${row.id}`, err);
+	}
 
 	return mapVmRow(row, live);
 });
@@ -167,6 +191,11 @@ export const listVmStatuses = query(statusParams, async (params) => {
 			${vms.creationDate} as "creationDate",
 			${vms.backend} as backend,
 			${vms.status} as status,
+			${vms.lastKnownIpv4} as "lastKnownIpv4",
+			${vms.lastKnownIpv6} as "lastKnownIpv6",
+			${vms.lastKnownStatus} as "lastKnownStatus",
+			${vms.lastKnownUptime} as "lastKnownUptime",
+			${vms.lastKnownAt} as "lastKnownAt",
 			${vmTypes.name} as "vmTypeName",
 			${vmTypes.cores} as "vmTypeCores",
 			${vmTypes.ramCapacity} as "vmTypeRamCapacity",
@@ -179,9 +208,10 @@ export const listVmStatuses = query(statusParams, async (params) => {
 
 	let liveVms: VmInfo[] = [];
 	try {
-		const backend = getBackend('proxmox');
-		liveVms = await backend.listVms();
-	} catch {}
+		liveVms = await getCachedProxmoxVms();
+	} catch (err) {
+		console.warn('Failed to load cached Proxmox VM statuses', err);
+	}
 
 	const liveByProxmoxId = new Map(
 		liveVms.filter((vm) => vm.proxmoxId != null).map((vm) => [vm.proxmoxId!, vm] as const)
@@ -201,7 +231,8 @@ export const listVmStatuses = query(statusParams, async (params) => {
 			uptime: mapped.live?.uptime ?? 0,
 			memory: mapped.live?.memory ?? null,
 			disk: mapped.live?.disk ?? null,
-			networkInterfaces: mapped.live?.networkInterfaces ?? null
+			networkInterfaces: mapped.live?.networkInterfaces ?? null,
+			metrics: mapped.live?.metrics ?? null
 		};
 	});
 });
@@ -286,6 +317,7 @@ export const createVm = command(createParams, async (params) => {
 		.update(vms)
 		.set({ proxmoxId: result.proxmoxId ?? null })
 		.where(eq(vms.id, vmId));
+	refreshProxmoxVmCache().catch(() => {});
 
 	return { id: inserted.id, taskId: result.taskId };
 });
@@ -304,9 +336,12 @@ export const deleteVm = command(deleteParams, async (params) => {
 
 	try {
 		await getBackend(row.backend).deleteVm(row.id, row.proxmoxId ?? undefined);
-	} catch {}
+	} catch (err) {
+		console.warn(`Failed to delete backend VM ${row.id}; marking inactive`, err);
+	}
 
 	await db.update(vms).set({ active: false }).where(eq(vms.id, params.vmId));
+	refreshProxmoxVmCache().catch(() => {});
 });
 
 const powerParams = type({ vmId: 'string' });
@@ -323,9 +358,10 @@ async function powerAction(vmId: string, action: 'startVm' | 'stopVm' | 'killVm'
 
 	const backend = getBackend(row.backend);
 	await backend[action](row.id, row.proxmoxId ?? undefined);
+	refreshProxmoxVmCache().catch(() => {});
 }
 
 export const startVm = command(powerParams, async (p) => powerAction(p.vmId, 'startVm'));
-export const stopVm = command(powerParams, async (p) => powerAction(p.vmId, 'killVm'));
+export const stopVm = command(powerParams, async (p) => powerAction(p.vmId, 'stopVm'));
 export const killVm = command(powerParams, async (p) => powerAction(p.vmId, 'killVm'));
 export const rebootVm = command(powerParams, async (p) => powerAction(p.vmId, 'rebootVm'));

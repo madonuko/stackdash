@@ -18,6 +18,7 @@ declare global {
 					connectionString: string;
 				};
 				FEATURE_FLAGS?: KVNamespace;
+				PROXMOX_CACHE?: KVNamespace;
 				// OAuth (set as Cloudflare Worker secrets)
 				GITHUB_CLIENT_ID?: string;
 				GITHUB_CLIENT_SECRET?: string;
