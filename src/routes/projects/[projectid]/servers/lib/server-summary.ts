@@ -25,14 +25,33 @@ type VmSummary = {
 				ipAddresses?: string[] | null;
 			}
 		> | null;
+		metrics?: {
+			cpu?: number | null;
+			memory?: number | null;
+			disk?: number | null;
+			networkIn?: number | null;
+			networkOut?: number | null;
+			diskRead?: number | null;
+			diskWrite?: number | null;
+		} | null;
 	} | null;
 };
 
 type NetworkInterfaces = NonNullable<NonNullable<VmSummary['live']>['networkInterfaces']>;
+type ServerMetrics = {
+	cpu?: number | null;
+	memory?: number | null;
+	disk?: number | null;
+	networkIn?: number | null;
+	networkOut?: number | null;
+	diskRead?: number | null;
+	diskWrite?: number | null;
+};
 
 export type ServerInfo = {
 	id: string;
 	name: string;
+	liveLoaded: boolean;
 	vcpu: number;
 	ram: string;
 	disk: string;
@@ -46,6 +65,7 @@ export type ServerInfo = {
 	uptime: string;
 	plan: string;
 	backups: boolean;
+	metrics: ServerMetrics | null;
 };
 
 function formatBytes(bytes: number): string {
@@ -78,9 +98,12 @@ function getFirstIp(
 }
 
 export function toServerInfo(vm: VmSummary): ServerInfo {
+	const liveLoaded = Boolean(vm.live);
+
 	return {
 		id: vm.id,
 		name: vm.name,
+		liveLoaded,
 		vcpu: vm.live?.cores ?? vm.vmType?.cores ?? 0,
 		ram: formatBytes(vm.live?.memory ?? (vm.vmType?.ramCapacity ?? 0) * 1024 * 1024),
 		disk: formatBytes(vm.live?.disk ?? (vm.vmType?.storageAmount ?? 0) * 1024 * 1024 * 1024),
@@ -99,6 +122,7 @@ export function toServerInfo(vm: VmSummary): ServerInfo {
 		created: vm.creationDate,
 		uptime: formatUptime(vm.live?.uptime ?? 0),
 		plan: vm.vmType?.name ?? 'Custom',
-		backups: false
+		backups: false,
+		metrics: vm.live?.metrics ?? null
 	};
 }

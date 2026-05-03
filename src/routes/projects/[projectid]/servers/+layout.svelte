@@ -1,37 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { setContext, untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { HardDrive, Plus } from '@lucide/svelte';
-	import { listVmStatuses } from '$lib/remote/vms.remote';
+	import { listVms, listVmStatuses } from '$lib/remote/vms.remote';
+	import { serversState, sortServers } from '$lib/state/servers.svelte';
 
 	let { data, children } = $props();
-
-	const SERVER_CONTEXT_KEY = Symbol('servers');
-
-	export function getServers(): ServerInfo[] {
-		return servers;
-	}
-
-	type ServerInfo = {
-		id: string;
-		name: string;
-		vcpu: number;
-		ram: string;
-		disk: string;
-		ip: string;
-		ipv6: string;
-		status: 'running' | 'stopped' | 'restarting' | 'provisioning';
-		agentConnected: boolean;
-		os: string;
-		region: string;
-		created: string;
-		uptime: string;
-		plan: string;
-		backups: boolean;
-	};
 
 	function formatUptime(seconds: number): string {
 		if (!seconds) return '—';
@@ -39,6 +16,11 @@
 		const h = Math.floor((seconds % 86400) / 3600);
 		const m = Math.floor((seconds % 3600) / 60);
 		return `${d}d ${h}h ${m}m`;
+	}
+
+	function formatCapacity(mib: number): string {
+		if (!mib) return '0GB';
+		return mib >= 1024 ? `${mib / 1024}GB` : `${mib}MB`;
 	}
 
 	function getFirstIp(
@@ -53,24 +35,72 @@
 	}
 
 	const initialServers = $derived(data.servers ?? []);
-	let servers = $state<ServerInfo[]>([]);
 	let projectId = $derived(data.projectId ?? null);
-	let statusRefreshing = $state(false);
+	let refreshTimeout: number | null = null;
+
+	function scheduleRefreshStatuses() {
+		if (refreshTimeout) window.clearTimeout(refreshTimeout);
+		refreshTimeout = window.setTimeout(() => {
+			refreshTimeout = null;
+			refreshStatuses();
+		}, 500);
+	}
+
+	function cancelScheduledRefreshStatuses() {
+		if (!refreshTimeout) return;
+		window.clearTimeout(refreshTimeout);
+		refreshTimeout = null;
+	}
 
 	$effect(() => {
-		servers = initialServers;
+		serversState.servers = initialServers;
+		serversState.firstStatusRefreshComplete = false;
 	});
+
+	async function loadServers() {
+		if (!projectId) return;
+		serversState.loading = true;
+
+		try {
+			const vms = await listVms({ projectId }).run();
+			serversState.servers = sortServers(
+				vms
+					.filter((vm) => vm.active)
+					.map((vm) => ({
+						id: vm.id,
+						name: vm.name,
+						liveLoaded: false,
+						vcpu: vm.vmType?.cores ?? 0,
+						ram: formatCapacity(vm.vmType?.ramCapacity ?? 0),
+						disk: `${vm.vmType?.storageAmount ?? 0}GB`,
+						ip: '—',
+						ipv6: '—',
+						status: vm.status === 'provisioning' ? 'provisioning' : 'stopped',
+						agentConnected: false,
+						os: vm.vmType?.name ?? 'Unknown',
+						region: 'New York',
+						created: vm.creationDate,
+						uptime: '—',
+						plan: vm.vmType?.name ?? 'Custom',
+						backups: false,
+						metrics: vm.live?.metrics ?? null
+					}))
+			);
+		} finally {
+			serversState.loading = false;
+		}
+	}
 
 	async function refreshStatuses() {
 		if (!projectId) return;
-		statusRefreshing = true;
+		serversState.statusRefreshing = true;
 
 		try {
-			const statuses = await listVmStatuses({ projectId });
+			const statuses = await listVmStatuses({ projectId }).run();
 			const byId = new Map(statuses.map((server) => [server.id, server]));
 
 			untrack(() => {
-				servers = servers.map((server) => {
+				serversState.servers = sortServers(serversState.servers).map((server) => {
 					const next = byId.get(server.id);
 					if (!next) return server;
 
@@ -84,6 +114,7 @@
 
 					return {
 						...server,
+						liveLoaded: true,
 						status:
 							server.status === 'provisioning' || server.status === 'restarting'
 								? server.status
@@ -91,29 +122,41 @@
 						agentConnected: next.liveStatus === 'running',
 						ip: ipv4,
 						ipv6,
-						uptime: formatUptime(next.uptime)
+						uptime: formatUptime(next.uptime),
+						metrics: next.metrics
 					};
 				});
 			});
 		} catch {
 		} finally {
-			statusRefreshing = false;
+			serversState.statusRefreshing = false;
+			serversState.firstStatusRefreshComplete = true;
 		}
 	}
 
 	$effect(() => {
 		if (!projectId) return;
 
-		refreshStatuses();
-		const interval = window.setInterval(refreshStatuses, 5000);
+		untrack(() => {
+			tick().then(loadServers).then(refreshStatuses);
+		});
+		const interval = window.setInterval(scheduleRefreshStatuses, 5000);
 
-		return () => window.clearInterval(interval);
+		return () => {
+			cancelScheduledRefreshStatuses();
+			window.clearInterval(interval);
+		};
 	});
 
-	setContext(SERVER_CONTEXT_KEY, {
-		get servers() {
-			return servers;
-		}
+	$effect(() => {
+		if (
+			!projectId ||
+			serversState.loading ||
+			serversState.servers.length === 0 ||
+			currentPath !== serversPath
+		)
+			return;
+		goto(`${serversPath}/${serversState.servers[0].id}`, { replaceState: true });
 	});
 
 	const currentPath = $derived(page.url.pathname);
@@ -134,8 +177,8 @@
 		<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center">
 				<span class="text-sm font-semibold text-gray-100">Servers</span>
-				<Badge variant="secondary" class="ml-2 text-[10px]">{servers.length}</Badge>
-				{#if statusRefreshing && servers.length > 0}
+				<Badge variant="secondary" class="ml-2 text-[10px]">{serversState.servers.length}</Badge>
+				{#if serversState.statusRefreshing && serversState.servers.length > 0}
 					<span class="ml-2 h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500"></span>
 				{/if}
 			</div>
@@ -149,33 +192,55 @@
 			</Button>
 		</div>
 		<div class="flex-1 overflow-y-auto">
-			{#each servers as server (server.id)}
-				<button
+			{#if serversState.loading}
+				<div class="divide-y divide-gray-800">
+					{#each Array.from({ length: 3 }) as _, index (index)}
+						<div class="flex items-start justify-between px-4 py-3">
+							<div class="min-w-0 flex-1 space-y-2">
+								<div class="h-3 w-28 animate-pulse rounded bg-gray-800"></div>
+								<div class="h-2.5 w-36 animate-pulse rounded bg-gray-800/70"></div>
+							</div>
+							<div class="mt-1 ml-2 h-2 w-2 shrink-0 animate-pulse rounded-full bg-gray-800"></div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#each serversState.servers as server (server.id)}
+				<a
 					class="flex w-full items-start justify-between border-b border-gray-800 px-4 py-3 text-left transition-colors duration-100 {selectedServerId ===
 					server.id
 						? 'bg-gray-800/60'
 						: 'hover:bg-gray-800/30'}"
-					onclick={() => goto(`/projects/${page.params.projectid}/servers/${server.id}`)}
+					href={`/projects/${page.params.projectid}/servers/${server.id}`}
+					data-sveltekit-preload-data="tap"
 				>
 					<div class="min-w-0">
 						<p class="truncate text-sm font-semibold text-gray-100">{server.name}</p>
 						<p class="mt-0.5 truncate text-xs text-gray-500">
-							{server.vcpu} vCPU &bull; {server.ram} &bull; {server.ip}
+							{server.vcpu} vCPU &bull; {server.ram} &bull;
+							{#if server.liveLoaded || serversState.firstStatusRefreshComplete}
+								{server.ip}
+							{:else}
+								<span class="inline-block h-2.5 w-14 animate-pulse rounded bg-gray-800"></span>
+							{/if}
 						</p>
 					</div>
 					<span
-						class="mt-1 ml-2 h-2 w-2 shrink-0 rounded-full {server.status === 'running'
-							? 'bg-emerald-500'
-							: server.status === 'provisioning'
-								? 'animate-pulse bg-blue-500'
-								: server.status === 'restarting'
-									? 'animate-pulse bg-amber-500'
-									: 'bg-red-500'}"
+						class="mt-1 ml-2 h-2 w-2 shrink-0 rounded-full {server.liveLoaded
+							? server.status === 'running'
+								? 'bg-emerald-500'
+								: server.status === 'provisioning'
+									? 'animate-pulse bg-blue-500'
+									: server.status === 'restarting'
+										? 'animate-pulse bg-amber-500'
+										: 'bg-red-500'
+							: 'bg-gray-600'}"
 					></span>
-				</button>
+				</a>
 			{/each}
 
-			{#if servers.length === 0}
+			{#if !serversState.loading && serversState.servers.length === 0}
 				<div class="flex flex-col items-center justify-center py-16 text-gray-500">
 					<HardDrive class="mb-3 h-6 w-6" />
 					<p class="text-xs">No servers</p>

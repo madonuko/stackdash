@@ -1,8 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
-import type { LayoutServerLoad } from './$types';
-import { listVms } from '$lib/remote/vms.remote';
+import type { LayoutLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ params, parent }) => {
+export const load: LayoutLoad = async ({ params, parent }) => {
 	const { user, projects } = await parent();
 
 	if (!user) {
@@ -15,10 +14,7 @@ export const load: LayoutServerLoad = async ({ params, parent }) => {
 		error(404, 'Project not found');
 	}
 
-	const vms = await listVms({ projectId: project.id });
-
 	return {
-		project,
-		vms
+		project
 	};
 };

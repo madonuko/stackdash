@@ -121,9 +121,10 @@
 				<div class="overflow-hidden border border-gray-800 bg-gray-950/40">
 					{#each projects as project (project.id)}
 						<div class="group relative border-b border-gray-800/80 last:border-b-0">
-							<button
+							<a
 								class="grid w-full gap-4 p-4 text-left transition-colors hover:bg-gray-900/70 sm:grid-cols-[1fr_auto] sm:items-center"
-								onclick={() => goto(`/projects/${project.id}/servers`)}
+								href={`/projects/${project.id}/servers`}
+								data-sveltekit-preload-data="tap"
 							>
 								<div class="flex min-w-0 items-center gap-4">
 									<div
@@ -143,7 +144,7 @@
 										class="size-4 text-gray-600 transition-colors group-hover:text-red-300"
 									/>
 								</div>
-							</button>
+							</a>
 							<DropdownMenu.Root>
 								<DropdownMenu.Trigger
 									class="absolute top-1/2 right-4 flex size-8 -translate-y-1/2 items-center justify-center text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-800 hover:text-gray-300"

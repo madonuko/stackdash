@@ -4,18 +4,20 @@ import { listVolumes } from '$lib/remote/volumes.remote';
 import { listVms } from '$lib/remote/vms.remote';
 import { requireFeatureFlag } from '$lib/server/feature-flags';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ params, parent, depends }) => {
+	depends('project:volumes');
+	depends('project:vms');
 	await requireFeatureFlag('volumes');
 
-	const { project } = await parent();
+	await parent();
 
-	if (!project) {
+	if (!params.projectid) {
 		error(404, 'Project not found');
 	}
 
 	const [volumes, vms] = await Promise.all([
-		listVolumes({ projectId: project.id }),
-		listVms({ projectId: project.id })
+		listVolumes({ projectId: params.projectid }),
+		listVms({ projectId: params.projectid })
 	]);
 
 	return {

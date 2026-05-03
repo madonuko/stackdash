@@ -12,7 +12,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as Command from '$lib/components/ui/command';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import {
 		createProject as createProjectRpc,
@@ -23,10 +23,13 @@
 		addMember as addMemberRpc,
 		removeMember as removeMemberRpc
 	} from '$lib/remote/projects.remote';
-	import { createSshKey as createSshKeyRpc } from '$lib/remote/ssh-keys.remote';
+	import {
+		createSshKey as createSshKeyRpc,
+		deleteSshKey,
+		listSshKeys
+	} from '$lib/remote/ssh-keys.remote';
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
 	import { authClient } from '$lib/auth-client';
-	import { deleteSshKey } from '$lib/remote/ssh-keys.remote';
 	import type { FeatureFlags } from '$lib/feature-flags';
 	import {
 		Server,
@@ -357,7 +360,6 @@
 			await authClient.updateUser({
 				name: profileName
 			});
-			await invalidateAll();
 			profileSaved = true;
 			setTimeout(() => (profileSaved = false), 1500);
 		} catch (error) {
@@ -386,17 +388,18 @@
 		}, 1200);
 	}
 
-	// SSH Keys — from server
+	// SSH Keys
 	let sshKeys = $state<{ id: string; name: string; fingerprint: string }[]>([]);
+	let sshKeysLoaded = $state(false);
 
-	$effect(() => {
-		const keys = data.sshKeys;
-		untrack(() => {
-			sshKeys = keys ?? [];
-		});
-	});
 	let newKeyName = $state('');
 	let newKeyValue = $state('');
+
+	async function loadSshKeys() {
+		if (sshKeysLoaded) return;
+		sshKeys = await listSshKeys();
+		sshKeysLoaded = true;
+	}
 
 	async function addSshKey() {
 		if (!newKeyName.trim() || !newKeyValue.trim()) return;
@@ -493,8 +496,8 @@
 	}
 
 	async function openUserSheet() {
-		await loadTokens();
 		userSheetOpen = true;
+		await Promise.all([loadSshKeys(), loadTokens()]);
 	}
 
 	// Billing
