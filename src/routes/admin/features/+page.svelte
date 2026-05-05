@@ -1,11 +1,20 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import Icon from '$lib/components/icon.svelte';
-	import { featureFlagKeys, featureFlagLabels, type FeatureFlagKey } from '$lib/feature-flags';
+	import {
+		featureFlagKeys,
+		featureFlagLabels,
+		featureFlagDescriptions,
+		featureFlagCategories,
+		featureFlagCategoryLabels,
+		type FeatureFlagKey,
+		type FeatureFlagCategory
+	} from '$lib/feature-flags';
 	import {
 		Plus,
 		Pencil,
@@ -19,7 +28,20 @@
 		HardDrive,
 		Loader2,
 		AlertTriangle,
-		RefreshCw
+		RefreshCw,
+		Terminal,
+		ScrollText,
+		Network,
+		History,
+		CloudUpload,
+		Wrench,
+		Maximize,
+		Ambulance,
+		Settings,
+		Check,
+		X,
+		LayoutGrid,
+		FolderOpen
 	} from '@lucide/svelte';
 	import { AdminState, colorOptions, type AdminPageData } from '$lib/state/admin.svelte';
 
@@ -27,7 +49,22 @@
 		colocation: Server,
 		firewall: Shield,
 		images: Image,
-		volumes: HardDrive
+		volumes: HardDrive,
+		vpsConsole: Terminal,
+		vpsLogs: ScrollText,
+		vpsNetworking: Network,
+		vpsImages: Image,
+		vpsSnapshots: History,
+		vpsBackups: CloudUpload,
+		vpsRebuild: Wrench,
+		vpsResize: Maximize,
+		vpsRescue: Ambulance,
+		vpsSettings: Settings
+	};
+
+	const categoryIcons: Record<FeatureFlagCategory, typeof Server> = {
+		platform: LayoutGrid,
+		server: FolderOpen
 	};
 
 	type AdminTab = 'features' | 'vmTypes' | 'images';
@@ -43,6 +80,14 @@
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
 		return `${mb.toFixed(0)} MB`;
 	}
+
+	const enabledCount = $derived(featureFlagKeys.filter((k) => admin.featureFlags[k]).length);
+	const totalCount = featureFlagKeys.length;
+
+	function toggleFlag(flag: FeatureFlagKey) {
+		if (admin.featureFlagSaving[flag]) return;
+		admin.toggleFeatureFlag(flag, !admin.featureFlags[flag]);
+	}
 </script>
 
 <div class="flex flex-1 flex-col overflow-hidden">
@@ -53,7 +98,7 @@
 			'vmTypes'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			href="/admin"
+			href={resolve('/admin')}
 		>
 			<Cpu class="h-3.5 w-3.5 shrink-0" />
 			VM Types
@@ -64,7 +109,7 @@
 			'images'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			href="/admin/images"
+			href={resolve('/admin/images')}
 		>
 			<Disc class="h-3.5 w-3.5 shrink-0" />
 			Images
@@ -75,13 +120,11 @@
 			'features'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			href="/admin/features"
+			href={resolve('/admin/features')}
 		>
 			<Flag class="h-3.5 w-3.5 shrink-0" />
 			Feature Flags
-			<Badge variant="secondary" class="text-[10px]">
-				{featureFlagKeys.filter((key) => admin.featureFlags[key]).length}
-			</Badge>
+			<Badge variant="secondary" class="text-[10px]">{enabledCount}</Badge>
 		</a>
 		<div class="flex-1"></div>
 		{#if activeTab === 'vmTypes'}
@@ -102,7 +145,7 @@
 	<!-- Content -->
 	<div class="flex-1 overflow-auto">
 		{#if activeTab === 'features'}
-			<div class="flex flex-col gap-4 p-5">
+			<div class="flex flex-col gap-5 p-5">
 				{#if admin.featureFlagError}
 					<div
 						class="flex items-center gap-2 border border-red-700 bg-red-950 px-3 py-2 text-sm text-red-400"
@@ -110,53 +153,107 @@
 						<AlertTriangle class="h-3.5 w-3.5 shrink-0" />{admin.featureFlagError}
 					</div>
 				{/if}
-				<div class="flex flex-col gap-2">
-					{#each featureFlagKeys as flag (flag)}
-						{@const enabled = admin.featureFlags[flag]}
-						{@const Icon = featureFlagIcons[flag]}
-						<div class="flex items-center justify-between px-4 py-3">
-							<div class="flex items-start gap-3">
-								<Icon class="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
-								<div class="flex flex-col gap-0.5">
-									<span class="text-sm font-medium text-gray-100">{featureFlagLabels[flag]}</span>
-									<p class="text-xs text-gray-500">Route visibility and direct access</p>
-								</div>
+
+				<!-- Summary header -->
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-3">
+						<div
+							class="flex h-8 items-center gap-2 rounded-full bg-gray-800/50 px-3 text-xs font-medium text-gray-400"
+						>
+							<span class="text-gray-300">{enabledCount}</span>
+							<span>of</span>
+							<span class="text-gray-300">{totalCount}</span>
+							<span>enabled</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Category cards -->
+				{#each Object.entries(featureFlagCategories) as [category, flags] (category)}
+					{@const CatIcon = categoryIcons[category as FeatureFlagCategory]}
+					{@const catEnabled = flags.filter((f) => admin.featureFlags[f]).length}
+					<div class="border border-gray-800/60 bg-gray-900/30">
+						<div class="flex items-center justify-between border-b border-gray-800/50 px-4 py-3">
+							<div class="flex items-center gap-2.5">
+								<CatIcon class="h-4 w-4 shrink-0 text-gray-500" />
+								<h3 class="text-sm font-semibold text-gray-200">
+									{featureFlagCategoryLabels[category as FeatureFlagCategory]}
+								</h3>
 							</div>
-							<div class="flex items-center gap-2">
-								{#if admin.featureFlagSaving[flag]}
-									<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
+							<div
+								class="flex h-5 items-center rounded-full px-2 text-[10px] font-medium {catEnabled > 0
+									? 'bg-emerald-500/10 text-emerald-400'
+									: 'bg-gray-800 text-gray-500'}"
+							>
+								{#if catEnabled === flags.length}
+									<Check class="mr-1 h-2.5 w-2.5" />All on
+								{:else if catEnabled > 0}
+									{catEnabled}/{flags.length} on
+								{:else}
+									<X class="mr-1 h-2.5 w-2.5" />All off
 								{/if}
-								<div class="flex overflow-hidden border border-gray-800">
-									<button
-										type="button"
-										class="px-3 py-1 text-xs font-medium transition-colors {enabled
-											? 'bg-red-500/15 text-red-400'
-											: 'text-gray-500 hover:text-gray-300'}"
-										onclick={() =>
-											!admin.featureFlagSaving[flag] && admin.toggleFeatureFlag(flag, true)}
-										disabled={admin.featureFlagSaving[flag]}
-									>
-										On
-									</button>
-									<button
-										type="button"
-										class="px-3 py-1 text-xs font-medium transition-colors {!enabled
-											? 'bg-gray-800 text-gray-300'
-											: 'text-gray-500 hover:text-gray-300'}"
-										onclick={() =>
-											!admin.featureFlagSaving[flag] && admin.toggleFeatureFlag(flag, false)}
-										disabled={admin.featureFlagSaving[flag]}
-									>
-										Off
-									</button>
-								</div>
 							</div>
 						</div>
-						{#if flag !== featureFlagKeys[featureFlagKeys.length - 1]}
-							<div class="border-t border-gray-800/50"></div>
-						{/if}
-					{/each}
-				</div>
+						<div class="flex flex-col">
+							{#each flags as flag, i (flag)}
+								{@const enabled = admin.featureFlags[flag]}
+								{@const Icon = featureFlagIcons[flag]}
+								<div
+									class="group flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-gray-800/20 {i !==
+									flags.length - 1
+										? 'border-b border-gray-800/30'
+										: ''}"
+								>
+									<div class="flex items-center gap-3 min-w-0">
+										<div
+											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md {enabled
+												? 'bg-red-500/10 text-red-400'
+												: 'bg-gray-800/50 text-gray-600'}"
+										>
+											<Icon class="h-4 w-4" />
+										</div>
+										<div class="flex flex-col gap-0.5 min-w-0">
+											<div class="flex items-center gap-2">
+												<span class="text-sm font-medium text-gray-100"
+													>{featureFlagLabels[flag]}</span
+												>
+												{#if enabled}
+													<span
+														class="hidden items-center gap-1 text-[10px] font-medium text-emerald-400 sm:flex"
+													><Check class="h-2.5 w-2.5" />Active</span
+													>
+												{/if}
+											</div>
+											<p class="text-xs text-gray-500">
+												{featureFlagDescriptions[flag]}
+											</p>
+										</div>
+									</div>
+									<div class="flex items-center gap-3 shrink-0">
+										{#if admin.featureFlagSaving[flag]}
+											<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
+										{/if}
+										<button
+											type="button"
+											class="group/toggle relative inline-flex w-9 shrink-0 items-center rounded-full border border-transparent bg-gray-700 p-0.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 {enabled
+												? 'bg-red-600'
+												: 'hover:bg-gray-600'}"
+											onclick={() => toggleFlag(flag)}
+											disabled={admin.featureFlagSaving[flag]}
+											aria-label="Toggle {featureFlagLabels[flag]}"
+										>
+											<span
+												class="block aspect-square w-1/2 rounded-full bg-white shadow-xs ring-1 ring-black/5 transition-transform duration-200 {enabled
+													? 'translate-x-full'
+													: 'translate-x-0'}"
+											></span>
+										</button>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
 			</div>
 		{:else if activeTab === 'vmTypes'}
 			{#if admin.vmTypes.length === 0}
@@ -426,7 +523,7 @@
 			<div class="flex flex-col gap-2">
 				<Label>Color</Label>
 				<div class="flex flex-wrap gap-1.5">
-					{#each colorOptions as c}
+					{#each colorOptions as c (c)}
 						<button
 							class="h-6 w-6 border-2 transition-colors {c} {admin.imgColor === c
 								? 'border-white'
@@ -481,7 +578,7 @@
 				/>
 				{#if admin.pveIsos.length > 0}
 					<div class="max-h-32 overflow-y-auto border border-gray-800">
-						{#each admin.pveIsos as iso}
+						{#each admin.pveIsos as iso (iso.volid)}
 							<button
 								class="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors {admin.imgFilePath ===
 								iso.volid

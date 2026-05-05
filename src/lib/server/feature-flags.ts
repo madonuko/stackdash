@@ -14,13 +14,12 @@ const FEATURE_FLAGS_KEY = 'feature-flags';
 function normalizeFeatureFlags(
 	value: Partial<Record<FeatureFlagKey, unknown>> | null | undefined
 ): FeatureFlags {
-	return {
-		colocation:
-			typeof value?.colocation === 'boolean' ? value.colocation : defaultFeatureFlags.colocation,
-		firewall: typeof value?.firewall === 'boolean' ? value.firewall : defaultFeatureFlags.firewall,
-		images: typeof value?.images === 'boolean' ? value.images : defaultFeatureFlags.images,
-		volumes: typeof value?.volumes === 'boolean' ? value.volumes : defaultFeatureFlags.volumes
-	};
+	return Object.fromEntries(
+		featureFlagKeys.map((key) => [
+			key,
+			typeof value?.[key] === 'boolean' ? value[key] : defaultFeatureFlags[key]
+		])
+	) as FeatureFlags;
 }
 
 export async function getFeatureFlags(): Promise<FeatureFlags> {

@@ -4,9 +4,13 @@ import { type } from 'arktype';
 import { requireAdmin } from '$lib/server/auth-context';
 import { initDrizzle } from '$lib/server/db';
 import { setFeatureFlag } from '$lib/server/feature-flags';
+import type { FeatureFlagKey } from '$lib/feature-flags';
+
+const featureFlagParam =
+	"'colocation' | 'firewall' | 'images' | 'volumes' | 'vpsConsole' | 'vpsLogs' | 'vpsNetworking' | 'vpsImages' | 'vpsSnapshots' | 'vpsBackups' | 'vpsRebuild' | 'vpsResize' | 'vpsRescue' | 'vpsSettings'";
 
 const updateFeatureFlagParams = type({
-	flag: "'colocation' | 'firewall' | 'images' | 'volumes'",
+	flag: featureFlagParam,
 	enabled: 'boolean'
 });
 
@@ -19,7 +23,7 @@ export const updateFeatureFlag = command(updateFeatureFlagParams, async (params)
 
 	await requireAdmin(initDrizzle(), event.locals.user.id);
 
-	const featureFlags = await setFeatureFlag(params.flag, params.enabled);
+	const featureFlags = await setFeatureFlag(params.flag as FeatureFlagKey, params.enabled);
 
 	return {
 		featureFlags

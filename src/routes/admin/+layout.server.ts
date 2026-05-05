@@ -6,7 +6,8 @@ import { initDrizzle } from '$lib/server/db';
 import { requireAdmin } from '$lib/server/auth-context';
 import { getFeatureFlags } from '$lib/server/feature-flags';
 
-export const load: LayoutServerLoad = async () => {
+export const load: LayoutServerLoad = async ({ depends }) => {
+	depends('app:feature-flags');
 	const event = getRequestEvent();
 	const userId = event?.locals.user?.id;
 

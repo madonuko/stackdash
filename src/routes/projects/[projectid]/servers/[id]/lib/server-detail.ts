@@ -10,6 +10,7 @@ import {
 	Settings,
 	Terminal
 } from '@lucide/svelte';
+import type { FeatureFlagKey } from '$lib/feature-flags';
 
 export type ServerTab =
 	| 'overview'
@@ -24,16 +25,21 @@ export type ServerTab =
 	| 'rescue'
 	| 'settings';
 
-export const serverTabs: { id: ServerTab; label: string; icon: typeof BarChart3 }[] = [
+export const serverTabs: {
+	id: ServerTab;
+	label: string;
+	icon: typeof BarChart3;
+	featureFlag?: FeatureFlagKey;
+}[] = [
 	{ id: 'overview', label: 'Overview', icon: BarChart3 },
-	{ id: 'console', label: 'Console', icon: Terminal },
-	{ id: 'logs', label: 'Logs', icon: FileText },
-	{ id: 'networking', label: 'Networking', icon: Globe },
-	{ id: 'images', label: 'Images', icon: Disc },
-	{ id: 'snapshots', label: 'Snapshots', icon: Camera },
-	{ id: 'backups', label: 'Backups', icon: Clock },
-	{ id: 'rebuild', label: 'Rebuild', icon: RotateCw },
-	{ id: 'resize', label: 'Resize', icon: ArrowUpDown },
-	{ id: 'rescue', label: 'Rescue', icon: Terminal },
-	{ id: 'settings', label: 'Settings', icon: Settings }
+	{ id: 'console', label: 'Console', icon: Terminal, featureFlag: 'vpsConsole' },
+	{ id: 'logs', label: 'Logs', icon: FileText, featureFlag: 'vpsLogs' },
+	{ id: 'networking', label: 'Networking', icon: Globe, featureFlag: 'vpsNetworking' },
+	{ id: 'images', label: 'Images', icon: Disc, featureFlag: 'vpsImages' },
+	{ id: 'snapshots', label: 'Snapshots', icon: Camera, featureFlag: 'vpsSnapshots' },
+	{ id: 'backups', label: 'Backups', icon: Clock, featureFlag: 'vpsBackups' },
+	{ id: 'rebuild', label: 'Rebuild', icon: RotateCw, featureFlag: 'vpsRebuild' },
+	{ id: 'resize', label: 'Resize', icon: ArrowUpDown, featureFlag: 'vpsResize' },
+	{ id: 'rescue', label: 'Rescue', icon: Terminal, featureFlag: 'vpsRescue' },
+	{ id: 'settings', label: 'Settings', icon: Settings, featureFlag: 'vpsSettings' }
 ];

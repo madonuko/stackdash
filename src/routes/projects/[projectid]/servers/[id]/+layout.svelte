@@ -1,24 +1,43 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Play, Power, PowerOff, RotateCw } from '@lucide/svelte';
+	import type { FeatureFlags } from '$lib/feature-flags';
 	import { killVm, rebootVm, startVm, stopVm } from '$lib/remote/vms.remote';
 	import { getServerWithFallback } from '$lib/state/servers.svelte';
 	import { serverTabs, type ServerTab } from './lib/server-detail';
 
+	type ServerTabHref =
+		| `/projects/${string}/servers/${string}`
+		| `/projects/${string}/servers/${string}/backups`
+		| `/projects/${string}/servers/${string}/console`
+		| `/projects/${string}/servers/${string}/images`
+		| `/projects/${string}/servers/${string}/logs`
+		| `/projects/${string}/servers/${string}/networking`
+		| `/projects/${string}/servers/${string}/rebuild`
+		| `/projects/${string}/servers/${string}/rescue`
+		| `/projects/${string}/servers/${string}/resize`
+		| `/projects/${string}/servers/${string}/settings`
+		| `/projects/${string}/servers/${string}/snapshots`;
+
 	let { data, children } = $props();
 	let powerLoading = $state(false);
+	const featureFlags = $derived((data.featureFlags ?? {}) as FeatureFlags);
+	const visibleServerTabs = $derived(
+		serverTabs.filter((tab) => !tab.featureFlag || featureFlags[tab.featureFlag])
+	);
 	let selectedServer = $derived(getServerWithFallback(data.serverId, data.server));
 	let serverId = $derived(selectedServer.id);
 	let activeTab = $derived.by<ServerTab>(() => {
 		const tab = page.url.pathname.split('/').pop();
-		return serverTabs.some((entry) => entry.id === tab) ? (tab as ServerTab) : 'overview';
+		return visibleServerTabs.some((entry) => entry.id === tab) ? (tab as ServerTab) : 'overview';
 	});
 
-	function tabHref(tab: ServerTab) {
+	function tabHref(tab: ServerTab): ServerTabHref {
 		const base = `/projects/${page.params.projectid}/servers/${serverId}`;
-		return tab === 'overview' ? base : `${base}/${tab}`;
+		return (tab === 'overview' ? base : `${base}/${tab}`) as ServerTabHref;
 	}
 
 	async function power(action: 'start' | 'shutdown' | 'kill' | 'restart') {
@@ -118,13 +137,13 @@
 </div>
 
 <div class="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-gray-800 px-2">
-	{#each serverTabs as tab (tab.id)}
+	{#each visibleServerTabs as tab (tab.id)}
 		<a
 			class="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors duration-100 {activeTab ===
 			tab.id
 				? 'border-b-2 border-red-500 text-gray-50'
 				: 'text-gray-500 hover:text-gray-300'}"
-			href={tabHref(tab.id)}
+			href={resolve(tabHref(tab.id))}
 			data-sveltekit-preload-data="hover"
 		>
 			<tab.icon class="h-3 w-3" />

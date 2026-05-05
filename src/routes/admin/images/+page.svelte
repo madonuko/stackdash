@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
@@ -23,7 +24,7 @@
 	} from '@lucide/svelte';
 	import { AdminState, colorOptions, type AdminPageData } from '$lib/state/admin.svelte';
 
-	const featureFlagIcons: Record<FeatureFlagKey, typeof Server> = {
+	const featureFlagIcons: Partial<Record<FeatureFlagKey, typeof Server>> = {
 		colocation: Server,
 		firewall: Shield,
 		images: Image,
@@ -53,7 +54,7 @@
 			'vmTypes'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			href="/admin"
+			href={resolve('/admin')}
 		>
 			<Cpu class="h-3.5 w-3.5 shrink-0" />
 			VM Types
@@ -64,7 +65,7 @@
 			'images'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			href="/admin/images"
+			href={resolve('/admin/images')}
 		>
 			<Disc class="h-3.5 w-3.5 shrink-0" />
 			Images
@@ -75,7 +76,7 @@
 			'features'
 				? 'border-red-500 text-gray-100'
 				: 'border-transparent text-gray-500 hover:text-gray-300'}"
-			href="/admin/features"
+			href={resolve('/admin/features')}
 		>
 			<Flag class="h-3.5 w-3.5 shrink-0" />
 			Feature Flags
@@ -113,7 +114,7 @@
 				<div class="flex flex-col gap-2">
 					{#each featureFlagKeys as flag (flag)}
 						{@const enabled = admin.featureFlags[flag]}
-						{@const Icon = featureFlagIcons[flag]}
+						{@const Icon = featureFlagIcons[flag] ?? Flag}
 						<div class="flex items-center justify-between px-4 py-3">
 							<div class="flex items-start gap-3">
 								<Icon class="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
@@ -426,7 +427,7 @@
 			<div class="flex flex-col gap-2">
 				<Label>Color</Label>
 				<div class="flex flex-wrap gap-1.5">
-					{#each colorOptions as c}
+					{#each colorOptions as c (c)}
 						<button
 							class="h-6 w-6 border-2 transition-colors {c} {admin.imgColor === c
 								? 'border-white'
@@ -481,7 +482,7 @@
 				/>
 				{#if admin.pveIsos.length > 0}
 					<div class="max-h-32 overflow-y-auto border border-gray-800">
-						{#each admin.pveIsos as iso}
+						{#each admin.pveIsos as iso (iso.volid)}
 							<button
 								class="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors {admin.imgFilePath ===
 								iso.volid

@@ -1,7 +1,14 @@
 import { createImage, deleteImage, listProxmoxIsos, updateImage } from '$lib/remote/images.remote';
+import { invalidate } from '$app/navigation';
 import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
 import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
-import type { FeatureFlagKey, FeatureFlags } from '$lib/feature-flags';
+import { untrack } from 'svelte';
+import {
+	defaultFeatureFlags,
+	featureFlagKeys,
+	type FeatureFlagKey,
+	type FeatureFlags
+} from '$lib/feature-flags';
 
 export type VmIsa = 'x86' | 'arm' | 'risc-v';
 
@@ -41,13 +48,6 @@ export type AdminPageData = {
 	featureFlags?: FeatureFlags;
 };
 
-const defaultFeatureFlags: FeatureFlags = {
-	colocation: false,
-	firewall: false,
-	images: false,
-	volumes: false
-};
-
 export const colorOptions = [
 	'bg-blue-500',
 	'bg-sky-600',
@@ -67,17 +67,20 @@ function toIsa(value: string): VmIsa {
 	return value === 'arm' || value === 'risc-v' ? value : 'x86';
 }
 
+function createFeatureFlagSaving() {
+	return Object.fromEntries(featureFlagKeys.map((key) => [key, false])) as Record<
+		FeatureFlagKey,
+		boolean
+	>;
+}
+
 export class AdminState {
 	vmTypes = $state<VmType[]>([]);
 	images = $state<BaseImage[]>([]);
 	featureFlags = $state<FeatureFlags>({ ...defaultFeatureFlags });
-	featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>({
-		colocation: false,
-		firewall: false,
-		images: false,
-		volumes: false
-	});
+	featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>(createFeatureFlagSaving());
 	featureFlagError = $state('');
+	featureFlagSyncCooldowns = $state<Partial<Record<FeatureFlagKey, number>>>({});
 	vtDialogOpen = $state(false);
 	vtEditing = $state<VmType | null>(null);
 	vtSaving = $state(false);
@@ -108,16 +111,32 @@ export class AdminState {
 	sync(data: AdminPageData) {
 		this.vmTypes = [...(data.vmTypes ?? [])];
 		this.images = [...(data.images ?? [])];
-		this.featureFlags = data.featureFlags ?? { ...defaultFeatureFlags };
+		const incoming = data.featureFlags ?? { ...defaultFeatureFlags };
+		this.featureFlags = untrack(() =>
+			Object.fromEntries(
+				featureFlagKeys.map((key) => [
+					key,
+					this.featureFlagSyncCooldowns[key] && Date.now() < this.featureFlagSyncCooldowns[key]
+						? this.featureFlags[key]
+						: incoming[key]
+				])
+			)
+		) as FeatureFlags;
 	}
 
 	async toggleFeatureFlag(flag: FeatureFlagKey, enabled: boolean) {
+		const previousEnabled = this.featureFlags[flag];
 		this.featureFlagError = '';
 		this.featureFlagSaving[flag] = true;
+		this.featureFlagSyncCooldowns[flag] = Date.now() + 2000;
+		this.featureFlags = { ...this.featureFlags, [flag]: enabled };
 		try {
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 			const result = await updateFeatureFlag({ flag, enabled });
 			this.featureFlags = result.featureFlags;
+			await invalidate('app:feature-flags');
 		} catch (err) {
+			this.featureFlags = { ...this.featureFlags, [flag]: previousEnabled };
 			this.featureFlagError = err instanceof Error ? err.message : 'Failed to update feature flag';
 		} finally {
 			this.featureFlagSaving[flag] = false;
