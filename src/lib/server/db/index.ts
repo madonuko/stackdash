@@ -21,6 +21,9 @@ function getPool(connectionString: string) {
 			max: 5,
 			...(useSystemSsl ? { ssl: { rejectUnauthorized: true } } : {})
 		});
+		pool.on('error', (error) => {
+			console.error('Unexpected error on idle PostgreSQL client', error);
+		});
 		pools.set(connectionString, pool);
 	}
 
