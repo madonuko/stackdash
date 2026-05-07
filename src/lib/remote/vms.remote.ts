@@ -247,7 +247,8 @@ const createParams = type({
 	vmTypeId: 'string',
 	name: 'string',
 	imageId: 'string?',
-	sshKeyIds: 'string[]?'
+	sshKeyIds: 'string[]?',
+	password: 'string?'
 });
 export const createVm = command(createParams, async (params) => {
 	const event = getRequestEvent();
@@ -309,6 +310,7 @@ export const createVm = command(createParams, async (params) => {
 			imageId: params.imageId,
 			imageSource: baseImage?.filePath,
 			sshKeys: publicKeys,
+			password: params.password,
 			onProvisionSettled: ({ ok, error: err }) => {
 				const db = initDrizzle();
 				db.update(vms)

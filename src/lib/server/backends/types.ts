@@ -40,6 +40,7 @@ export interface VmCreateParams {
 	imageId?: string;
 	imageSource?: string;
 	sshKeys?: string[];
+	password?: string;
 	/** Called when async provisioning (e.g. image import) finishes or fails. */
 	onProvisionSettled?: (result: { ok: boolean; error?: string }) => void;
 }

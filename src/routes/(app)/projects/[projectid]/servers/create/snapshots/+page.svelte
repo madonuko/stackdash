@@ -7,7 +7,7 @@
 	import { createVolume as createProjectVolume } from '$lib/remote/volumes.remote';
 	import { createVm } from '$lib/remote/vms.remote';
 	import Icon from '$lib/components/icon.svelte';
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import {
 		ArrowLeft,
 		HardDrive,
@@ -16,7 +16,10 @@
 		Key,
 		Loader2,
 		Check,
+		Copy,
 		Circle,
+		Eye,
+		EyeOff,
 		HardDriveUpload,
 		Plus,
 		X
@@ -76,6 +79,9 @@
 	let networkingOption = $state<'both' | 'ipv4' | 'ipv6' | 'none'>('both');
 	let selectedVpcId = $state<string>('');
 	let selectedSshKeyIds = $state<string[]>([]);
+	let serverPassword = $state('');
+	let showServerPassword = $state(false);
+	let passwordCopied = $state(false);
 	let selectedVolumeIds = $state<string[]>([]);
 
 	type SelectableVolume = { id: string; name: string; sizeGb: number };
@@ -99,6 +105,7 @@
 		selectedImage?.versions.find((v) => v.version === selectedImageVersion) ?? null
 	);
 	let selectedPlan = $derived(vmTypes.find((t) => t.id === selectedPlanId) ?? null);
+	let usePasswordAuthentication = $derived(selectedSshKeyIds.length === 0);
 
 	type Section = {
 		id: string;
@@ -123,7 +130,7 @@
 			isComplete: selectedPlanId !== null
 		},
 		{ id: 'networking', label: 'Networking', icon: Globe, isComplete: true },
-		{ id: 'ssh', label: 'SSH Keys', icon: Key, isComplete: true }
+		{ id: 'ssh', label: 'Authentication', icon: Key, isComplete: true }
 	]);
 
 	let imagesSearch = $state('');
@@ -147,6 +154,25 @@
 			);
 		});
 	});
+
+	onMount(() => {
+		serverPassword = generatePassword();
+	});
+
+	function randomIndex(max: number): number {
+		if (globalThis.crypto?.getRandomValues) {
+			const value = new Uint32Array(1);
+			globalThis.crypto.getRandomValues(value);
+			return value[0] % max;
+		}
+
+		return Math.floor(Math.random() * max);
+	}
+
+	function generatePassword(): string {
+		const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()-_=+';
+		return Array.from({ length: 24 }, () => chars[randomIndex(chars.length)]).join('');
+	}
 
 	function filteredOfficialImages(): OfficialImage[] {
 		if (!imagesSearch.trim()) return officialImages;
@@ -212,8 +238,19 @@
 		return `${fp.slice(0, 12)}...${fp.slice(-8)}`;
 	}
 
+	async function copyServerPassword() {
+		if (!serverPassword) return;
+		await navigator.clipboard.writeText(serverPassword);
+		passwordCopied = true;
+		window.setTimeout(() => {
+			passwordCopied = false;
+		}, 1500);
+	}
+
 	async function handleCreate() {
-		if (!serverName.trim() || !selectedPlanId) return;
+		if (!serverName.trim() || !selectedPlanId || (usePasswordAuthentication && !serverPassword.trim())) {
+			return;
+		}
 
 		const projectId = page.params.projectid;
 		if (!projectId) {
@@ -235,7 +272,8 @@
 				vmTypeId: selectedPlanId,
 				name: serverName.trim(),
 				...(imageId ? { imageId } : {}),
-				...(selectedSshKeyIds.length > 0 ? { sshKeyIds: selectedSshKeyIds } : {})
+				...(selectedSshKeyIds.length > 0 ? { sshKeyIds: selectedSshKeyIds } : {}),
+				...(usePasswordAuthentication ? { password: serverPassword.trim() } : {})
 			};
 			await createVm(payload);
 			goto(`/projects/${page.params.projectid}/servers`);
@@ -656,11 +694,14 @@
 						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
 							<Key class="h-3.5 w-3.5 text-red-400" />
 							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
-								>SSH Keys</span
+								>Authentication</span
 							>
 						</div>
 						<div class="mt-3">
 							{#if data.sshKeys && data.sshKeys.length > 0}
+								<p class="mb-2 text-xs text-gray-500">
+									Select one or more SSH keys, or use the generated root password below.
+								</p>
 								<div class="flex flex-col gap-1">
 									{#each data.sshKeys as key (key.id)}
 										<label
@@ -696,6 +737,51 @@
 									<p class="text-xs text-gray-500">No SSH keys available.</p>
 									<p class="mt-1 text-[11px] text-gray-600">
 										Password authentication will be used instead.
+									</p>
+								</div>
+							{/if}
+							{#if usePasswordAuthentication}
+								<div class="mt-3">
+									<label for="server-password" class="mb-1.5 block text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+										>Root Password</label
+									>
+									<div class="flex">
+										<input
+											id="server-password"
+											name="serverPassword"
+											type={showServerPassword ? 'text' : 'password'}
+											bind:value={serverPassword}
+											class="h-9 min-w-0 flex-1 border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-red-500 focus:outline-none"
+											placeholder="Generated password"
+										/>
+										<button
+											type="button"
+											class="flex h-9 w-9 items-center justify-center border-y border-gray-700 bg-gray-800 text-gray-400 transition-colors hover:text-gray-200"
+											aria-label={showServerPassword ? 'Hide password' : 'Show password'}
+											onclick={() => (showServerPassword = !showServerPassword)}
+										>
+											{#if showServerPassword}
+												<EyeOff class="h-3.5 w-3.5" />
+											{:else}
+												<Eye class="h-3.5 w-3.5" />
+											{/if}
+										</button>
+										<button
+											type="button"
+											class="flex h-9 w-9 items-center justify-center border border-gray-700 bg-gray-800 text-gray-400 transition-colors hover:text-gray-200"
+											aria-label="Copy password"
+											disabled={!serverPassword}
+											onclick={copyServerPassword}
+										>
+											{#if passwordCopied}
+												<Check class="h-3.5 w-3.5 text-emerald-500" />
+											{:else}
+												<Copy class="h-3.5 w-3.5" />
+											{/if}
+										</button>
+									</div>
+									<p class="mt-1.5 text-[11px] text-gray-600">
+										Save this password now. It will not be shown after the server is created.
 									</p>
 								</div>
 							{/if}
@@ -781,8 +867,13 @@
 							{/if}
 							{#if selectedSshKeyIds.length > 0}
 								<div class="flex items-center justify-between text-xs">
-									<span class="text-gray-500">SSH Keys</span>
-									<span class="text-gray-200">{selectedSshKeyIds.length} selected</span>
+									<span class="text-gray-500">Authentication</span>
+									<span class="text-gray-200">{selectedSshKeyIds.length} SSH key{selectedSshKeyIds.length === 1 ? '' : 's'}</span>
+								</div>
+							{:else}
+								<div class="flex items-center justify-between text-xs">
+									<span class="text-gray-500">Authentication</span>
+									<span class="text-gray-200">Password</span>
 								</div>
 							{/if}
 							{#if selectedPlan?.rate}
@@ -798,7 +889,10 @@
 				<div class="border-t border-gray-800 px-4 py-3">
 					<Button
 						class="w-full"
-						disabled={!serverName.trim() || !selectedPlanId || creating}
+						disabled={!serverName.trim() ||
+							!selectedPlanId ||
+							(usePasswordAuthentication && !serverPassword.trim()) ||
+							creating}
 						onclick={handleCreate}
 					>
 						{#if creating}

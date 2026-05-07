@@ -166,6 +166,15 @@ export class ProxmoxBackend implements VmBackend {
 		const sshKeysEncoded = params.sshKeys
 			? encodeURIComponent(params.sshKeys.join('\n'))
 			: undefined;
+		const cloudInitAuth =
+			sshKeysEncoded || params.password
+				? {
+						ciuser: 'root',
+						...(sshKeysEncoded ? { sshkeys: sshKeysEncoded } : {}),
+						...(params.password ? { cipassword: params.password } : {}),
+						ipconfig0: 'ip=dhcp'
+					}
+				: {};
 		const bootDisk = 'virtio0';
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
@@ -200,9 +209,7 @@ export class ProxmoxBackend implements VmBackend {
 					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
 						ide2: 'local-lvm:cloudinit',
 						boot: `order=${bootDisk}`,
-						...(sshKeysEncoded
-							? { ciuser: 'root', sshkeys: sshKeysEncoded, ipconfig0: 'ip=dhcp' }
-							: {})
+						...cloudInitAuth
 					});
 					await this.client.waitForTask(node.node, cloudInitUpid);
 					if (params.diskGb > 0) {
