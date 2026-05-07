@@ -306,9 +306,6 @@
 		await Promise.all([loadSshKeys(), loadTokens()]);
 	}
 
-	// Billing
-	// (no extra state needed — shown in user sheet)
-
 	// Command palette
 	let commandOpen = $state(false);
 	let commandSearch = $state('');
@@ -362,7 +359,6 @@
 		{ icon: User, label: 'Profile', action: openUserSheet },
 		{ icon: Key, label: 'SSH Keys', action: openUserSheet },
 		{ icon: KeyRound, label: 'API Tokens', action: openUserSheet },
-		{ icon: CreditCard, label: 'Billing', action: openUserSheet },
 		{ icon: KeyRound, label: 'Change Password', action: openUserSheet }
 	];
 	const filteredNavigateCommands = $derived.by(() =>
@@ -852,46 +848,6 @@
 							<Plus class="h-3 w-3" />
 							Generate
 						</Button>
-					</div>
-				</div>
-
-				<!-- Billing -->
-				<div class="rounded-xs border border-gray-800/60 p-4">
-					<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
-						<CreditCard class="h-3.5 w-3.5 text-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Billing</p>
-					</div>
-					<div class="divide-y divide-gray-800/50">
-						<div class="flex items-center justify-between py-2.5 first:pt-0">
-							<span class="text-sm text-gray-400">Current Balance</span>
-							<span class="text-sm font-semibold text-gray-100 tabular-nums">$0.00</span>
-						</div>
-						<div class="flex items-center justify-between py-2.5">
-							<span class="text-sm text-gray-400">Monthly Estimate</span>
-							<span class="text-sm font-medium text-gray-200 tabular-nums">$26.00</span>
-						</div>
-						<div class="flex items-center justify-between py-2.5">
-							<span class="text-sm text-gray-400">Payment Method</span>
-							<span class="text-sm text-gray-200">Visa ending 4242</span>
-						</div>
-						<div class="flex items-center justify-between py-2.5 last:pb-0">
-							<span class="text-sm text-gray-400">Next Invoice</span>
-							<span class="text-sm text-gray-200">May 1, 2026</span>
-						</div>
-					</div>
-
-					<div class="mt-3 border-t border-gray-800/50 pt-3">
-						<p class="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-							Active Resources
-						</p>
-						<div class="divide-y divide-gray-800/30">
-							{#each [{ name: 'vps-747762', plan: 'STACK-XXS', cost: '$5.00/mo' }, { name: 'vps-742736', plan: 'STACK-SM', cost: '$20.00/mo' }, { name: 'Backups', plan: '2 servers', cost: '$1.00/mo' }] as resource (resource.name)}
-								<div class="flex items-center justify-between py-2">
-									<span class="text-xs text-gray-300">{resource.name} ({resource.plan})</span>
-									<span class="text-xs text-gray-400 tabular-nums">{resource.cost}</span>
-								</div>
-							{/each}
-						</div>
 					</div>
 				</div>
 
