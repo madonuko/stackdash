@@ -181,7 +181,8 @@
 								</h3>
 							</div>
 							<div
-								class="flex h-5 items-center rounded-full px-2 text-[10px] font-medium {catEnabled > 0
+								class="flex h-5 items-center rounded-full px-2 text-[10px] font-medium {catEnabled >
+								0
 									? 'bg-emerald-500/10 text-emerald-400'
 									: 'bg-gray-800 text-gray-500'}"
 							>
@@ -204,7 +205,7 @@
 										? 'border-b border-gray-800/30'
 										: ''}"
 								>
-									<div class="flex items-center gap-3 min-w-0">
+									<div class="flex min-w-0 items-center gap-3">
 										<div
 											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md {enabled
 												? 'bg-red-500/10 text-red-400'
@@ -212,7 +213,7 @@
 										>
 											<Icon class="h-4 w-4" />
 										</div>
-										<div class="flex flex-col gap-0.5 min-w-0">
+										<div class="flex min-w-0 flex-col gap-0.5">
 											<div class="flex items-center gap-2">
 												<span class="text-sm font-medium text-gray-100"
 													>{featureFlagLabels[flag]}</span
@@ -220,7 +221,7 @@
 												{#if enabled}
 													<span
 														class="hidden items-center gap-1 text-[10px] font-medium text-emerald-400 sm:flex"
-													><Check class="h-2.5 w-2.5" />Active</span
+														><Check class="h-2.5 w-2.5" />Active</span
 													>
 												{/if}
 											</div>
@@ -229,7 +230,7 @@
 											</p>
 										</div>
 									</div>
-									<div class="flex items-center gap-3 shrink-0">
+									<div class="flex shrink-0 items-center gap-3">
 										{#if admin.featureFlagSaving[flag]}
 											<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
 										{/if}
