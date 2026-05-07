@@ -812,10 +812,7 @@
 						{#if selectedColoImage.icon}
 							<Icon name={selectedColoImage.icon} class="h-14 w-14 text-gray-300" />
 						{:else}
-							<span
-								class="flex h-14 w-14 items-center justify-center text-2xl font-bold text-gray-300"
-								>{selectedColoImage.shortName}</span
-							>
+							<Disc class="h-14 w-14 text-gray-300" />
 						{/if}
 					</div>
 					<div class="flex-1">

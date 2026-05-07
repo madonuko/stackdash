@@ -4,7 +4,16 @@ import { ProxmoxBackend } from './proxmox';
 import { ProxmoxClient } from './proxmox/client';
 import { getBackendEnv } from './env';
 
-export type { VmBackend, VmInfo, VmCreateParams, VmCreateResult, VmStatus } from './types';
+export type {
+	BackendImage,
+	BackendImageImportTarget,
+	BackendImageImportParams,
+	VmBackend,
+	VmInfo,
+	VmCreateParams,
+	VmCreateResult,
+	VmStatus
+} from './types';
 
 let cached: { key: string; backend: VmBackend } | null = null;
 

@@ -255,11 +255,7 @@
 									<span
 										class="flex h-7 w-7 shrink-0 items-center justify-center text-[10px] font-bold text-white {img.color}"
 									>
-										{#if img.icon}
-											{img.icon}
-										{:else}
-											{img.shortName || img.name.slice(0, 2).toUpperCase()}
-										{/if}
+										<Disc class="h-3.5 w-3.5" />
 									</span>
 									<span class="text-sm font-medium text-gray-100">{img.name}</span>
 								</div>
@@ -324,9 +320,7 @@
 					bind:value={admin.vtIsa}
 					class="h-9 w-full border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-gray-500 focus:outline-none"
 				>
-					<option value="x86">x86</option><option value="arm">arm</option><option value="risc-v"
-						>risc-v</option
-					>
+					<option value="x86">x86</option>
 				</select>
 			</div>
 			<div class="grid grid-cols-3 gap-3">
@@ -402,21 +396,12 @@
 
 			<div class="grid grid-cols-2 gap-3">
 				<div class="flex flex-col gap-2">
-					<Label>Short Name</Label><Input
-						bind:value={admin.imgShortName}
-						placeholder="Fe"
-						maxlength={3}
-					/>
-				</div>
-				<div class="flex flex-col gap-2">
 					<Label>Architecture</Label>
 					<select
 						bind:value={admin.imgIsa}
 						class="h-9 w-full border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-gray-500 focus:outline-none"
 					>
-						<option value="x86">x86</option><option value="arm">arm</option><option value="risc-v"
-							>risc-v</option
-						>
+						<option value="x86">x86</option>
 					</select>
 				</div>
 			</div>
@@ -466,31 +451,35 @@
 				{/if}
 			</div>
 
-			<!-- Proxmox ISO Path -->
+			<!-- Proxmox import image -->
 			<div class="flex flex-col gap-2">
 				<div class="flex items-center justify-between">
-					<Label>Proxmox ISO Path</Label>
+					<Label>Proxmox Image</Label>
 					<Button
 						variant="ghost"
 						size="sm"
 						class="h-6 gap-1 px-2 text-[10px] text-gray-500"
-						onclick={() => admin.loadPveIsos()}
+						onclick={() => admin.loadPveImages()}
 						disabled={admin.isoLoading}
 					>
 						{#if admin.isoLoading}<Loader2 class="h-3 w-3 animate-spin" />{:else}<RefreshCw
 								class="h-3 w-3"
 							/>{/if}
-						Scan Nodes
+						Refresh
 					</Button>
 				</div>
-				<Input
+				<select
 					bind:value={admin.imgFilePath}
-					placeholder="local:iso/Fedora-Server-dvd-x86_64-42-1.1.iso"
-					class="font-mono text-xs"
-				/>
-				{#if admin.pveIsos.length > 0}
+					class="h-9 w-full border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 focus:border-gray-500 focus:outline-none"
+				>
+					<option value="">Select an imported Proxmox image</option>
+					{#each admin.pveImages as image (image.volid)}
+						<option value={image.volid}>{image.volid} · {formatSize(image.size)}</option>
+					{/each}
+				</select>
+				{#if admin.pveImages.length > 0}
 					<div class="max-h-32 overflow-y-auto border border-gray-800">
-						{#each admin.pveIsos as iso (iso.volid)}
+						{#each admin.pveImages as iso (iso.volid)}
 							<button
 								class="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors {admin.imgFilePath ===
 								iso.volid

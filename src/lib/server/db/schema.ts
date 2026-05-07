@@ -294,12 +294,16 @@ export const apiTokens = pgTable(
 
 export const baseImages = pgTable('base_images', {
 	id: ulidPk(),
-	filePath: text('file_path').notNull(), // Proxmox storage path: "local:iso/Fedora-Server-dvd-x86_64-42-1.1.iso"
+	filePath: text('file_path').notNull(), // Proxmox storage path: "local:import/debian-12.qcow2"
 	name: text('name').notNull(),
 	version: text('version').notNull(),
 	description: text('description').notNull(),
 	shortName: text('short_name').notNull().default(''),
 	icon: text('icon'),
-	color: text('color').notNull().default('bg-gray-600'), // Tailwind bg class
+	color: text('color').notNull().default('bg-gray-600'), // legacy Tailwind bg class
+	isOfficial: boolean('is_official').notNull().default(false),
+	logoSvg: text('logo_svg'),
+	accentColor: text('accent_color').notNull().default('#6b7280'),
+	imageType: text('image_type').notNull().default('qcow2'),
 	isa: vmIsaEnum('isa').notNull()
 });

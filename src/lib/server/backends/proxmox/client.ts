@@ -220,7 +220,7 @@ export class ProxmoxClient {
 	async listStorageContent(
 		node: string,
 		storage: string,
-		content?: 'iso' | 'vztmpl' | 'backup' | 'images' | 'rootdir'
+		content?: 'iso' | 'vztmpl' | 'backup' | 'images' | 'rootdir' | 'import'
 	): Promise<PveStorageContent[]> {
 		const searchParams: Record<string, string> = {};
 		if (content) searchParams['content'] = content;
@@ -231,6 +231,44 @@ export class ProxmoxClient {
 			})
 			.json<PveResponse<PveStorageContent[]>>();
 		return res.data;
+	}
+
+	async importStorageContentFromUrl(
+		node: string,
+		storage: string,
+		params: {
+			url: string;
+			filename: string;
+			content: 'import';
+			checksum?: string;
+			checksumAlgorithm?: 'md5' | 'sha1' | 'sha224' | 'sha256' | 'sha384' | 'sha512';
+			verifyCertificates?: boolean;
+		}
+	): Promise<string> {
+		const payload = {
+			url: params.url,
+			filename: params.filename,
+			content: params.content,
+			checksum: params.checksum,
+			'checksum-algorithm': params.checksumAlgorithm,
+			'verify-certificates': params.verifyCertificates === false ? 0 : 1
+		};
+
+		try {
+			const res = await this.api
+				.post(
+					`nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/download-url`,
+					{
+						body: this.toForm(payload),
+						timeout: 120_000
+					}
+				)
+				.json<PveResponse<string>>();
+			return res.data;
+		} catch (error) {
+			await this.logHttpError(`importStorageContentFromUrl(${node}, ${storage})`, error, payload);
+			throw error;
+		}
 	}
 
 	// Tasks

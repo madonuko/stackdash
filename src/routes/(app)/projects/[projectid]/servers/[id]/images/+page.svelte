@@ -207,11 +207,7 @@
 							{#if image.icon}
 								<Icon name={image.icon} class="h-10 w-10 text-gray-300" />
 							{:else}
-								<span
-									class="flex h-10 w-10 items-center justify-center text-lg font-bold text-gray-300"
-								>
-									{image.shortName}
-								</span>
+								<Disc class="h-10 w-10 text-gray-300" />
 							{/if}
 						</div>
 						<div class="relative flex min-w-0 flex-1 flex-col">

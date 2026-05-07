@@ -23,11 +23,29 @@ export interface VmMetrics {
 	diskWrite?: number;
 }
 
-export interface BackendIso {
+export interface BackendImage {
 	volid: string;
 	filename: string;
 	size: number;
 	node: string;
+	storage: string;
+	content: 'import';
+	format: string;
+}
+
+export interface BackendImageImportTarget {
+	node: string;
+	storage: string;
+}
+
+export interface BackendImageImportParams {
+	node: string;
+	storage: string;
+	url: string;
+	filename: string;
+	checksum?: string;
+	checksumAlgorithm?: 'md5' | 'sha1' | 'sha224' | 'sha256' | 'sha384' | 'sha512';
+	verifyCertificates?: boolean;
 }
 
 export interface VmCreateParams {
@@ -61,5 +79,11 @@ export interface VmBackend {
 	stopVm(id: string, proxmoxId?: number): Promise<void>;
 	killVm(id: string, proxmoxId?: number): Promise<void>;
 	rebootVm(id: string, proxmoxId?: number): Promise<void>;
-	listIsos(): Promise<BackendIso[]>;
+	listImages(): Promise<BackendImage[]>;
+	listImageImportTargets(): Promise<BackendImageImportTarget[]>;
+	importImageFromUrl(params: BackendImageImportParams): Promise<string>;
+	getTaskStatus(
+		node: string,
+		upid: string
+	): Promise<{ status: 'running' | 'stopped'; exitstatus?: string }>;
 }

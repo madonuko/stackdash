@@ -3,10 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { officialImages, type OfficialImage } from '$lib/data/images';
 	import { createVolume as createProjectVolume } from '$lib/remote/volumes.remote';
 	import { createVm } from '$lib/remote/vms.remote';
-	import Icon from '$lib/components/icon.svelte';
 	import { onMount, untrack } from 'svelte';
 	import {
 		ArrowLeft,
@@ -55,11 +53,14 @@
 		id: string;
 		name: string;
 		version: string;
-		shortName: string;
 		color: string;
 		icon: string | null;
 		filePath: string;
 		description: string;
+		isOfficial: boolean;
+		logoSvg: string | null;
+		accentColor: string;
+		imageType: string;
 	};
 
 	type ExistingVolume = {
@@ -71,6 +72,8 @@
 
 	const vmTypes = $derived(data.vmTypes ?? []);
 	const dbImages = $derived(data.dbImages ?? []);
+	const officialDbImages = $derived(dbImages.filter((image) => image.isOfficial));
+	const customDbImages = $derived(dbImages.filter((image) => !image.isOfficial));
 
 	let serverName = $state('');
 	let selectedImageId = $state<string | null>(null);
@@ -100,10 +103,7 @@
 	let creating = $state(false);
 	let createError = $state('');
 
-	let selectedImage = $derived(officialImages.find((i) => i.id === selectedImageId) ?? null);
-	let selectedImageVersionObj = $derived(
-		selectedImage?.versions.find((v) => v.version === selectedImageVersion) ?? null
-	);
+	let selectedImage = $derived(dbImages.find((i) => i.id === selectedImageId) ?? null);
 	let selectedPlan = $derived(vmTypes.find((t) => t.id === selectedPlanId) ?? null);
 	let usePasswordAuthentication = $derived(selectedSshKeyIds.length === 0);
 
@@ -174,13 +174,11 @@
 		return Array.from({ length: 24 }, () => chars[randomIndex(chars.length)]).join('');
 	}
 
-	function filteredOfficialImages(): OfficialImage[] {
-		if (!imagesSearch.trim()) return officialImages;
+	function filteredOfficialImages(): DbImage[] {
+		if (!imagesSearch.trim()) return officialDbImages;
 		const q = imagesSearch.toLowerCase();
-		return officialImages.filter(
-			(i) =>
-				i.name.toLowerCase().includes(q) ||
-				i.versions.some((v) => v.version.toLowerCase().includes(q))
+		return officialDbImages.filter(
+			(i) => i.name.toLowerCase().includes(q) || i.version.toLowerCase().includes(q)
 		);
 	}
 
@@ -190,8 +188,8 @@
 			selectedImageVersion = null;
 		} else {
 			selectedImageId = imageId;
-			const img = officialImages.find((i) => i.id === imageId);
-			selectedImageVersion = img?.versions[0]?.version ?? null;
+			const img = dbImages.find((i) => i.id === imageId);
+			selectedImageVersion = img?.version ?? null;
 		}
 	}
 
@@ -261,10 +259,7 @@
 		creating = true;
 		createError = '';
 
-		let imageId: string | undefined;
-		if (selectedImageId) {
-			imageId = selectedImageId.startsWith('db-') ? selectedImageId.slice(3) : selectedImageId;
-		}
+		const imageId = selectedImageId ?? undefined;
 
 		try {
 			const payload = {
@@ -368,16 +363,16 @@
 											>
 												<div
 													class="pointer-events-none absolute inset-0 opacity-[0.08]"
-													style="background: linear-gradient(135deg, {img.iconColor} 0%, transparent 60%)"
+													style="background: linear-gradient(135deg, {img.accentColor} 0%, transparent 60%)"
 												></div>
 												<div class="relative shrink-0">
-													{#if img.icon}
-														<Icon name={img.icon} class="h-12 w-12 text-gray-300" />
-													{:else}
+													{#if img.logoSvg}
 														<span
-															class="flex h-12 w-12 items-center justify-center text-xl font-bold"
-															style="color: {img.iconColor}">{img.shortName}</span
+															class="flex h-12 w-12 items-center justify-center text-foreground [&_svg]:fill-current"
+															>{@html img.logoSvg}</span
 														>
+													{:else}
+														<HardDrive class="h-12 w-12 text-gray-300" />
 													{/if}
 												</div>
 												<div class="relative flex min-w-0 flex-1 flex-col">
@@ -386,23 +381,18 @@
 														{img.description}
 													</p>
 													<p class="mt-auto pt-2 text-[10px] leading-none text-gray-600">
-														{img.versions[0]?.archs?.join('  ') ?? ''}
-														{#if img.versions.length > 1}
-															| {img.versions.length} versions
-														{/if}
+														x86 | {img.version} | {img.imageType}
 													</p>
 												</div>
 											</button>
-											{#if isSelected && img.versions.length > 0}
+											{#if isSelected}
 												<div class="col-span-2 border-t border-gray-800 bg-gray-900/50 px-5 py-3">
 													<span class="text-xs text-gray-400">Version</span>
 													<select
 														bind:value={selectedImageVersion}
 														class="mt-1.5 h-8 w-full border border-gray-700 bg-gray-800 px-2 text-xs text-gray-100 focus:border-red-500 focus:outline-none"
 													>
-														{#each img.versions as v (v.version)}
-															<option value={v.version}>{v.version} ({v.archs.join(', ')})</option>
-														{/each}
+														<option value={img.version}>{img.version} (x86)</option>
 													</select>
 												</div>
 											{/if}
@@ -416,7 +406,7 @@
 								{/if}
 							</div>
 
-							{#if dbImages.length > 0}
+							{#if customDbImages.length > 0}
 								<div class="mt-4">
 									<div class="flex items-center gap-2 border-b border-gray-800/50 pb-2">
 										<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
@@ -424,18 +414,18 @@
 										>
 									</div>
 									<div class="mt-2 divide-y divide-gray-800/30">
-										{#each dbImages as img (img.id)}
+										{#each customDbImages as img (img.id)}
 											<button
 												class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-800/20 {selectedImageId ===
-												`db-${img.id}`
+												img.id
 													? 'border-l-2 border-l-red-500 bg-gray-800/40'
 													: ''}"
 												onclick={() => {
-													if (selectedImageId === `db-${img.id}`) {
+													if (selectedImageId === img.id) {
 														selectedImageId = null;
 														selectedImageVersion = null;
 													} else {
-														selectedImageId = `db-${img.id}`;
+														selectedImageId = img.id;
 														selectedImageVersion = img.version || null;
 													}
 												}}

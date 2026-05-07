@@ -5,7 +5,6 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import Icon from '$lib/components/icon.svelte';
 	import { featureFlagKeys, featureFlagLabels, type FeatureFlagKey } from '$lib/feature-flags';
 	import {
 		Plus,
@@ -18,11 +17,12 @@
 		Shield,
 		Image,
 		HardDrive,
+		Upload,
 		Loader2,
 		AlertTriangle,
 		RefreshCw
 	} from '@lucide/svelte';
-	import { AdminState, colorOptions, type AdminPageData } from '$lib/state/admin.svelte';
+	import { AdminState, type AdminPageData } from '$lib/state/admin.svelte';
 
 	const featureFlagIcons: Partial<Record<FeatureFlagKey, typeof Server>> = {
 		colocation: Server,
@@ -44,6 +44,17 @@
 		if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
 		return `${mb.toFixed(0)} MB`;
 	}
+
+	function svgDataUrl(svg: string) {
+		return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+	}
+
+	let localImportTargets = $derived(
+		admin.pveImageImportTargets.filter((target) => target.storage === admin.importStorage)
+	);
+	let selectedPveImage = $derived(
+		admin.pveImages.find((image) => image.volid === admin.imgFilePath)
+	);
 </script>
 
 <div class="flex flex-1 flex-col overflow-hidden">
@@ -92,7 +103,14 @@
 				>
 			</div>
 		{:else if activeTab === 'images'}
-			<div class="px-4">
+			<div class="flex gap-2 px-4">
+				<Button
+					size="sm"
+					variant="outline"
+					class="h-7 gap-1.5 text-xs"
+					onclick={() => admin.imgImportOpen()}
+					><Upload class="h-3 w-3" /> Upload/Import Image</Button
+				>
 				<Button size="sm" class="h-7 gap-1.5 text-xs" onclick={() => admin.imgOpenCreate()}
 					><Plus class="h-3 w-3" /> Add Image</Button
 				>
@@ -237,7 +255,7 @@
 					><tr class="border-b border-gray-800">
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Image</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Version</th>
-						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">ISA</th>
+						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Type</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Proxmox Path</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Description</th>
 						<th class="px-5 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
@@ -249,20 +267,28 @@
 							<td class="px-5 py-3">
 								<div class="flex items-center gap-2.5">
 									<span
-										class="flex h-7 w-7 shrink-0 items-center justify-center text-[10px] font-bold text-white {img.color}"
+										class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden text-white {img.color}"
 									>
-										{#if img.icon}
-											{img.icon}
+										{#if img.isOfficial && img.logoSvg}
+											<img src={svgDataUrl(img.logoSvg)} alt="" class="h-4 w-4" />
 										{:else}
-											{img.shortName || img.name.slice(0, 2).toUpperCase()}
+											<Disc class="h-3.5 w-3.5" />
 										{/if}
 									</span>
-									<span class="text-sm font-medium text-gray-100">{img.name}</span>
+									<div class="flex flex-col gap-1">
+										<span class="text-sm font-medium text-gray-100">{img.name}</span>
+										{#if img.isOfficial}
+											<Badge variant="secondary" class="w-fit text-[10px] text-emerald-300"
+												>Official</Badge
+											>
+										{/if}
+									</div>
 								</div>
 							</td>
 							<td class="px-5 py-3 text-sm text-gray-300">{img.version}</td>
 							<td class="px-5 py-3"
-								><Badge variant="secondary" class="text-[10px]">{img.isa}</Badge></td
+								><Badge variant="secondary" class="text-[10px]">{img.imageType || 'import'}</Badge
+								></td
 							>
 							<td class="max-w-xs truncate px-5 py-3 font-mono text-xs text-gray-500"
 								>{img.filePath}</td
@@ -320,9 +346,7 @@
 					bind:value={admin.vtIsa}
 					class="h-9 w-full border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-gray-500 focus:outline-none"
 				>
-					<option value="x86">x86</option><option value="arm">arm</option><option value="risc-v"
-						>risc-v</option
-					>
+					<option value="x86">x86</option>
 				</select>
 			</div>
 			<div class="grid grid-cols-3 gap-3">
@@ -367,6 +391,135 @@
 	</Dialog.Content>
 </Dialog.Root>
 
+<!-- Import Image Dialog -->
+<Dialog.Root bind:open={admin.importDialogOpen}>
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>Upload/Import Image</Dialog.Title>
+			<Dialog.Description>
+				Import a VM image from a URL to every online Proxmox node using local storage.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="flex flex-col gap-4 py-4">
+			{#if admin.importError}
+				<div
+					class="flex items-center gap-2 border border-red-700 bg-red-950 px-3 py-2 text-sm text-red-400"
+				>
+					<AlertTriangle class="h-3.5 w-3.5 shrink-0" />{admin.importError}
+				</div>
+			{/if}
+
+			<div class="flex items-center justify-between">
+				<p class="text-xs text-gray-500">
+					Target: <span class="font-mono text-gray-300">{admin.importStorage}</span> on {localImportTargets.length}
+					node{localImportTargets.length === 1 ? '' : 's'}.
+				</p>
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-6 gap-1 px-2 text-[10px] text-gray-500"
+					onclick={() => admin.loadPveImages()}
+					disabled={admin.isoLoading || admin.importSaving}
+				>
+					{#if admin.isoLoading}<Loader2 class="h-3 w-3 animate-spin" />{:else}<RefreshCw
+							class="h-3 w-3"
+						/>{/if}
+					Refresh
+				</Button>
+			</div>
+
+			{#if admin.isoError}
+				<p class="text-xs text-red-400">{admin.isoError}</p>
+			{:else if localImportTargets.length === 0}
+				<p class="text-xs text-gray-500">No online nodes expose import-capable local storage.</p>
+			{/if}
+
+			<div class="flex flex-col gap-2">
+				<Label>Image URL</Label>
+				<Input
+					bind:value={admin.importUrl}
+					placeholder="https://example.com/images/fedora.qcow2"
+					disabled={admin.importSaving}
+					onchange={() => !admin.importFilename.trim() && admin.importFilenameFromUrl()}
+				/>
+			</div>
+
+			<div class="flex flex-col gap-2">
+				<Label>Filename</Label>
+				<Input
+					bind:value={admin.importFilename}
+					placeholder="fedora.qcow2"
+					disabled={admin.importSaving}
+					onfocus={() => !admin.importFilename.trim() && admin.importFilenameFromUrl()}
+				/>
+			</div>
+
+			<div class="grid grid-cols-[10rem_1fr] gap-3">
+				<div class="flex flex-col gap-2">
+					<Label>Checksum</Label>
+					<select
+						bind:value={admin.importChecksumAlgorithm}
+						class="h-9 w-full border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-gray-500 focus:outline-none"
+						disabled={admin.importSaving}
+					>
+						<option value="">None</option>
+						<option value="md5">md5</option>
+						<option value="sha1">sha1</option>
+						<option value="sha224">sha224</option>
+						<option value="sha256">sha256</option>
+						<option value="sha384">sha384</option>
+						<option value="sha512">sha512</option>
+					</select>
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label>Checksum Value</Label>
+					<Input
+						bind:value={admin.importChecksum}
+						placeholder="optional"
+						disabled={admin.importSaving || !admin.importChecksumAlgorithm}
+					/>
+				</div>
+			</div>
+
+			<label class="flex items-center gap-2 text-sm text-gray-300">
+				<input
+					type="checkbox"
+					bind:checked={admin.importVerifyCertificates}
+					disabled={admin.importSaving}
+					class="h-4 w-4"
+				/>
+				Verify TLS certificates
+			</label>
+
+			{#if admin.importTasks.length > 0}
+				<div class="border border-gray-800 bg-gray-950 px-3 py-2 font-mono text-xs text-gray-400">
+					{#each admin.importTasks as task (task.node)}
+						<div class="flex justify-between gap-4">
+							<span>{task.node}</span>
+							<span>{task.status}{task.exitstatus ? ` (${task.exitstatus})` : ''}</span>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+		<Dialog.Footer>
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => admin.imgImportClose()}
+				disabled={admin.importSaving}>Cancel</Button
+			>
+			<Button
+				size="sm"
+				onclick={() => admin.importImageFromUrl()}
+				disabled={admin.importSaving || !admin.importUrl.trim() || localImportTargets.length === 0}
+			>
+				{#if admin.importSaving}<Loader2 class="h-3 w-3 animate-spin" />{/if}Import
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
 <!-- Image Dialog -->
 <Dialog.Root bind:open={admin.imgDialogOpen}>
 	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-lg">
@@ -394,22 +547,20 @@
 
 			<div class="grid grid-cols-2 gap-3">
 				<div class="flex flex-col gap-2">
-					<Label>Short Name</Label><Input
-						bind:value={admin.imgShortName}
-						placeholder="Fe"
-						maxlength={3}
-					/>
+					<Label>Architecture</Label>
+					<div
+						class="flex h-9 items-center border border-gray-700 bg-gray-800 px-3 text-sm text-gray-300"
+					>
+						x86
+					</div>
 				</div>
 				<div class="flex flex-col gap-2">
-					<Label>Architecture</Label>
-					<select
-						bind:value={admin.imgIsa}
-						class="h-9 w-full border border-gray-700 bg-gray-800 px-3 text-sm text-gray-100 focus:border-gray-500 focus:outline-none"
+					<Label>Official</Label>
+					<label
+						class="flex h-9 items-center gap-2 border border-gray-700 bg-gray-800 px-3 text-sm text-gray-300"
 					>
-						<option value="x86">x86</option><option value="arm">arm</option><option value="risc-v"
-							>risc-v</option
-						>
-					</select>
+						<input type="checkbox" bind:checked={admin.imgIsOfficial} class="h-4 w-4" /> Official image
+					</label>
 				</div>
 			</div>
 
@@ -423,78 +574,67 @@
 				></textarea>
 			</div>
 
-			<!-- Color picker -->
-			<div class="flex flex-col gap-2">
-				<Label>Color</Label>
-				<div class="flex flex-wrap gap-1.5">
-					{#each colorOptions as c (c)}
-						<button
-							class="h-6 w-6 border-2 transition-colors {c} {admin.imgColor === c
-								? 'border-white'
-								: 'border-transparent hover:border-gray-500'}"
-							onclick={() => (admin.imgColor = c)}
-							aria-label={`Select ${c}`}
-						></button>
-					{/each}
-				</div>
-			</div>
-
-			<!-- Icon SVG -->
-			<div class="flex flex-col gap-2">
-				<Label>Icon <span class="font-normal text-gray-500">(icon name, optional)</span></Label>
-				<textarea
-					bind:value={admin.imgIcon}
-					placeholder="logo--linux"
-					rows="2"
-					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
-				></textarea>
-				{#if admin.imgIcon.trim()}
-					<div class="flex items-center gap-2 text-xs text-gray-500">
-						Preview:
-						<span class="flex h-7 w-7 items-center justify-center text-white {admin.imgColor}"
-							>{admin.imgIcon}</span
-						>
+			{#if admin.imgIsOfficial}
+				<div class="grid grid-cols-[1fr_auto] gap-3">
+					<div class="flex flex-col gap-2">
+						<Label>Logo SVG <span class="font-normal text-gray-500">(official only)</span></Label>
+						<textarea
+							bind:value={admin.imgLogoSvg}
+							placeholder="<svg ...></svg>"
+							rows="3"
+							class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+						></textarea>
 					</div>
-				{/if}
-			</div>
+					<div class="flex flex-col gap-2">
+						<Label>Preview</Label>
+						<div
+							class="flex h-20 w-20 items-center justify-center border border-gray-700 bg-gray-800 p-3 text-gray-400"
+							style:color={admin.imgAccentColor}
+						>
+							{#if admin.imgLogoSvg.trim()}
+								<img src={svgDataUrl(admin.imgLogoSvg)} alt="" class="h-12 w-12" />
+							{:else}
+								<Image class="h-6 w-6" />
+							{/if}
+						</div>
+					</div>
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label>Accent Color</Label>
+					<Input bind:value={admin.imgAccentColor} placeholder="#6b7280" />
+				</div>
+			{/if}
 
-			<!-- Proxmox ISO Path -->
+			<!-- Proxmox import image -->
 			<div class="flex flex-col gap-2">
 				<div class="flex items-center justify-between">
-					<Label>Proxmox ISO Path</Label>
+					<Label>Proxmox Image</Label>
 					<Button
 						variant="ghost"
 						size="sm"
 						class="h-6 gap-1 px-2 text-[10px] text-gray-500"
-						onclick={() => admin.loadPveIsos()}
+						onclick={() => admin.loadPveImages()}
 						disabled={admin.isoLoading}
 					>
 						{#if admin.isoLoading}<Loader2 class="h-3 w-3 animate-spin" />{:else}<RefreshCw
 								class="h-3 w-3"
 							/>{/if}
-						Scan Nodes
+						Refresh
 					</Button>
 				</div>
-				<Input
+				<select
 					bind:value={admin.imgFilePath}
-					placeholder="local:iso/Fedora-Server-dvd-x86_64-42-1.1.iso"
-					class="font-mono text-xs"
-				/>
-				{#if admin.pveIsos.length > 0}
-					<div class="max-h-32 overflow-y-auto border border-gray-800">
-						{#each admin.pveIsos as iso (iso.volid)}
-							<button
-								class="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors {admin.imgFilePath ===
-								iso.volid
-									? 'bg-red-950/30 text-gray-100'
-									: 'text-gray-400 hover:bg-gray-800/50'}"
-								onclick={() => (admin.imgFilePath = iso.volid)}
-							>
-								<span class="truncate font-mono">{iso.volid}</span>
-								<span class="ml-2 shrink-0 text-gray-600">{formatSize(iso.size)}</span>
-							</button>
-						{/each}
-					</div>
+					class="h-9 w-full border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 focus:border-gray-500 focus:outline-none"
+				>
+					<option value="">Select an imported Proxmox image</option>
+					{#each admin.pveImages as image (image.volid)}
+						<option value={image.volid}>{image.volid} · {formatSize(image.size)}</option>
+					{/each}
+				</select>
+				{#if admin.isoError}
+					<p class="text-xs text-red-400">{admin.isoError}</p>
+				{:else if admin.pveImages.length === 0}
+					<p class="text-xs text-gray-500">Import an image first, then select it here.</p>
 				{/if}
 			</div>
 		</div>
@@ -505,7 +645,7 @@
 			<Button
 				size="sm"
 				onclick={() => admin.imgSave()}
-				disabled={admin.imgSaving || !admin.imgName.trim() || !admin.imgFilePath.trim()}
+				disabled={admin.imgSaving || !admin.imgName.trim() || !selectedPveImage}
 			>
 				{#if admin.imgSaving}<Loader2 class="h-3 w-3 animate-spin" />{/if}{admin.imgEditing
 					? 'Save'

@@ -710,10 +710,7 @@
 											{#if img.icon}
 												<Icon name={img.icon} class="h-10 w-10 text-gray-300" />
 											{:else}
-												<span
-													class="flex h-10 w-10 items-center justify-center text-lg font-bold text-gray-300"
-													>{img.shortName}</span
-												>
+												<Disc class="h-10 w-10 text-gray-300" />
 											{/if}
 										</div>
 										<div class="relative flex min-w-0 flex-1 flex-col">
@@ -931,10 +928,7 @@
 						{#if selectedColoImage.icon}
 							<Icon name={selectedColoImage.icon} class="h-14 w-14 text-gray-300" />
 						{:else}
-							<span
-								class="flex h-14 w-14 items-center justify-center text-2xl font-bold text-gray-300"
-								>{selectedColoImage.shortName}</span
-							>
+							<Disc class="h-14 w-14 text-gray-300" />
 						{/if}
 					</div>
 					<div class="flex-1">

@@ -39,7 +39,7 @@ export const listVmTypes = query(async () => {
 
 const createParams = type({
 	name: 'string',
-	isa: "'x86' | 'arm' | 'risc-v'",
+	isa: "'x86'",
 	cores: 'number',
 	ramCapacity: 'number',
 	storageAmount: 'number',
@@ -74,7 +74,7 @@ export const createVmType = command(createParams, async (params) => {
 const updateParams = type({
 	vmTypeId: 'string',
 	name: 'string?',
-	isa: "'x86' | 'arm' | 'risc-v'?",
+	isa: "'x86'?",
 	cores: 'number?',
 	ramCapacity: 'number?',
 	storageAmount: 'number?',

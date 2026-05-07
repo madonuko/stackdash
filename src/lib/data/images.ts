@@ -10,7 +10,6 @@ export type ImageVersion = {
 export type OfficialImage = {
 	id: string;
 	name: string;
-	shortName: string;
 	description: string;
 	color: string;
 	iconColor: string;
@@ -24,7 +23,6 @@ export const officialImages: OfficialImage[] = [
 	{
 		id: 'fedora',
 		name: 'Fedora Server',
-		shortName: 'Fe',
 		color: 'bg-sky-600',
 		iconColor: '#51A2DA',
 		icon: 'fedora',
@@ -40,7 +38,6 @@ export const officialImages: OfficialImage[] = [
 	{
 		id: 'debian',
 		name: 'Debian',
-		shortName: 'De',
 		color: 'bg-red-700',
 		iconColor: '#A81D33',
 		icon: 'debian',
@@ -55,7 +52,6 @@ export const officialImages: OfficialImage[] = [
 	{
 		id: 'ubuntu',
 		name: 'Ubuntu Server',
-		shortName: 'Ub',
 		color: 'bg-orange-600',
 		iconColor: '#E95420',
 		icon: 'ubuntu',
@@ -70,7 +66,6 @@ export const officialImages: OfficialImage[] = [
 	{
 		id: 'centos',
 		name: 'CentOS Stream',
-		shortName: 'CS',
 		color: 'bg-yellow-600',
 		iconColor: '#262577',
 		icon: 'centos',
@@ -85,7 +80,6 @@ export const officialImages: OfficialImage[] = [
 	{
 		id: 'alma',
 		name: 'AlmaLinux',
-		shortName: 'AL',
 		color: 'bg-indigo-600',
 		iconColor: '#0F4266',
 		icon: 'almalinux',
@@ -100,7 +94,6 @@ export const officialImages: OfficialImage[] = [
 	{
 		id: 'alpine',
 		name: 'Alpine Linux',
-		shortName: 'Al',
 		color: 'bg-cyan-700',
 		iconColor: '#0D597F',
 		icon: 'alpine',

@@ -1,7 +1,9 @@
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
 import type {
-	BackendIso,
+	BackendImage,
+	BackendImageImportTarget,
+	BackendImageImportParams,
 	VmBackend,
 	VmInfo,
 	VmCreateParams,
@@ -73,24 +75,35 @@ export class ProxmoxBackend implements VmBackend {
 		};
 	}
 
+	private storageSupportsContent(content: string | undefined, target: string): boolean {
+		return (content ?? '')
+			.split(',')
+			.map((value) => value.trim())
+			.includes(target);
+	}
+
 	async listVms(): Promise<VmInfo[]> {
 		const resources = await this.client.getClusterResources('vm');
 		return resources.filter((r) => r.type === 'qemu').map((r) => this.resourceToInfo(r));
 	}
 
-	async listIsos(): Promise<BackendIso[]> {
+	async listImages(): Promise<BackendImage[]> {
 		const nodes = await this.client.listNodes();
-		const results: BackendIso[] = [];
+		const results: BackendImage[] = [];
 		const seen = new Set<string>();
 
 		for (const node of nodes) {
 			const storages = await this.client.listStorage(node.node);
-			const isoStorages = storages.filter((storage) => {
-				return storage.content?.includes('iso') && storage.active !== 0;
+			const importStorages = storages.filter((storage) => {
+				return (
+					this.storageSupportsContent(storage.content, 'import') &&
+					storage.active !== 0 &&
+					storage.enabled !== 0
+				);
 			});
 
-			for (const storage of isoStorages) {
-				const contents = await this.client.listStorageContent(node.node, storage.storage, 'iso');
+			for (const storage of importStorages) {
+				const contents = await this.client.listStorageContent(node.node, storage.storage, 'import');
 				for (const item of contents) {
 					if (seen.has(item.volid)) continue;
 					seen.add(item.volid);
@@ -100,13 +113,53 @@ export class ProxmoxBackend implements VmBackend {
 						volid: item.volid,
 						filename: parts.at(-1) ?? item.volid,
 						size: item.size,
-						node: node.node
+						node: node.node,
+						storage: storage.storage,
+						content: 'import',
+						format: item.format
 					});
 				}
 			}
 		}
 
 		return results;
+	}
+
+	async listImageImportTargets(): Promise<BackendImageImportTarget[]> {
+		const nodes = await this.client.listNodes();
+		const results: BackendImageImportTarget[] = [];
+
+		for (const node of nodes) {
+			if (node.status !== 'online') continue;
+			const storages = await this.client.listStorage(node.node);
+			for (const storage of storages) {
+				if (
+					this.storageSupportsContent(storage.content, 'import') &&
+					storage.active !== 0 &&
+					storage.enabled !== 0
+				) {
+					results.push({ node: node.node, storage: storage.storage });
+				}
+			}
+		}
+
+		return results;
+	}
+
+	async importImageFromUrl(params: BackendImageImportParams): Promise<string> {
+		return this.client.importStorageContentFromUrl(params.node, params.storage, {
+			url: params.url,
+			filename: params.filename,
+			content: 'import',
+			checksum: params.checksum,
+			checksumAlgorithm: params.checksumAlgorithm,
+			verifyCertificates: params.verifyCertificates
+		});
+	}
+
+	async getTaskStatus(node: string, upid: string) {
+		const status = await this.client.getTaskStatus(node, upid);
+		return { status: status.status, exitstatus: status.exitstatus };
 	}
 
 	async getVm(id: string, proxmoxId?: number): Promise<VmInfo> {
