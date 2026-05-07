@@ -18,6 +18,7 @@
 		listSshKeys
 	} from '$lib/remote/ssh-keys.remote';
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
+	import { listVms } from '$lib/remote/vms.remote';
 	import { authClient } from '$lib/auth-client';
 	import type { FeatureFlags } from '$lib/feature-flags';
 	import {
@@ -310,22 +311,158 @@
 
 	// Command palette
 	let commandOpen = $state(false);
-	type CmdFilter = 'all' | 'servers' | 'colo' | 'navigate' | 'account';
+	let commandSearch = $state('');
+	type CmdFilter = 'all' | 'navigate' | 'servers' | 'account';
 	let cmdFilter = $state<CmdFilter>('all');
+	type CommandServer = {
+		id: string;
+		name: string;
+		plan: string;
+		status: string;
+		detail: string;
+	};
+	type CommandEntry = {
+		icon: typeof Server;
+		label: string;
+		href?: string;
+		action?: () => void | Promise<void>;
+	};
+	let commandServers = $state.raw<CommandServer[]>([]);
+	let commandServersLoading = $state(false);
+	let commandServersLoadedProjectId = $state<string | null>(null);
+	let commandServersRequestId = 0;
 
-	const cmdFilters: { id: CmdFilter; label: string; icon: typeof Server }[] = [
-		{ id: 'all', label: 'All', icon: Search },
-		{ id: 'servers', label: 'Servers', icon: Server },
-		{ id: 'colo', label: 'Colo', icon: Warehouse },
-		{ id: 'navigate', label: 'Pages', icon: ArrowRight },
-		{ id: 'account', label: 'Account', icon: User }
+	const normalizedCommandSearch = $derived(commandSearch.trim().toLowerCase());
+	const filteredCommandServers = $derived.by(() =>
+		commandServers.filter((server) =>
+			matchesCommandSearch([server.name, server.plan, server.status, server.detail])
+		)
+	);
+	const showServerFilter = $derived(commandServersLoading || commandServers.length > 0);
+	const cmdFilters = $derived.by(() => {
+		const filters: { id: CmdFilter; label: string; icon: typeof Server }[] = [
+			{ id: 'all', label: 'All', icon: Search },
+			{ id: 'navigate', label: 'Pages', icon: ArrowRight }
+		];
+		if (showServerFilter) filters.push({ id: 'servers', label: 'Servers', icon: Server });
+		filters.push({ id: 'account', label: 'Account', icon: User });
+		return filters;
+	});
+
+	const navigateCommands = $derived.by(() => {
+		const commands: CommandEntry[] = [{ icon: Server, label: 'Servers', href: '/servers' }];
+		if (showColocation)
+			commands.push({ icon: Warehouse, label: 'Colocation', href: '/colocation' });
+		if (showVolumes) commands.push({ icon: HardDrive, label: 'Volumes', href: '/volumes' });
+		if (showFirewall) commands.push({ icon: Shield, label: 'Firewall', href: '/firewall' });
+		if (showImages) commands.push({ icon: Disc, label: 'Images', href: '/images' });
+		return commands;
+	});
+	const accountCommands: CommandEntry[] = [
+		{ icon: User, label: 'Profile', action: openUserSheet },
+		{ icon: Key, label: 'SSH Keys', action: openUserSheet },
+		{ icon: KeyRound, label: 'API Tokens', action: openUserSheet },
+		{ icon: CreditCard, label: 'Billing', action: openUserSheet },
+		{ icon: KeyRound, label: 'Change Password', action: openUserSheet }
 	];
+	const filteredNavigateCommands = $derived.by(() =>
+		navigateCommands.filter((command) => matchesCommandSearch([command.label]))
+	);
+	const filteredAccountCommands = $derived.by(() =>
+		accountCommands.filter((command) => matchesCommandSearch([command.label]))
+	);
+	const showServersGroup = $derived(
+		(cmdFilter === 'all' || cmdFilter === 'servers') &&
+			(commandServersLoading || filteredCommandServers.length > 0)
+	);
+	const showNavigateGroup = $derived(
+		(cmdFilter === 'all' || cmdFilter === 'navigate') && filteredNavigateCommands.length > 0
+	);
+	const showAccountGroup = $derived(
+		(cmdFilter === 'all' || cmdFilter === 'account') && filteredAccountCommands.length > 0
+	);
+
+	function matchesCommandSearch(values: (string | null | undefined)[]) {
+		if (!normalizedCommandSearch) return true;
+		return values.some((value) => value?.toLowerCase().includes(normalizedCommandSearch));
+	}
+
+	function formatVmStatus(status: string, liveStatus?: string | null) {
+		if (status === 'provisioning') return 'Provisioning';
+		if (status === 'error') return 'Error';
+		if (!liveStatus || liveStatus === 'unknown') return 'Ready';
+		return liveStatus.charAt(0).toUpperCase() + liveStatus.slice(1);
+	}
+
+	async function loadCommandServers(projectId = selectedProjectId) {
+		if (!projectId || commandServersLoading || commandServersLoadedProjectId === projectId) return;
+		const requestId = ++commandServersRequestId;
+		commandServersLoading = true;
+
+		try {
+			const vms = await listVms({ projectId }).run();
+			if (requestId !== commandServersRequestId) return;
+			commandServers = vms
+				.filter((vm) => vm.active)
+				.map((vm) => ({
+					id: vm.id,
+					name: vm.name,
+					plan: vm.vmType?.name ?? 'Custom',
+					status: formatVmStatus(vm.status, vm.live?.status),
+					detail:
+						[
+							vm.vmType?.cores ? `${vm.vmType.cores} vCPU` : null,
+							vm.vmType?.ramCapacity ? `${vm.vmType.ramCapacity}MB RAM` : null,
+							vm.vmType?.storageAmount ? `${vm.vmType.storageAmount}GB disk` : null
+						]
+							.filter(Boolean)
+							.join(' • ') || 'Server'
+				}));
+			commandServersLoadedProjectId = projectId;
+		} catch (error) {
+			if (requestId !== commandServersRequestId) return;
+			console.error('Failed to load command palette servers:', error);
+			commandServers = [];
+			commandServersLoadedProjectId = projectId;
+		} finally {
+			if (requestId === commandServersRequestId) commandServersLoading = false;
+		}
+	}
+
+	function openCommandPalette() {
+		commandSearch = '';
+		cmdFilter = 'all';
+		commandOpen = true;
+	}
+
+	$effect(() => {
+		const projectId = selectedProjectId;
+		untrack(() => {
+			if (commandServersLoadedProjectId === projectId && !commandServersLoading) return;
+			commandServers = [];
+			commandServersLoadedProjectId = null;
+			commandServersRequestId += 1;
+			commandServersLoading = false;
+		});
+	});
+
+	$effect(() => {
+		if (!commandOpen || !selectedProjectId) return;
+		untrack(() => loadCommandServers(selectedProjectId));
+	});
+
+	$effect(() => {
+		if (cmdFilter === 'servers' && !showServerFilter) cmdFilter = 'all';
+	});
 
 	function handleKeydown(e: KeyboardEvent) {
 		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
 			e.preventDefault();
-			cmdFilter = 'all';
-			commandOpen = !commandOpen;
+			if (commandOpen) {
+				commandOpen = false;
+			} else {
+				openCommandPalette();
+			}
 		}
 		if (commandOpen && e.key === 'Tab') {
 			e.preventDefault();
@@ -335,23 +472,10 @@
 		}
 	}
 
-	function runCommand(fn: () => void) {
+	function runCommand(fn: () => void | Promise<void>) {
 		commandOpen = false;
 		fn();
 	}
-
-	// Searchable resources
-	const cmdServers = [
-		{ id: 'vps-747762', label: 'vps-747762', detail: '2 vCPU · 2GB · running' },
-		{ id: 'vps-742736', label: 'vps-742736', detail: '4 vCPU · 8GB · running' },
-		{ id: 'vps-711980', label: 'vps-711980', detail: '2 vCPU · 2GB · stopped' }
-	];
-
-	const cmdColo = [
-		{ id: 'colo-001', label: 'db-primary', detail: '1U · Rack A12' },
-		{ id: 'colo-002', label: 'storage-node', detail: '2U · Rack A12' },
-		{ id: 'colo-003', label: 'gpu-worker', detail: '4U · Rack B03' }
-	];
 
 	const showColocation = $derived(!!featureFlags.colocation);
 	const showVolumes = $derived(!!featureFlags.volumes);
@@ -425,7 +549,7 @@
 				<!-- Search trigger -->
 				<button
 					class="flex items-center gap-2 border border-gray-800 bg-gray-800/30 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-700 hover:text-gray-400"
-					onclick={() => (commandOpen = true)}
+					onclick={openCommandPalette}
 				>
 					<Search class="h-3 w-3" />
 					<span>Search...</span>
@@ -792,7 +916,11 @@
 		bind:open={commandOpen}
 		class="top-1/2! max-w-xl! -translate-y-1/2! border-gray-800 bg-gray-900"
 	>
-		<Command.Input placeholder="Search resources, actions..." class="border-b border-gray-800" />
+		<Command.Input
+			bind:value={commandSearch}
+			placeholder="Search resources, actions..."
+			class="border-b border-gray-800"
+		/>
 		<!-- Filter buttons -->
 		<div class="flex gap-1 border-b border-gray-800 px-3 py-2">
 			{#each cmdFilters as f (f.id)}
@@ -811,128 +939,66 @@
 		<Command.List class="max-h-[350px] bg-gray-900">
 			<Command.Empty>No results found.</Command.Empty>
 
-			{#if cmdFilter === 'all' || cmdFilter === 'servers'}
+			{#if showServersGroup}
 				<Command.Group heading="Servers">
-					{#each cmdServers as srv (srv.id)}
-						<Command.Item
-							onSelect={() =>
-								runCommand(() => goto(resolve(withProjectContext(`/?server=${srv.id}`) as any)))}
-							class="gap-2"
-						>
-							<Server class="h-3.5 w-3.5 shrink-0 text-gray-500" />
-							<div class="flex flex-1 items-center justify-between">
-								<span>{srv.label}</span><span class="text-[10px] text-gray-500">{srv.detail}</span>
-							</div>
+					{#if commandServersLoading}
+						<Command.Item value={commandSearch || 'Loading servers'} disabled class="gap-2">
+							<Server class="h-3.5 w-3.5 text-gray-500" />
+							<span>Loading servers...</span>
 						</Command.Item>
-					{/each}
-				</Command.Group>
-				<Command.Separator class="bg-gray-800" />
-			{/if}
-
-			{#if showColocation && (cmdFilter === 'all' || cmdFilter === 'colo')}
-				<Command.Group heading="Colocation">
-					{#each cmdColo as unit (unit.id)}
+					{/if}
+					{#each filteredCommandServers as server (server.id)}
 						<Command.Item
+							value={`${server.name} ${server.plan} ${server.status} ${server.detail}`}
 							onSelect={() =>
 								runCommand(() =>
-									goto(resolve(withProjectContext(`/colocation?unit=${unit.id}`) as any))
+									goto(resolve(`/projects/${selectedProjectId}/servers/${server.id}`) as any)
 								)}
 							class="gap-2"
 						>
-							<Warehouse class="h-3.5 w-3.5 shrink-0 text-gray-500" />
-							<div class="flex flex-1 items-center justify-between">
-								<span>{unit.label}</span><span class="text-[10px] text-gray-500">{unit.detail}</span
-								>
+							<Server class="h-3.5 w-3.5 text-gray-500" />
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm text-gray-100">{server.name}</p>
+								<p class="truncate text-xs text-gray-500">{server.plan} · {server.detail}</p>
 							</div>
+							<span class="ml-auto shrink-0 text-xs text-gray-500">{server.status}</span>
 						</Command.Item>
 					{/each}
 				</Command.Group>
 				<Command.Separator class="bg-gray-800" />
 			{/if}
 
-			{#if cmdFilter === 'all' || cmdFilter === 'navigate'}
+			{#if showNavigateGroup}
 				<Command.Group heading="Navigate">
-					<Command.Item
-						onSelect={() => runCommand(() => goto(resolve(withProjectContext('/') as any)))}
-						class="gap-2"
-					>
-						<Server class="h-3.5 w-3.5 text-gray-500" />
-						<span>Servers</span>
-						<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-					</Command.Item>
-					{#if showColocation}
+					{#each filteredNavigateCommands as command (command.label)}
 						<Command.Item
 							onSelect={() =>
-								runCommand(() => goto(resolve(withProjectContext('/colocation') as any)))}
+								runCommand(() => goto(resolve(withProjectContext(command.href ?? '/') as any)))}
 							class="gap-2"
 						>
-							<Warehouse class="h-3.5 w-3.5 text-gray-500" />
-							<span>Colocation</span>
+							<command.icon class="h-3.5 w-3.5 text-gray-500" />
+							<span>{command.label}</span>
 							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
 						</Command.Item>
-					{/if}
-					{#if showVolumes}
-						<Command.Item
-							onSelect={() =>
-								runCommand(() => goto(resolve(withProjectContext('/volumes') as any)))}
-							class="gap-2"
-						>
-							<HardDrive class="h-3.5 w-3.5 text-gray-500" />
-							<span>Volumes</span>
-							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-						</Command.Item>
-					{/if}
-					{#if showFirewall}
-						<Command.Item
-							onSelect={() =>
-								runCommand(() => goto(resolve(withProjectContext('/firewall') as any)))}
-							class="gap-2"
-						>
-							<Shield class="h-3.5 w-3.5 text-gray-500" />
-							<span>Firewall</span>
-							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-						</Command.Item>
-					{/if}
-					{#if showImages}
-						<Command.Item
-							onSelect={() => runCommand(() => goto(resolve(withProjectContext('/images') as any)))}
-							class="gap-2"
-						>
-							<Disc class="h-3.5 w-3.5 text-gray-500" />
-							<span>Images</span>
-							<Command.Shortcut><ArrowRight class="h-3 w-3" /></Command.Shortcut>
-						</Command.Item>
-					{/if}
+					{/each}
 				</Command.Group>
 				<Command.Separator class="bg-gray-800" />
 			{/if}
 
-			{#if cmdFilter === 'all' || cmdFilter === 'account'}
+			{#if showAccountGroup}
 				<Command.Group heading="Account">
-					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<User class="h-3.5 w-3.5 text-gray-500" />
-						<span>Profile</span>
-					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<Key class="h-3.5 w-3.5 text-gray-500" />
-						<span>SSH Keys</span>
-					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<KeyRound class="h-3.5 w-3.5 text-gray-500" />
-						<span>API Tokens</span>
-					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<CreditCard class="h-3.5 w-3.5 text-gray-500" />
-						<span>Billing</span>
-					</Command.Item>
-					<Command.Item onSelect={() => runCommand(() => openUserSheet())} class="gap-2">
-						<KeyRound class="h-3.5 w-3.5 text-gray-500" />
-						<span>Change Password</span>
-					</Command.Item>
+					{#each filteredAccountCommands as command (command.label)}
+						<Command.Item
+							onSelect={() => runCommand(command.action ?? openUserSheet)}
+							class="gap-2"
+						>
+							<command.icon class="h-3.5 w-3.5 text-gray-500" />
+							<span>{command.label}</span>
+						</Command.Item>
+					{/each}
 				</Command.Group>
 				<Command.Separator class="bg-gray-800" />
 			{/if}
-
 		</Command.List>
 	</Command.Dialog>
 {/if}
