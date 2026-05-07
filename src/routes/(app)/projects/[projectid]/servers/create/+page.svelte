@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import { createVolume as createProjectVolume } from '$lib/remote/volumes.remote';
 	import { createVm } from '$lib/remote/vms.remote';
 	import { onMount, untrack } from 'svelte';
@@ -37,7 +38,7 @@
 
 	type ImageTab = 'os' | 'snapshots' | 'apps';
 	let { data }: { data: PageData } = $props();
-	const imageTab = 'os' as ImageTab;
+	let imageTab = $state<ImageTab>('os');
 
 	type VmType = {
 		id: string;
@@ -134,9 +135,15 @@
 	]);
 
 	let imagesSearch = $state('');
-	function imageTabHref(tab: ImageTab) {
-		const base = `/projects/${page.params.projectid}/servers/create`;
-		return tab === 'os' ? `${base}#section-image` : `${base}/${tab}#section-image`;
+	const imageTabs: { id: ImageTab; label: string }[] = [
+		{ id: 'os', label: 'OS Images' },
+		{ id: 'snapshots', label: 'Snapshots' },
+		{ id: 'apps', label: 'Apps' }
+	];
+	function setImageTab(value: string) {
+		if (value === 'os' || value === 'snapshots' || value === 'apps') {
+			imageTab = value;
+		}
 	}
 
 	$effect(() => {
@@ -321,29 +328,18 @@
 							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Image</span
 							>
 						</div>
-						<div class="mt-3 flex gap-2">
-							<a
-								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab === 'os'
-									? 'border-red-500 bg-red-950/20 text-gray-100'
-									: 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}"
-								href={imageTabHref('os')}>OS Images</a
-							>
-							<a
-								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab ===
-								'snapshots'
-									? 'border-red-500 bg-red-950/20 text-gray-100'
-									: 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}"
-								href={imageTabHref('snapshots')}>Snapshots</a
-							>
-							<a
-								class="border px-3 py-1.5 text-xs font-medium transition-colors {imageTab === 'apps'
-									? 'border-red-500 bg-red-950/20 text-gray-100'
-									: 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-300'}"
-								href={imageTabHref('apps')}>Apps</a
-							>
-						</div>
-						{#if imageTab === 'os'}
-							<div class="mt-3">
+						<Tabs.Root bind:value={() => imageTab, setImageTab} class="mt-3">
+							<Tabs.List class="h-auto gap-2 rounded-none bg-transparent p-0">
+								{#each imageTabs as tab (tab.id)}
+									<Tabs.Trigger
+										value={tab.id}
+										class="h-auto flex-none rounded-none border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:border-gray-600 hover:text-gray-300 data-active:border-red-500 data-active:bg-red-950/20 data-active:text-gray-100"
+									>
+										{tab.label}
+									</Tabs.Trigger>
+								{/each}
+							</Tabs.List>
+							<Tabs.Content value="os" class="mt-3">
 								<div class="relative">
 									<input
 										bind:value={imagesSearch}
@@ -404,59 +400,63 @@
 										No images match "{imagesSearch}"
 									</div>
 								{/if}
-							</div>
 
-							{#if customDbImages.length > 0}
-								<div class="mt-4">
-									<div class="flex items-center gap-2 border-b border-gray-800/50 pb-2">
-										<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
-											>Database Images</span
-										>
-									</div>
-									<div class="mt-2 divide-y divide-gray-800/30">
-										{#each customDbImages as img (img.id)}
-											<button
-												class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-800/20 {selectedImageId ===
-												img.id
-													? 'border-l-2 border-l-red-500 bg-gray-800/40'
-													: ''}"
-												onclick={() => {
-													if (selectedImageId === img.id) {
-														selectedImageId = null;
-														selectedImageVersion = null;
-													} else {
-														selectedImageId = img.id;
-														selectedImageVersion = img.version || null;
-													}
-												}}
+								{#if customDbImages.length > 0}
+									<div class="mt-4">
+										<div class="flex items-center gap-2 border-b border-gray-800/50 pb-2">
+											<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+												>Database Images</span
 											>
-												<HardDrive class="h-3.5 w-3.5 text-gray-500" />
-												<span class="text-xs text-gray-200">{img.name}</span>
-												{#if img.version}
-													<span class="text-[10px] text-gray-500">{img.version}</span>
-												{/if}
-											</button>
-										{/each}
+										</div>
+										<div class="mt-2 divide-y divide-gray-800/30">
+											{#each customDbImages as img (img.id)}
+												<button
+													class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-800/20 {selectedImageId ===
+													img.id
+														? 'border-l-2 border-l-red-500 bg-gray-800/40'
+														: ''}"
+													onclick={() => {
+														if (selectedImageId === img.id) {
+															selectedImageId = null;
+															selectedImageVersion = null;
+														} else {
+															selectedImageId = img.id;
+															selectedImageVersion = img.version || null;
+														}
+													}}
+												>
+													<HardDrive class="h-3.5 w-3.5 text-gray-500" />
+													<span class="text-xs text-gray-200">{img.name}</span>
+													{#if img.version}
+														<span class="text-[10px] text-gray-500">{img.version}</span>
+													{/if}
+												</button>
+											{/each}
+										</div>
 									</div>
-								</div>
-							{/if}
-						{:else if imageTab === 'snapshots'}
-							<div class="mt-6 flex flex-col items-center justify-center py-8 text-center">
+								{/if}
+							</Tabs.Content>
+							<Tabs.Content
+								value="snapshots"
+								class="mt-6 flex flex-col items-center justify-center py-8 text-center"
+							>
 								<HardDrive class="mb-3 h-8 w-8 text-gray-600" />
 								<p class="text-xs text-gray-500">Snapshots coming soon</p>
 								<p class="mt-1 max-w-xs text-[11px] text-gray-600">
 									Create point-in-time copies of your servers for quick recovery.
 								</p>
-							</div>
-						{:else if imageTab === 'apps'}
-							<div class="mt-6 flex flex-col items-center justify-center py-8 text-center">
+							</Tabs.Content>
+							<Tabs.Content
+								value="apps"
+								class="mt-6 flex flex-col items-center justify-center py-8 text-center"
+							>
 								<Server class="mb-3 h-8 w-8 text-gray-600" />
 								<p class="text-xs text-gray-500">Apps coming soon</p>
 								<p class="mt-1 max-w-xs text-[11px] text-gray-600">
 									One-click deploy popular applications like WordPress, Nextcloud, and more.
 								</p>
-							</div>
-						{/if}
+							</Tabs.Content>
+						</Tabs.Root>
 					</div>
 
 					<div id="section-plan" class="scroll-mt-4">
