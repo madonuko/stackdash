@@ -2,10 +2,16 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
 	import { authClient } from '$lib/auth-client';
-	import { LogIn, Eye, EyeOff, AlertCircle, Loader2 } from '@lucide/svelte';
+	import { Eye, EyeOff, AlertCircle, Loader2 } from '@lucide/svelte';
 	import { LogoGithub } from 'carbon-icons-svelte';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+	const redirectTo = $derived(data.redirectTo ?? '/');
+	const registerHref = $derived(
+		redirectTo === '/' ? '/register' : `/register?redirectTo=${encodeURIComponent(redirectTo)}`
+	);
 
 	let email = $state('');
 	let password = $state('');
@@ -26,15 +32,15 @@
 			return;
 		}
 
-		goto('/');
+		goto(redirectTo);
 	}
 
 	async function handleGithub() {
-		await authClient.signIn.social({ provider: 'github', callbackURL: '/' });
+		await authClient.signIn.social({ provider: 'github', callbackURL: redirectTo });
 	}
 
 	async function handleGoogle() {
-		await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
+		await authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
 	}
 </script>
 
@@ -113,7 +119,7 @@
 			</div>
 
 			<p class="text-center text-xs text-gray-500">
-				No account? <a href="/register" class="text-red-400 hover:text-red-300">Create one</a>
+				No account? <a href={registerHref} class="text-red-400 hover:text-red-300">Create one</a>
 			</p>
 		</div>
 	</div>

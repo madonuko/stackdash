@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { authClient } from '$lib/auth-client';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
@@ -9,27 +10,12 @@
 		createProject as createProjectRpc,
 		deleteProject as deleteProjectRpc
 	} from '$lib/remote/projects.remote';
-	import {
-		Plus,
-		FolderOpen,
-		Settings,
-		Trash2,
-		MoreHorizontal,
-		Server,
-		HardDrive,
-		Network,
-		ArrowRight,
-		ShieldCheck
-	} from '@lucide/svelte';
+	import { Plus, FolderOpen, Settings, Trash2, MoreHorizontal, ArrowRight } from '@lucide/svelte';
 
 	type Project = { id: string; projectName: string; role: string };
 
 	let { data } = $props();
-	let projects = $state<Project[]>([]);
-
-	$effect(() => {
-		projects = data.projects ?? [];
-	});
+	let projects = $derived<Project[]>(data.projects ?? []);
 
 	let createOpen = $state(false);
 	let newProjectName = $state('');
@@ -41,10 +27,16 @@
 	async function handleCreateProject() {
 		if (!newProjectName.trim()) return;
 		const res = await createProjectRpc({ name: newProjectName.trim() });
-		projects.push({ id: res.id, projectName: newProjectName.trim(), role: 'owner' });
+		projects = [...projects, { id: res.id, projectName: newProjectName.trim(), role: 'owner' }];
 		newProjectName = '';
 		createOpen = false;
+		await authClient.organization.setActive({ organizationId: res.id });
 		await goto(`/projects/${res.id}/servers`);
+	}
+
+	async function openProject(project: Project, path = 'servers') {
+		await authClient.organization.setActive({ organizationId: project.id });
+		await goto(`/projects/${project.id}/${path}`);
 	}
 
 	async function handleDeleteProject() {
@@ -55,10 +47,6 @@
 		deleteTarget = null;
 		deleteConfirm = '';
 		deleteOpen = false;
-	}
-
-	function handleEditProject(project: Project) {
-		goto(`/projects/${project.id}/settings`);
 	}
 
 	function openDeleteDialog(project: Project) {
@@ -121,10 +109,10 @@
 				<div class="overflow-hidden border border-gray-800 bg-gray-950/40">
 					{#each projects as project (project.id)}
 						<div class="group relative border-b border-gray-800/80 last:border-b-0">
-							<a
+							<button
+								type="button"
 								class="grid w-full gap-4 p-4 text-left transition-colors hover:bg-gray-900/70 sm:grid-cols-[1fr_auto] sm:items-center"
-								href={`/projects/${project.id}/servers`}
-								data-sveltekit-preload-data="tap"
+								onclick={() => openProject(project)}
 							>
 								<div class="flex min-w-0 items-center gap-4">
 									<div
@@ -144,7 +132,7 @@
 										class="size-4 text-gray-600 transition-colors group-hover:text-red-300"
 									/>
 								</div>
-							</a>
+							</button>
 							<DropdownMenu.Root>
 								<DropdownMenu.Trigger
 									class="absolute top-1/2 right-4 flex size-8 -translate-y-1/2 items-center justify-center text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-800 hover:text-gray-300"
@@ -154,7 +142,7 @@
 								<DropdownMenu.Content align="end" class="w-44 border-gray-800 bg-gray-900">
 									<DropdownMenu.Item
 										class="gap-2 text-sm text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-										onclick={() => handleEditProject(project)}
+										onclick={() => openProject(project, 'settings')}
 									>
 										<Settings class="size-3.5" />
 										Project Settings

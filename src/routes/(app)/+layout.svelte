@@ -11,14 +11,15 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as Command from '$lib/components/ui/command';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
 	import {
 		createProject as createProjectRpc,
 		getProject as getProjectRpc,
 		updateProject as updateProjectRpc,
 		deleteProject as deleteProjectRpc,
-		searchUsers as searchUsersRpc,
 		addMember as addMemberRpc,
+		updateMemberRole as updateMemberRoleRpc,
 		removeMember as removeMemberRpc
 	} from '$lib/remote/projects.remote';
 	import {
@@ -58,7 +59,9 @@
 	const featureFlags = $derived((data.featureFlags ?? {}) as FeatureFlags);
 
 	// Projects — from server
-	type Project = { id: string; projectName: string; role: string };
+	type ProjectRole = 'owner' | 'admin' | 'read_write' | 'read';
+	type MemberRole = Exclude<ProjectRole, 'owner'>;
+	type Project = { id: string; projectName: string; role: ProjectRole };
 	let projects = $state<Project[]>([]);
 	let selectedProjectId = $state('');
 	let currentProject = $derived(
@@ -89,13 +92,13 @@
 		const res = await createProjectRpc({ name: newProjectName.trim() });
 		projects.push({ id: res.id, projectName: newProjectName.trim(), role: 'owner' });
 		selectedProjectId = res.id;
+		await authClient.organization.setActive({ organizationId: res.id });
 		newProjectName = '';
 		createProjectOpen = false;
 	}
 
 	// Project Sheet
-	type ProjectMember = { userId: string; name: string; email: string; permissions: string };
-	type SearchUser = { id: string; name: string; email: string };
+	type ProjectMember = { userId: string; name: string; email: string; permissions: ProjectRole };
 
 	let projectSheetOpen = $state(false);
 	let projectSheetLoading = $state(false);
@@ -111,10 +114,8 @@
 
 	// Member management state
 	let addMemberOpen = $state(false);
-	let memberSearchQuery = $state('');
-	let memberSearchResults = $state<SearchUser[]>([]);
-	let memberSearchLoading = $state(false);
-	let selectedMemberRole = $state<'admin' | 'read_write'>('read_write');
+	let memberInviteEmail = $state('');
+	let selectedMemberRole = $state<MemberRole>('read_write');
 	let addingMember = $state(false);
 
 	async function openProjectSheet() {
@@ -178,45 +179,16 @@
 	}
 
 	// Member management functions
-	async function searchUsers() {
-		if (!memberSearchQuery.trim() || memberSearchQuery.length < 2) {
-			memberSearchResults = [];
-			return;
-		}
-		memberSearchLoading = true;
-		try {
-			const results = await searchUsersRpc({ query: memberSearchQuery.trim() });
-			// Filter out users who are already members
-			memberSearchResults = results.filter(
-				(r) => !projectSheetMembers.some((m) => m.userId === r.id) && r.id !== projectSheetOwnerId
-			);
-		} catch (e) {
-			console.error('Failed to search users:', e);
-			memberSearchResults = [];
-		} finally {
-			memberSearchLoading = false;
-		}
-	}
-
-	async function addMember(user: SearchUser) {
-		if (!selectedProjectId || addingMember) return;
+	async function addMember() {
+		if (!selectedProjectId || addingMember || !memberInviteEmail.trim()) return;
 		addingMember = true;
 		try {
 			await addMemberRpc({
 				projectId: selectedProjectId,
-				userId: user.id,
+				email: memberInviteEmail.trim(),
 				permissions: selectedMemberRole
 			});
-			// Optimistic update
-			projectSheetMembers.push({
-				userId: user.id,
-				name: user.name,
-				email: user.email,
-				permissions: selectedMemberRole
-			});
-			// Reset form
-			memberSearchQuery = '';
-			memberSearchResults = [];
+			memberInviteEmail = '';
 			addMemberOpen = false;
 		} catch (e) {
 			console.error('Failed to add member:', e);
@@ -246,7 +218,7 @@
 		}
 	}
 
-	async function updateMemberRole(userId: string, newRole: string) {
+	async function updateMemberRole(userId: string, newRole: MemberRole) {
 		if (!selectedProjectId) return;
 		const idx = projectSheetMembers.findIndex((m) => m.userId === userId);
 		if (idx === -1) return;
@@ -256,10 +228,10 @@
 		projectSheetMembers[idx] = { ...projectSheetMembers[idx], permissions: newRole };
 
 		try {
-			await addMemberRpc({
+			await updateMemberRoleRpc({
 				projectId: selectedProjectId,
 				userId,
-				permissions: newRole as 'admin' | 'read_write'
+				permissions: newRole
 			});
 		} catch (e) {
 			console.error('Failed to update member role:', e);
@@ -325,7 +297,8 @@
 	async function selectProject(projectId: string) {
 		if (!projectId || projectId === selectedProjectId) return;
 		selectedProjectId = projectId;
-		await goto(`/projects/${projectId}/servers`);
+		await authClient.organization.setActive({ organizationId: projectId });
+		await goto(resolve(`/projects/${projectId}/servers`));
 	}
 
 	// User sheet
@@ -565,7 +538,7 @@
 		<!-- Top bar -->
 		<header class="flex h-12 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center gap-2">
-				<a href="/" class="flex items-center gap-2">
+				<a href={resolve('/')} class="flex items-center gap-2">
 					<img src="/logo.svg" alt="Stack" class="h-5 w-5" />
 					<span class="text-sm font-semibold tracking-tight text-gray-50">Stack</span>
 				</a>
@@ -617,7 +590,7 @@
 
 			<div class="flex flex-1 items-center justify-end gap-3">
 				<a
-					href="/admin"
+					href={resolve('/admin')}
 					class="flex h-8 items-center gap-1.5 border border-gray-800 bg-gray-800/30 px-2.5 text-xs font-medium text-gray-400 transition-colors hover:border-gray-700 hover:text-gray-100"
 				>
 					<Settings class="h-3.5 w-3.5" />
@@ -673,7 +646,7 @@
 						<Tooltip.Root>
 							<Tooltip.Trigger>
 								<a
-									href={withProjectContext(item.href)}
+									href={resolve(withProjectContext(item.href) as any)}
 									class="flex h-8 w-8 items-center justify-center transition-colors duration-100 {isActive(
 										item.href
 									)
@@ -979,7 +952,7 @@
 					class="flex w-full items-center justify-center gap-2 rounded-xs border border-red-500/20 bg-red-500/5 px-4 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10"
 					onclick={async () => {
 						await authClient.signOut();
-						goto('/login');
+						goto(resolve('/login'));
 					}}
 				>
 					<LogOut class="h-3.5 w-3.5" />
@@ -1121,6 +1094,12 @@
 													>
 														Read Write
 													</DropdownMenu.Item>
+													<DropdownMenu.Item
+														class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+														onclick={() => updateMemberRole(member.userId, 'read')}
+													>
+														Read
+													</DropdownMenu.Item>
 												</DropdownMenu.Content>
 											</DropdownMenu.Root>
 										</div>
@@ -1142,37 +1121,26 @@
 						<!-- Add Member Form -->
 						{#if addMemberOpen}
 							<div class="mt-3 border-t border-gray-800/50 pt-3">
-								<p class="mb-2 text-xs font-medium text-gray-400">Add member by email</p>
+								<p class="mb-2 text-xs font-medium text-gray-400">Invite member by email</p>
 								<div class="flex flex-col gap-2">
-									<Input
-										bind:value={memberSearchQuery}
-										placeholder="Search by email..."
-										class="h-8 text-xs"
-										oninput={searchUsers}
-									/>
-									{#if memberSearchLoading}
-										<p class="py-1 text-xs text-gray-500">Searching...</p>
-									{:else if memberSearchResults.length > 0}
-										<div class="max-h-32 overflow-y-auto border border-gray-800">
-											{#each memberSearchResults as user (user.id)}
-												<button
-													type="button"
-													class="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-left transition-colors hover:bg-gray-800"
-													onclick={() => addMember(user)}
-												>
-													<div class="min-w-0">
-														<p class="truncate text-xs font-medium text-gray-100">
-															{user.name}
-														</p>
-														<p class="truncate text-[10px] text-gray-500">{user.email}</p>
-													</div>
-													<Plus class="h-3 w-3 shrink-0 text-gray-500" />
-												</button>
-											{/each}
-										</div>
-									{:else if memberSearchQuery.length >= 2}
-										<p class="py-1 text-xs text-gray-500">No users found</p>
-									{/if}
+									<div class="flex gap-2">
+										<Input
+											bind:value={memberInviteEmail}
+											placeholder="member@example.com"
+											type="email"
+											class="h-8 text-xs"
+										/>
+										<Button
+											variant="outline"
+											size="sm"
+											class="h-8 shrink-0 gap-1.5 text-xs"
+											onclick={addMember}
+											disabled={addingMember || !memberInviteEmail.trim()}
+										>
+											<Plus class="h-3 w-3" />
+											{addingMember ? 'Inviting...' : 'Invite'}
+										</Button>
+									</div>
 									<div class="flex items-center gap-2">
 										<span class="text-xs text-gray-500">Role:</span>
 										<div class="flex gap-1">
@@ -1195,6 +1163,16 @@
 												onclick={() => (selectedMemberRole = 'read_write')}
 											>
 												Read Write
+											</button>
+											<button
+												type="button"
+												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+												'read'
+													? 'bg-gray-700 text-gray-100'
+													: 'text-gray-500 hover:text-gray-300'}"
+												onclick={() => (selectedMemberRole = 'read')}
+											>
+												Read
 											</button>
 										</div>
 									</div>
@@ -1270,7 +1248,8 @@
 				<Command.Group heading="Servers">
 					{#each cmdServers as srv (srv.id)}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(withProjectContext(`/?server=${srv.id}`)))}
+							onSelect={() =>
+								runCommand(() => goto(resolve(withProjectContext(`/?server=${srv.id}`) as any)))}
 							class="gap-2"
 						>
 							<Server class="h-3.5 w-3.5 shrink-0 text-gray-500" />
@@ -1288,7 +1267,9 @@
 					{#each cmdColo as unit (unit.id)}
 						<Command.Item
 							onSelect={() =>
-								runCommand(() => goto(withProjectContext(`/colocation?unit=${unit.id}`)))}
+								runCommand(() =>
+									goto(resolve(withProjectContext(`/colocation?unit=${unit.id}`) as any))
+								)}
 							class="gap-2"
 						>
 							<Warehouse class="h-3.5 w-3.5 shrink-0 text-gray-500" />
@@ -1305,7 +1286,7 @@
 			{#if cmdFilter === 'all' || cmdFilter === 'navigate'}
 				<Command.Group heading="Navigate">
 					<Command.Item
-						onSelect={() => runCommand(() => goto(withProjectContext('/')))}
+						onSelect={() => runCommand(() => goto(resolve(withProjectContext('/') as any)))}
 						class="gap-2"
 					>
 						<Server class="h-3.5 w-3.5 text-gray-500" />
@@ -1314,7 +1295,8 @@
 					</Command.Item>
 					{#if showColocation}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(withProjectContext('/colocation')))}
+							onSelect={() =>
+								runCommand(() => goto(resolve(withProjectContext('/colocation') as any)))}
 							class="gap-2"
 						>
 							<Warehouse class="h-3.5 w-3.5 text-gray-500" />
@@ -1324,7 +1306,8 @@
 					{/if}
 					{#if showVolumes}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(withProjectContext('/volumes')))}
+							onSelect={() =>
+								runCommand(() => goto(resolve(withProjectContext('/volumes') as any)))}
 							class="gap-2"
 						>
 							<HardDrive class="h-3.5 w-3.5 text-gray-500" />
@@ -1334,7 +1317,8 @@
 					{/if}
 					{#if showFirewall}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(withProjectContext('/firewall')))}
+							onSelect={() =>
+								runCommand(() => goto(resolve(withProjectContext('/firewall') as any)))}
 							class="gap-2"
 						>
 							<Shield class="h-3.5 w-3.5 text-gray-500" />
@@ -1344,7 +1328,7 @@
 					{/if}
 					{#if showImages}
 						<Command.Item
-							onSelect={() => runCommand(() => goto(withProjectContext('/images')))}
+							onSelect={() => runCommand(() => goto(resolve(withProjectContext('/images') as any)))}
 							class="gap-2"
 						>
 							<Disc class="h-3.5 w-3.5 text-gray-500" />

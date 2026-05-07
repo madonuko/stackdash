@@ -1,9 +1,10 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
-import { twoFactor } from 'better-auth/plugins';
+import { organization, twoFactor } from 'better-auth/plugins';
 import { passkey } from '@better-auth/passkey';
 import { getRequestEvent } from '$app/server';
+import { ac, organizationRoles } from '$lib/auth/organization-permissions';
 import { initDrizzle } from '$lib/server/db';
 import { getRuntimeEnv } from '$lib/server/env';
 import { ulid } from '$lib/server/id';
@@ -54,6 +55,18 @@ export function initAuth() {
 			})
 		},
 
-		plugins: [twoFactor(), passkey(), sveltekitCookies(getRequestEvent)]
+		plugins: [
+			twoFactor(),
+			passkey(),
+			organization({
+				ac,
+				roles: organizationRoles,
+				sendInvitationEmail: async ({ email, id, organization }) => {
+					const url = `${env.ORIGIN}/accept-invitation/${id}`;
+					console.log(`[auth] Invite ${email} to ${organization.name}: ${url}`);
+				}
+			}),
+			sveltekitCookies(getRequestEvent)
+		]
 	});
 }

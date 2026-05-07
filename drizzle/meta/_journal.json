@@ -43,6 +43,13 @@
       "when": 1777291623123,
       "tag": "0005_rainy_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778106917506,
+      "tag": "0006_perfect_sinister_six",
+      "breakpoints": true
     }
   ]
 }

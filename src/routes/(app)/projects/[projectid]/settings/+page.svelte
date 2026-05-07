@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -11,16 +12,17 @@
 		getProject as getProjectRpc,
 		updateProject as updateProjectRpc,
 		deleteProject as deleteProjectRpc,
-		searchUsers as searchUsersRpc,
 		addMember as addMemberRpc,
+		updateMemberRole as updateMemberRoleRpc,
 		removeMember as removeMemberRpc
 	} from '$lib/remote/projects.remote';
 	import { Settings, User, Trash2, Check, Plus } from '@lucide/svelte';
 
 	let { data } = $props();
 
-	type ProjectMember = { userId: string; name: string; email: string; permissions: string };
-	type SearchUser = { id: string; name: string; email: string };
+	type ProjectRole = 'owner' | 'admin' | 'read_write' | 'read';
+	type MemberRole = Exclude<ProjectRole, 'owner'>;
+	type ProjectMember = { userId: string; name: string; email: string; permissions: ProjectRole };
 
 	let projectLoading = $state(true);
 	let projectName = $state('');
@@ -37,10 +39,8 @@
 
 	// Add member
 	let addMemberOpen = $state(false);
-	let memberSearchQuery = $state('');
-	let memberSearchResults = $state<SearchUser[]>([]);
-	let memberSearchLoading = $state(false);
-	let selectedMemberRole = $state<'admin' | 'read_write'>('read_write');
+	let memberInviteEmail = $state('');
+	let selectedMemberRole = $state<MemberRole>('read_write');
 	let addingMember = $state(false);
 
 	let projectId = $derived(page.params.projectid);
@@ -86,7 +86,7 @@
 		deleting = true;
 		try {
 			await deleteProjectRpc({ projectId });
-			await goto('/');
+			await goto(resolve('/'));
 		} catch (e) {
 			console.error('Failed to delete project:', e);
 		} finally {
@@ -94,38 +94,16 @@
 		}
 	}
 
-	async function searchUsers() {
-		if (!memberSearchQuery.trim() || memberSearchQuery.length < 2) {
-			memberSearchResults = [];
-			return;
-		}
-		memberSearchLoading = true;
-		try {
-			const results = await searchUsersRpc({ query: memberSearchQuery.trim() });
-			memberSearchResults = results.filter(
-				(r) => !members.some((m) => m.userId === r.id) && r.id !== projectOwnerId
-			);
-		} catch (e) {
-			console.error('Failed to search users:', e);
-			memberSearchResults = [];
-		} finally {
-			memberSearchLoading = false;
-		}
-	}
-
-	async function addMember(user: SearchUser) {
-		if (!projectId || addingMember) return;
+	async function addMember() {
+		if (!projectId || addingMember || !memberInviteEmail.trim()) return;
 		addingMember = true;
 		try {
-			await addMemberRpc({ projectId, userId: user.id, permissions: selectedMemberRole });
-			members.push({
-				userId: user.id,
-				name: user.name,
-				email: user.email,
+			await addMemberRpc({
+				projectId,
+				email: memberInviteEmail.trim(),
 				permissions: selectedMemberRole
 			});
-			memberSearchQuery = '';
-			memberSearchResults = [];
+			memberInviteEmail = '';
 			addMemberOpen = false;
 		} catch (e) {
 			console.error('Failed to add member:', e);
@@ -148,14 +126,14 @@
 		}
 	}
 
-	async function updateMemberRole(userId: string, newRole: string) {
+	async function updateMemberRole(userId: string, newRole: MemberRole) {
 		if (!projectId) return;
 		const idx = members.findIndex((m) => m.userId === userId);
 		if (idx === -1) return;
 		const oldRole = members[idx].permissions;
 		members[idx] = { ...members[idx], permissions: newRole };
 		try {
-			await addMemberRpc({ projectId, userId, permissions: newRole as 'admin' | 'read_write' });
+			await updateMemberRoleRpc({ projectId, userId, permissions: newRole });
 		} catch (e) {
 			console.error('Failed to update member role:', e);
 			members[idx] = { ...members[idx], permissions: oldRole };
@@ -249,6 +227,11 @@
 													onclick={() => updateMemberRole(member.userId, 'read_write')}
 													>Read Write</DropdownMenu.Item
 												>
+												<DropdownMenu.Item
+													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+													onclick={() => updateMemberRole(member.userId, 'read')}
+													>Read</DropdownMenu.Item
+												>
 											</DropdownMenu.Content>
 										</DropdownMenu.Root>
 									</div>
@@ -270,35 +253,26 @@
 						<!-- Add Member Form -->
 						{#if addMemberOpen}
 							<div class="mt-3 border-t border-gray-800/50 pt-3">
-								<p class="mb-2 text-xs font-medium text-gray-400">Add member by email</p>
+								<p class="mb-2 text-xs font-medium text-gray-400">Invite member by email</p>
 								<div class="flex flex-col gap-2">
-									<Input
-										bind:value={memberSearchQuery}
-										placeholder="Search by email..."
-										class="h-8 text-xs"
-										oninput={searchUsers}
-									/>
-									{#if memberSearchLoading}
-										<p class="py-1 text-xs text-gray-500">Searching...</p>
-									{:else if memberSearchResults.length > 0}
-										<div class="max-h-32 overflow-y-auto border border-gray-800">
-											{#each memberSearchResults as user (user.id)}
-												<button
-													type="button"
-													class="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-left transition-colors hover:bg-gray-800"
-													onclick={() => addMember(user)}
-												>
-													<div class="min-w-0">
-														<p class="truncate text-xs font-medium text-gray-100">{user.name}</p>
-														<p class="truncate text-[10px] text-gray-500">{user.email}</p>
-													</div>
-													<Plus class="h-3 w-3 shrink-0 text-gray-500" />
-												</button>
-											{/each}
-										</div>
-									{:else if memberSearchQuery.length >= 2}
-										<p class="py-1 text-xs text-gray-500">No users found</p>
-									{/if}
+									<div class="flex gap-2">
+										<Input
+											bind:value={memberInviteEmail}
+											placeholder="member@example.com"
+											type="email"
+											class="h-8 text-xs"
+										/>
+										<Button
+											variant="outline"
+											size="sm"
+											class="h-8 shrink-0 gap-1.5 text-xs"
+											onclick={addMember}
+											disabled={addingMember || !memberInviteEmail.trim()}
+										>
+											<Plus class="h-3 w-3" />
+											{addingMember ? 'Inviting...' : 'Invite'}
+										</Button>
+									</div>
 									<div class="flex items-center gap-2">
 										<span class="text-xs text-gray-500">Role:</span>
 										<div class="flex gap-1">
@@ -317,6 +291,14 @@
 													? 'bg-gray-700 text-gray-100'
 													: 'text-gray-500 hover:text-gray-300'}"
 												onclick={() => (selectedMemberRole = 'read_write')}>Read Write</button
+											>
+											<button
+												type="button"
+												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+												'read'
+													? 'bg-gray-700 text-gray-100'
+													: 'text-gray-500 hover:text-gray-300'}"
+												onclick={() => (selectedMemberRole = 'read')}>Read</button
 											>
 										</div>
 									</div>

@@ -4,7 +4,6 @@ import { listProjects } from '$lib/remote/projects.remote';
 import { getRequestEvent } from '$app/server';
 import { getFeatureFlags } from '$lib/server/feature-flags';
 
-const ACTIVE_PROJECT_COOKIE = 'stack-active-project-id';
 export const load: LayoutServerLoad = async ({ locals, url, depends }) => {
 	depends('app:projects');
 	depends('app:feature-flags');
@@ -26,21 +25,6 @@ export const load: LayoutServerLoad = async ({ locals, url, depends }) => {
 		? null
 		: (projects.find((project) => project.id === activeProjectId) ??
 			(requestedProjectId ? null : (projects[0] ?? null)));
-	const responseEvent = getRequestEvent();
-
-	if (responseEvent) {
-		if (currentProject) {
-			responseEvent.cookies.set(ACTIVE_PROJECT_COOKIE, currentProject.id, {
-				path: '/',
-				httpOnly: true,
-				sameSite: 'strict',
-				secure: url.protocol === 'https:',
-				maxAge: 60 * 60 * 24 * 365
-			});
-		} else {
-			responseEvent.cookies.delete(ACTIVE_PROJECT_COOKIE, { path: '/' });
-		}
-	}
 
 	return {
 		user: locals.user,

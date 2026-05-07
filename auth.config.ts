@@ -9,8 +9,9 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { twoFactor } from 'better-auth/plugins';
+import { organization, twoFactor } from 'better-auth/plugins';
 import { passkey } from '@better-auth/passkey';
+import { ac, organizationRoles } from './src/lib/auth/organization-permissions';
 
 // Drizzle doesn't open a connection until the first query, so this is
 // safe for CLI-only usage where no queries are ever executed.
@@ -19,5 +20,5 @@ const db = drizzle('postgresql://user:pass@localhost:5432/placeholder');
 export default betterAuth({
 	database: drizzleAdapter(db, { provider: 'pg' }),
 	emailAndPassword: { enabled: true },
-	plugins: [twoFactor(), passkey()]
+	plugins: [twoFactor(), passkey(), organization({ ac, roles: organizationRoles })]
 });

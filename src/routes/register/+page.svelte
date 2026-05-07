@@ -4,6 +4,13 @@
 	import { authClient } from '$lib/auth-client';
 	import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from '@lucide/svelte';
 	import { LogoGithub } from 'carbon-icons-svelte';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+	const redirectTo = $derived(data.redirectTo ?? '/');
+	const loginHref = $derived(
+		redirectTo === '/' ? '/login' : `/login?redirectTo=${encodeURIComponent(redirectTo)}`
+	);
 
 	let name = $state('');
 	let email = $state('');
@@ -30,7 +37,7 @@
 			name,
 			email,
 			password,
-			callbackURL: '/'
+			callbackURL: redirectTo
 		});
 
 		loading = false;
@@ -44,11 +51,11 @@
 	}
 
 	async function handleGithub() {
-		await authClient.signIn.social({ provider: 'github', callbackURL: '/' });
+		await authClient.signIn.social({ provider: 'github', callbackURL: redirectTo });
 	}
 
 	async function handleGoogle() {
-		await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
+		await authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
 	}
 </script>
 
@@ -144,7 +151,9 @@
 			</div>
 
 			<p class="text-center text-xs text-gray-500">
-				Already have an account? <a href="/login" class="text-red-400 hover:text-red-300">Sign in</a>
+				Already have an account? <a href={loginHref} class="text-red-400 hover:text-red-300"
+					>Sign in</a
+				>
 			</p>
 		</div>
 	</div>

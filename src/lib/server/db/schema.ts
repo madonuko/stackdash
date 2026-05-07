@@ -12,6 +12,7 @@ import {
 	cidr
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { organization } from './auth.schema';
 import { ulid } from '$lib/server/id';
 
 export * from './auth.schema';
@@ -19,59 +20,11 @@ export * from './auth.schema';
 const ulidPk = () => text('id').primaryKey().$defaultFn(ulid);
 const ulidFk = (name: string) => text(name);
 
-// Enums
-
-export const projectPermissionsEnum = pgEnum('project_permissions_enum', [
-	'admin',
-	'read_write',
-	'read'
-]);
-
 export const vmIsaEnum = pgEnum('vm_isa', ['x86', 'arm', 'risc-v']);
 
 export const vmBackendEnum = pgEnum('vm_backend', ['proxmox']);
 
 export const vmStatusEnum = pgEnum('vm_status', ['provisioning', 'ready', 'error']);
-
-// Projects
-
-export const projects = pgTable(
-	'projects',
-	{
-		id: ulidPk(),
-		projectName: text('project_name').notNull(),
-		ownerUserId: text('owner_user_id').notNull(),
-		creationDate: bigint('creation_date', { mode: 'number' }).notNull()
-	},
-	(table) => [index('projects_owner_user_id_index').on(table.ownerUserId)]
-);
-
-export const projectsRelations = relations(projects, ({ many }) => ({
-	permissions: many(projectPermissions),
-	vms: many(vms),
-	volumes: many(volumes)
-}));
-
-// Project Permissions
-
-export const projectPermissions = pgTable(
-	'project_permissions',
-	{
-		projectId: ulidFk('project_id')
-			.notNull()
-			.references(() => projects.id),
-		userId: text('user_id').notNull(),
-		permissions: projectPermissionsEnum('permissions').notNull()
-	},
-	(table) => [index('project_user_permissions_index').on(table.projectId, table.userId)]
-);
-
-export const projectPermissionsRelations = relations(projectPermissions, ({ one }) => ({
-	project: one(projects, {
-		fields: [projectPermissions.projectId],
-		references: [projects.id]
-	})
-}));
 
 // VM Types
 
@@ -104,7 +57,7 @@ export const vms = pgTable(
 		lastKnownUptime: integer('last_known_uptime').notNull().default(0),
 		lastKnownAt: bigint('last_known_at', { mode: 'number' }),
 		active: boolean('active').notNull().default(true),
-		ownerProjectId: ulidFk('owner_project_id').references(() => projects.id),
+		ownerProjectId: ulidFk('owner_project_id').references(() => organization.id),
 		vmTypeId: ulidFk('vm_type_id')
 			.notNull()
 			.references(() => vmTypes.id),
@@ -121,9 +74,9 @@ export const vms = pgTable(
 );
 
 export const vmsRelations = relations(vms, ({ one, many }) => ({
-	project: one(projects, {
+	project: one(organization, {
 		fields: [vms.ownerProjectId],
-		references: [projects.id]
+		references: [organization.id]
 	}),
 	vmType: one(vmTypes, {
 		fields: [vms.vmTypeId],
@@ -144,7 +97,7 @@ export const volumes = pgTable(
 		size: integer('size').notNull(),
 		ownerProjectId: ulidFk('owner_project_id')
 			.notNull()
-			.references(() => projects.id),
+			.references(() => organization.id),
 		associatedVmId: ulidFk('associated_vm_id').references(() => vms.id)
 	},
 	(table) => [
@@ -154,9 +107,9 @@ export const volumes = pgTable(
 );
 
 export const volumesRelations = relations(volumes, ({ one }) => ({
-	project: one(projects, {
+	project: one(organization, {
 		fields: [volumes.ownerProjectId],
-		references: [projects.id]
+		references: [organization.id]
 	}),
 	vm: one(vms, {
 		fields: [volumes.associatedVmId],
