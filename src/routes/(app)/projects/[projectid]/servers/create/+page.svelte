@@ -81,7 +81,6 @@
 	let selectedImageVersion = $state<string | null>(null);
 	let selectedPlanId = $state<string | null>(null);
 	let networkingOption = $state<'both' | 'ipv4' | 'ipv6' | 'none'>('both');
-	let selectedVpcId = $state<string>('');
 	let selectedSshKeyIds = $state<string[]>([]);
 	let serverPassword = $state('');
 	let showServerPassword = $state(false);
@@ -93,13 +92,6 @@
 	let newVolumeName = $state('');
 	let newVolumeSize = $state('10');
 	let showCreateVolume = $state(false);
-
-	type MockVpc = { id: string; name: string; cidr: string };
-	const mockVpcs: MockVpc[] = [
-		{ id: 'vpc-1', name: 'default', cidr: '10.0.0.0/16' },
-		{ id: 'vpc-2', name: 'staging', cidr: '172.16.0.0/16' },
-		{ id: 'vpc-3', name: 'production', cidr: '192.168.0.0/16' }
-	];
 
 	let creating = $state(false);
 	let createError = $state('');
@@ -651,32 +643,6 @@
 									</label>
 								{/each}
 							</div>
-							<div class="mt-4">
-								<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
-									>VPC</span
-								>
-								<div class="mt-1.5 inline-grid w-full grid-cols-[1fr_--spacing(8)] items-center">
-									<select
-										name="vpc"
-										bind:value={selectedVpcId}
-										class="col-span-full row-start-1 h-8 w-full appearance-none border border-gray-700 bg-gray-800 pr-8 pl-2 text-xs text-gray-100 focus:border-red-500 focus:outline-none"
-									>
-										<option value="">Default (no VPC)</option>
-										{#each mockVpcs as vpc (vpc.id)}
-											<option value={vpc.id}>{vpc.name} ({vpc.cidr})</option>
-										{/each}
-									</select>
-									<svg
-										viewBox="0 0 8 5"
-										width="8"
-										height="5"
-										fill="none"
-										class="pointer-events-none col-start-2 row-start-1 place-self-center text-gray-400"
-									>
-										<path d="M.5.5L4 4L7.5.5" stroke="currentColor" />
-									</svg>
-								</div>
-							</div>
 						</div>
 					</div>
 
@@ -847,14 +813,6 @@
 												: 'None'}
 								</span>
 							</div>
-							{#if selectedVpcId}
-								<div class="flex items-center justify-between text-xs">
-									<span class="text-gray-500">VPC</span>
-									<span class="text-gray-200"
-										>{mockVpcs.find((v) => v.id === selectedVpcId)?.name ?? '—'}</span
-									>
-								</div>
-							{/if}
 							{#if selectedSshKeyIds.length > 0}
 								<div class="flex items-center justify-between text-xs">
 									<span class="text-gray-500">Authentication</span>
