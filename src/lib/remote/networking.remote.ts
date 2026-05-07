@@ -6,22 +6,17 @@ import { initDrizzle } from '$lib/server/db';
 import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
 
-type ListBlocksResult = { id: string; ipBlock: string }[];
-
 export const listIpBlocks = query(type({ projectId: 'string' }), async (params) => {
 	const event = getRequestEvent();
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
+	await requireProjectAccess(db, event.locals.user.id, params.projectId);
 
 	return db.query.ipBlocks.findMany();
 });
 
 const listAssignmentsParams = type({ vmId: 'string' });
-type ListAssignmentsResult = {
-	ip: string;
-	ipBlockId: string;
-}[];
 
 export const listAssignments = query(listAssignmentsParams, async (params) => {
 	const event = getRequestEvent();
@@ -59,7 +54,7 @@ export const assignIp = command(assignParams, async (params) => {
 	});
 });
 
-const unassignParams = type({ assignmentId: 'string', ip: 'string' });
+const unassignParams = type({ ip: 'string' });
 export const unassignIp = command(unassignParams, async (params) => {
 	const event = getRequestEvent();
 	if (!event?.locals.user) error(401, 'Authentication required');
