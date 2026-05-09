@@ -20,7 +20,8 @@
 		Upload,
 		Loader2,
 		AlertTriangle,
-		RefreshCw
+		RefreshCw,
+		UserCog
 	} from '@lucide/svelte';
 	import { AdminState, type AdminPageData } from '$lib/state/admin.svelte';
 
@@ -31,7 +32,7 @@
 		volumes: HardDrive
 	};
 
-	type AdminTab = 'features' | 'vmTypes' | 'images';
+	type AdminTab = 'features' | 'vmTypes' | 'images' | 'users';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'images' as AdminTab;
 	const admin = new AdminState();
@@ -55,11 +56,12 @@
 	let selectedPveImage = $derived(
 		admin.pveImages.find((image) => image.volid === admin.imgFilePath)
 	);
+	const userCount = $derived(admin.adminUsers.length);
 </script>
 
 <div class="flex flex-1 flex-col overflow-hidden">
 	<!-- Tab bar -->
-	<div class="flex h-10 shrink-0 items-center gap-0 border-b border-gray-800">
+	<div class="flex h-10 shrink-0 items-center gap-0 overflow-x-auto border-b border-gray-800">
 		<a
 			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
 			'vmTypes'
@@ -94,6 +96,17 @@
 			<Badge variant="secondary" class="text-[10px]">
 				{featureFlagKeys.filter((key) => admin.featureFlags[key]).length}
 			</Badge>
+		</a>
+		<a
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'users'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			href={resolve('/admin/users')}
+		>
+			<UserCog class="h-3.5 w-3.5 shrink-0" />
+			Users
+			<Badge variant="secondary" class="text-[10px]">{userCount}</Badge>
 		</a>
 		<div class="flex-1"></div>
 		{#if activeTab === 'vmTypes'}

@@ -8,6 +8,21 @@ import {
 	updateImage
 } from '$lib/remote/images.remote';
 import { invalidate } from '$app/navigation';
+import {
+	listAdminUsers,
+	setUserAdmin,
+	setUserDisabled,
+	setUserTwoFactor,
+	setUserRole,
+	getUserResources,
+	getOrganizationResources,
+	type AdminUser,
+	type UserSession,
+	type UserAccount,
+	type UserOrganization,
+	type UserSshKey,
+	type UserApiToken
+} from '$lib/remote/admin-users.remote';
 import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
 import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
 import { untrack } from 'svelte';
@@ -75,6 +90,7 @@ export type AdminPageData = {
 	vmTypes?: VmType[];
 	images?: BaseImage[];
 	featureFlags?: FeatureFlags;
+	adminUsers?: AdminUser[];
 };
 
 export const colorOptions = [
@@ -106,6 +122,30 @@ function createFeatureFlagSaving() {
 export class AdminState {
 	vmTypes = $state<VmType[]>([]);
 	images = $state<BaseImage[]>([]);
+	adminUsers = $state<AdminUser[]>([]);
+	adminUserSaving = $state<Record<string, boolean>>({});
+	adminUserError = $state('');
+
+	userSheetOpen = $state(false);
+	selectedUser = $state<AdminUser | null>(null);
+	userSheetSaving = $state<Record<string, { field: string; saving: boolean }>>({});
+	twoFADialogOpen = $state(false);
+	twoFAPendingUserId = $state('');
+	twoFAPendingValue = $state(false);
+
+	userResourcesOpen = $state<'session' | 'account' | 'org' | 'sshKey' | 'apiToken' | null>(null);
+	userResourcesLoading = $state(false);
+	userSessions = $state<UserSession[]>([]);
+	userAccounts = $state<UserAccount[]>([]);
+	userOrgs = $state<UserOrganization[]>([]);
+	userSshKeys = $state<UserSshKey[]>([]);
+	userApiTokens = $state<UserApiToken[]>([]);
+
+	orgResourcesOpen = $state(false);
+	selectedOrg = $state<UserOrganization | null>(null);
+	orgResourcesLoading = $state(false);
+	orgVms = $state<{ id: string; name: string; status: string; createdAt: number }[]>([]);
+	orgVolumes = $state<{ id: string; name: string; size: number; createdAt: number }[]>([]);
 	featureFlags = $state<FeatureFlags>({ ...defaultFeatureFlags });
 	featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>(createFeatureFlagSaving());
 	featureFlagError = $state('');
@@ -154,6 +194,7 @@ export class AdminState {
 	sync(data: AdminPageData) {
 		this.vmTypes = [...(data.vmTypes ?? [])];
 		this.images = [...(data.images ?? [])];
+		this.adminUsers = [...(data.adminUsers ?? [])];
 		const incoming = data.featureFlags ?? { ...defaultFeatureFlags };
 		this.featureFlags = untrack(() =>
 			Object.fromEntries(
@@ -165,6 +206,168 @@ export class AdminState {
 				])
 			)
 		) as FeatureFlags;
+	}
+
+	async setUserAdmin(userId: string, isAdmin: boolean) {
+		const previousUsers = this.adminUsers.map((adminUser) => ({ ...adminUser }));
+		this.adminUserError = '';
+		this.adminUserSaving[userId] = true;
+		this.adminUsers = this.adminUsers.map((adminUser) =>
+			adminUser.id === userId ? { ...adminUser, isAdmin } : adminUser
+		);
+		try {
+			await setUserAdmin({ userId, isAdmin });
+			this.adminUsers = await listAdminUsers().run();
+			await invalidate('app:admin-users');
+		} catch (err) {
+			this.adminUsers = previousUsers;
+			this.adminUserError = err instanceof Error ? err.message : 'Failed to update admin access';
+		} finally {
+			this.adminUserSaving[userId] = false;
+		}
+	}
+
+	openUserSheet(user: AdminUser) {
+		this.selectedUser = { ...user };
+		this.userSheetOpen = true;
+	}
+
+	closeUserSheet() {
+		this.userSheetOpen = false;
+		this.selectedUser = null;
+	}
+
+	private updateUserField(userId: string, field: string, updater: (user: AdminUser) => AdminUser) {
+		this.adminUsers = this.adminUsers.map((u) => (u.id === userId ? updater(u) : u));
+		if (this.selectedUser?.id === userId) {
+			this.selectedUser = updater({ ...this.selectedUser });
+		}
+	}
+
+	private startUserSheetSave(userId: string, field: string) {
+		this.userSheetSaving[userId] = { field, saving: true };
+	}
+
+	private stopUserSheetSave(userId: string) {
+		this.userSheetSaving[userId] = { field: '', saving: false };
+	}
+
+	private isSheetSaving(userId: string) {
+		return this.userSheetSaving[userId]?.saving ?? false;
+	}
+
+	async setUserDisabled(userId: string, disabled: boolean) {
+		const previousUsers = this.adminUsers.map((u) => ({ ...u }));
+		this.adminUserError = '';
+		this.startUserSheetSave(userId, 'disabled');
+		this.updateUserField(userId, 'disabled', (u) => ({ ...u, disabled }));
+		try {
+			await setUserDisabled({ userId, disabled });
+			await invalidate('app:admin-users');
+		} catch (err) {
+			this.adminUsers = previousUsers;
+			this.adminUserError = err instanceof Error ? err.message : 'Failed to update status';
+		} finally {
+			this.stopUserSheetSave(userId);
+		}
+	}
+
+	prompt2FAConfirm(userId: string, nextValue: boolean) {
+		this.twoFAPendingUserId = userId;
+		this.twoFAPendingValue = nextValue;
+		this.twoFADialogOpen = true;
+	}
+
+	cancel2FAConfirm() {
+		this.twoFADialogOpen = false;
+		this.twoFAPendingUserId = '';
+		this.twoFAPendingValue = false;
+	}
+
+	async commit2FAConfirm() {
+		const userId = this.twoFAPendingUserId;
+		const twoFactorEnabled = this.twoFAPendingValue;
+		if (!userId) return;
+		this.twoFADialogOpen = false;
+		const previousUsers = this.adminUsers.map((u) => ({ ...u }));
+		this.adminUserError = '';
+		this.startUserSheetSave(userId, 'twoFactor');
+		this.updateUserField(userId, 'twoFactorEnabled', (u) => ({ ...u, twoFactorEnabled }));
+		try {
+			await setUserTwoFactor({ userId, twoFactorEnabled });
+			await invalidate('app:admin-users');
+		} catch (err) {
+			this.adminUsers = previousUsers;
+			this.adminUserError =
+				err instanceof Error ? err.message : 'Failed to update two-factor status';
+		} finally {
+			this.stopUserSheetSave(userId);
+			this.twoFAPendingUserId = '';
+			this.twoFAPendingValue = false;
+		}
+	}
+
+	async setUserRole(userId: string, role: string) {
+		const previousUsers = this.adminUsers.map((u) => ({ ...u }));
+		this.adminUserError = '';
+		this.startUserSheetSave(userId, 'role');
+		this.updateUserField(userId, 'role', (u) => ({
+			...u,
+			role,
+			isAdmin: role === 'admin'
+		}));
+		try {
+			await setUserRole({ userId, role });
+			await invalidate('app:admin-users');
+		} catch (err) {
+			this.adminUsers = previousUsers;
+			this.adminUserError = err instanceof Error ? err.message : 'Failed to update role';
+		} finally {
+			this.stopUserSheetSave(userId);
+		}
+	}
+
+	async loadUserResources(userId: string, type: typeof this.userResourcesOpen) {
+		this.userResourcesLoading = true;
+		this.userResourcesOpen = type;
+		try {
+			const result = await getUserResources({ userId }).run();
+			this.userSessions = result.sessions;
+			this.userAccounts = result.accounts;
+			this.userOrgs = result.members;
+			this.userSshKeys = result.sshKeys;
+			this.userApiTokens = result.apiTokens;
+		} catch (err) {
+			this.adminUserError = err instanceof Error ? err.message : 'Failed to load resources';
+		} finally {
+			this.userResourcesLoading = false;
+		}
+	}
+
+	closeUserResources() {
+		this.userResourcesOpen = null;
+	}
+
+	async loadOrgResources(org: UserOrganization) {
+		this.selectedOrg = { ...org };
+		this.orgResourcesLoading = true;
+		this.orgResourcesOpen = true;
+		try {
+			const result = await getOrganizationResources({ orgId: org.id }).run();
+			this.orgVms = result.vms;
+			this.orgVolumes = result.volumes;
+		} catch (err) {
+			this.adminUserError = err instanceof Error ? err.message : 'Failed to load organization resources';
+		} finally {
+			this.orgResourcesLoading = false;
+		}
+	}
+
+	closeOrgResources() {
+		this.orgResourcesOpen = false;
+		this.selectedOrg = null;
+		this.orgVms = [];
+		this.orgVolumes = [];
 	}
 
 	async toggleFeatureFlag(flag: FeatureFlagKey, enabled: boolean) {
