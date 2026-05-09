@@ -171,9 +171,17 @@ export class ProxmoxClient {
 			.json<PveResponse<null>>();
 	}
 
-	async deleteQemuVm(node: string, vmid: number): Promise<string> {
+	async deleteQemuVm(
+		node: string,
+		vmid: number,
+		options?: { purge?: boolean; destroyUnreferencedDisks?: boolean }
+	): Promise<string> {
+		const searchParams: Record<string, string> = {};
+		if (options?.purge) searchParams.purge = '1';
+		if (options?.destroyUnreferencedDisks) searchParams['destroy-unreferenced-disks'] = '1';
+
 		const res = await this.api
-			.delete(`nodes/${encodeURIComponent(node)}/qemu/${vmid}`, { timeout: 120_000 })
+			.delete(`nodes/${encodeURIComponent(node)}/qemu/${vmid}`, { searchParams, timeout: 120_000 })
 			.json<PveResponse<string>>();
 		return res.data;
 	}

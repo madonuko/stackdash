@@ -1,3 +1,4 @@
+import { HTTPError } from 'ky';
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
 import type {
@@ -289,7 +290,15 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async deleteVm(id: string, proxmoxId?: number): Promise<void> {
-		const { node, vmid } = await this.resolve(id, proxmoxId);
+		let resolved: ResolvedVm;
+		try {
+			resolved = await this.resolve(id, proxmoxId);
+		} catch (err) {
+			if (err instanceof Error && err.message.includes('not found on any Proxmox node')) return;
+			throw err;
+		}
+
+		const { node, vmid } = resolved;
 
 		try {
 			const status = await this.client.getQemuVm(node, vmid);
@@ -301,7 +310,17 @@ export class ProxmoxBackend implements VmBackend {
 			// already stopped or gone
 		}
 
-		const upid = await this.client.deleteQemuVm(node, vmid);
+		let upid: string;
+		try {
+			upid = await this.client.deleteQemuVm(node, vmid, {
+				purge: true,
+				destroyUnreferencedDisks: true
+			});
+		} catch (err) {
+			if (err instanceof HTTPError && err.response.status === 404) return;
+			throw err;
+		}
+
 		await this.client.waitForTask(node, upid);
 	}
 

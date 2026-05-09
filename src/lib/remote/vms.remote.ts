@@ -1,7 +1,7 @@
 import { query, command, getRequestEvent } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
 import { getBackend, type VmInfo } from '$lib/server/backends';
@@ -300,7 +300,11 @@ export const createVm = command(createParams, async (params) => {
 	const vmId = inserted.id;
 	let result;
 	try {
-		await ensureProjectServerEntity({ projectId: params.projectId, serverId: vmId, name: params.name });
+		await ensureProjectServerEntity({
+			projectId: params.projectId,
+			serverId: vmId,
+			name: params.name
+		});
 		const backend = getBackend('proxmox');
 		result = await backend.createVm({
 			id: vmId,
@@ -317,7 +321,7 @@ export const createVm = command(createParams, async (params) => {
 				const db = initDrizzle();
 				db.update(vms)
 					.set(ok ? { status: 'ready' } : { status: 'error', statusError: err ?? 'Unknown error' })
-					.where(eq(vms.id, vmId))
+					.where(and(eq(vms.id, vmId), eq(vms.active, true)))
 					.then(() => console.log(`VM ${vmId} provision ${ok ? 'succeeded' : 'failed'}`))
 					.catch((err) => console.error(`VM ${vmId} status update failed:`, err));
 			}
@@ -361,7 +365,8 @@ export const deleteVm = command(deleteParams, async (params) => {
 	try {
 		await getBackend(row.backend).deleteVm(row.id, row.proxmoxId ?? undefined);
 	} catch (err) {
-		console.warn(`Failed to delete backend VM ${row.id}; marking inactive`, err);
+		console.warn(`Failed to delete backend VM ${row.id}`, err);
+		error(502, `Failed to deprovision VM "${row.name}" in Proxmox`);
 	}
 
 	const metered = await meterResourceThrough('vm', row.id);

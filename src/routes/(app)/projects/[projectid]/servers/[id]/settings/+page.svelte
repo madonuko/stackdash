@@ -1,22 +1,35 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { untrack } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { getServerWithFallback } from '$lib/state/servers.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { deleteVm } from '$lib/remote/vms.remote';
 
 	let { data }: PageProps = $props();
 	let selectedServer = $derived(getServerWithFallback(data.serverId, data.server));
-	let nameValue = $state(untrack(() => data.server.name));
-	let nameServerId = $state(untrack(() => data.serverId));
+	let nameValue = $derived(selectedServer.name);
+	let deleting = $state(false);
+	let deleteError = $state('');
 
-	$effect(() => {
-		if (selectedServer.id !== nameServerId) {
-			nameServerId = selectedServer.id;
-			nameValue = selectedServer.name;
+	async function handleDelete() {
+		if (deleting) return;
+		if (!window.confirm(`Delete server "${selectedServer.name}"?`)) return;
+
+		deleting = true;
+		deleteError = '';
+
+		try {
+			await deleteVm({ vmId: selectedServer.id });
+			await goto(resolve(`/projects/${page.params.projectid}/servers`));
+		} catch {
+			deleteError = 'Failed to delete server.';
+			deleting = false;
 		}
-	});
+	}
 </script>
 
 <div class="max-w-xl space-y-5 p-5">
@@ -38,11 +51,18 @@
 			class="font-mono"
 		/>
 	</div>
+	{#if deleteError}
+		<p class="text-xs text-red-400">{deleteError}</p>
+	{/if}
 	<div class="flex gap-2">
 		<Button size="sm">Save Changes</Button><Button
 			variant="outline"
 			size="sm"
-			class="border-red-700 text-red-400 hover:bg-red-950">Delete Server</Button
+			disabled={deleting}
+			onclick={handleDelete}
+			class="border-red-700 text-red-400 hover:bg-red-950"
+		>
+			{deleting ? 'Deleting...' : 'Delete Server'}</Button
 		>
 	</div>
 </div>

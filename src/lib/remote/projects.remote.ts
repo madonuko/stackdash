@@ -16,6 +16,7 @@ import {
 } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
 import { initAuth } from '$lib/server/auth';
+import { getBackend } from '$lib/server/backends';
 import {
 	attachDefaultProjectPlan,
 	deleteLocalProjectBillingCustomer,
@@ -166,13 +167,22 @@ export const deleteProject = command(deleteParams, async (params) => {
 
 	const projectVms = await db.query.vms.findMany({
 		where: eq(vms.ownerProjectId, params.projectId),
-		columns: { id: true, active: true }
+		columns: { id: true, name: true, proxmoxId: true, active: true, backend: true }
 	});
 	const vmIds = projectVms.map((vm) => vm.id);
 	const projectVolumes = await db.query.volumes.findMany({
 		where: eq(volumes.ownerProjectId, params.projectId),
 		columns: { id: true }
 	});
+
+	for (const vm of projectVms.filter((item) => item.active)) {
+		try {
+			await getBackend(vm.backend).deleteVm(vm.id, vm.proxmoxId ?? undefined);
+		} catch (err) {
+			console.warn(`Failed to deprovision VM ${vm.id} during project delete`, err);
+			error(502, `Failed to deprovision VM "${vm.name}" in Proxmox`);
+		}
+	}
 
 	for (const vm of projectVms.filter((item) => item.active)) {
 		const metered = await meterResourceThrough('vm', vm.id);
