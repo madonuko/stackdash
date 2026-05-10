@@ -67,7 +67,7 @@
 				<Hr class="my-8 border-gray-800" />
 				<Text class="text-sm leading-5 text-gray-500">
 					This alert was triggered at {timestamp}. If you did not initiate this activity, please
-					secure your account immediately.
+					contact support@fyrastack.com and secure your account immediately.
 				</Text>
 			</Section>
 		</Container>

@@ -47,6 +47,9 @@
 				</Section>
 				<Hr class="my-8 border-gray-800" />
 				<Text class="text-sm leading-5 text-gray-500">
+					If you did not request this email verification, contact support@fyrastack.com.
+				</Text>
+				<Text class="mt-3 text-sm leading-5 text-gray-500">
 					If the button above doesn't work, copy and paste this URL into your browser:
 				</Text>
 				<Text class="mt-1 text-sm leading-5 break-all text-gray-500">

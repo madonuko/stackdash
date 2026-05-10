@@ -54,7 +54,7 @@
 				<Text class="text-sm leading-5 text-gray-500">
 					If the button above doesn't work, copy and paste this URL into your browser:
 				</Text>
-				<Text class="mt-1 break-all text-sm leading-5 text-gray-500">
+				<Text class="mt-1 text-sm leading-5 break-all text-gray-500">
 					<a href={invoiceUrl} class="break-all text-red-400 no-underline">
 						{invoiceUrl}
 					</a>

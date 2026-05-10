@@ -45,8 +45,8 @@
 				</Section>
 				<Hr class="my-8 border-gray-800" />
 				<Text class="text-sm leading-5 text-gray-500">
-					This code expires in {expiresInMinutes} minutes. If you did not request this deletion, secure
-					your account immediately.
+					This code expires in {expiresInMinutes} minutes. If you did not request this deletion, contact
+					support@fyrastack.com and secure your account immediately.
 				</Text>
 			</Section>
 		</Container>

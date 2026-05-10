@@ -25,7 +25,7 @@
 	<Head />
 	<Body class="bg-gray-950 font-sans">
 		<Preview preview="Reset your Stack password" />
-		<Container class="mx-auto my-8 max-w-xl border border-gray-800 bg-gray-900 [border-radius:0]">
+		<Container class="mx-auto my-8 max-w-xl [border-radius:0] border border-gray-800 bg-gray-900">
 			<EmailHeader label="Password reset" />
 			<Section class="p-8">
 				<Heading as="h1" class="m-0 text-xl font-semibold text-gray-50">
@@ -42,7 +42,7 @@
 						href={resetUrl}
 						pX={24}
 						pY={14}
-						class="border border-red-500 bg-red-500 font-semibold text-white [border-radius:0]"
+						class="[border-radius:0] border border-red-500 bg-red-500 font-semibold text-white"
 					>
 						Reset password
 					</Button>
@@ -54,7 +54,7 @@
 				<Text class="mt-3 text-sm leading-5 text-gray-500">
 					If the button above doesn't work, copy and paste this URL into your browser:
 				</Text>
-				<Text class="mt-1 break-all text-sm leading-5 text-gray-500">
+				<Text class="mt-1 text-sm leading-5 break-all text-gray-500">
 					<a href={resetUrl} class="break-all text-red-400 no-underline">
 						{resetUrl}
 					</a>

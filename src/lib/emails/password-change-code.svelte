@@ -44,8 +44,8 @@
 				</Section>
 				<Hr class="my-8 border-gray-800" />
 				<Text class="text-sm leading-5 text-gray-500">
-					This code expires in {expiresInMinutes} minutes. If you did not request this change, you can
-					safely ignore this email.
+					This code expires in {expiresInMinutes} minutes. If you did not request this password change,
+					contact support@fyrastack.com.
 				</Text>
 			</Section>
 		</Container>
