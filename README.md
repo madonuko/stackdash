@@ -14,13 +14,13 @@
     - generate better auth
     - autumn
     - postgres connection url
-      - I had to also create the env variable CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE and set it to the connection string
   - highly recommended
     - proxmox
   - optional
     - github
     - google
     - billing meter secret
+    - cloudflare email key
 4) setup db
   - `bun run db:push`
 
