@@ -6,7 +6,7 @@ import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { admin, organization, twoFactor } from 'better-auth/plugins';
 import { passkey } from '@better-auth/passkey';
 import { autumn } from 'autumn-js/better-auth';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq, gt } from 'drizzle-orm';
 import { dev } from '$app/environment';
 import { getRequestEvent } from '$app/server';
 import { ac, organizationRoles } from '$lib/auth/organization-permissions';
@@ -14,7 +14,7 @@ import OrganizationInvitationEmail from '$lib/emails/organization-invitation.sve
 import ResetPasswordEmail from '$lib/emails/reset-password.svelte';
 import VerifyEmail from '$lib/emails/verify-email.svelte';
 import { initDrizzle } from '$lib/server/db';
-import { user as userTable } from '$lib/server/db/schema';
+import { user as userTable, verification } from '$lib/server/db/schema';
 import { sendRenderedEmail } from '$lib/server/email';
 import { sendSecurityAlertEmail } from '$lib/server/email-notifications';
 import { getRuntimeEnv } from '$lib/server/env';
@@ -27,6 +27,18 @@ const PASSKEY_PASSWORD_CHANGE_MAX_AGE_MS = 60 * 1000;
 
 function passwordChangePasskeyIdentifier(userId: string) {
 	return `password-change-passkey:${userId}`;
+}
+
+function pendingEmailChangeIdentifier(userId: string) {
+	return `pending-email-change:${userId}`;
+}
+
+function adminUserDeletionIntentIdentifier(adminUserId: string) {
+	return `admin-user-delete-intent:${adminUserId}`;
+}
+
+function adminUserDeletionPasskeyIdentifier(adminUserId: string, targetUserId: string) {
+	return `admin-user-delete-passkey:${adminUserId}:${targetUserId}`;
 }
 
 type PasskeyRecord = {
@@ -93,6 +105,9 @@ export function initAuth() {
 			}
 		},
 		user: {
+			changeEmail: {
+				enabled: true
+			},
 			additionalFields: {
 				isAdmin: {
 					type: 'boolean',
@@ -150,6 +165,16 @@ export function initAuth() {
 						to: user.email
 					})
 				);
+			},
+			afterEmailVerification: async (user) => {
+				await db
+					.delete(verification)
+					.where(
+						and(
+							eq(verification.identifier, pendingEmailChangeIdentifier(user.id)),
+							eq(verification.value, user.email.toLowerCase())
+						)
+					);
 			},
 			sendOnSignUp: true
 		},
@@ -261,6 +286,35 @@ export function initAuth() {
 								throw APIError.from('UNAUTHORIZED', {
 									code: 'INVALID_PASSKEY_PASSWORD_CHANGE',
 									message: 'Use a passkey registered to this account.'
+								});
+							}
+
+							const [deletionIntent] = await db
+								.select({ id: verification.id, targetUserId: verification.value })
+								.from(verification)
+								.where(
+									and(
+										eq(
+											verification.identifier,
+											adminUserDeletionIntentIdentifier(verifiedPasskey.userId)
+										),
+										gt(verification.expiresAt, new Date())
+									)
+								)
+								.limit(1);
+
+							if (deletionIntent) {
+								const identifier = adminUserDeletionPasskeyIdentifier(
+									verifiedPasskey.userId,
+									deletionIntent.targetUserId
+								);
+								await db.delete(verification).where(eq(verification.identifier, identifier));
+								await db.delete(verification).where(eq(verification.id, deletionIntent.id));
+								await db.insert(verification).values({
+									id: ulid(),
+									identifier,
+									value: clientData.id,
+									expiresAt: new Date(Date.now() + PASSKEY_PASSWORD_CHANGE_MAX_AGE_MS)
 								});
 							}
 

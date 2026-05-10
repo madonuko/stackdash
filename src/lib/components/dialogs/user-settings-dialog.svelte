@@ -19,6 +19,7 @@
 		listSshKeys
 	} from '$lib/remote/ssh-keys.remote';
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
+	import { getPendingEmailChange, requestEmailChange } from '$lib/remote/email-change.remote';
 
 	import {
 		User,
@@ -56,12 +57,25 @@
 	// ── Profile ──
 	let profileSaving = $state(false);
 	let profileSaved = $state(false);
-	const profileEmail = $derived(user?.email ?? '');
+	let profileEmail = $state('');
+	let profileError = $state('');
+	let profileEmailChangePending = $state(false);
+	let pendingProfileEmail = $state('');
+	const currentProfileEmail = $derived(user?.email ?? '');
+	const normalizedProfileEmail = $derived(profileEmail.trim().toLowerCase());
+	const profileEmailChanged = $derived(
+		normalizedProfileEmail !== currentProfileEmail.toLowerCase()
+	);
+	const profileSaveDisabled = $derived(profileSaving || !profileEmail.trim());
 
 	$effect(() => {
 		if (!open) return;
 		untrack(() => {
 			profileSaved = false;
+			profileError = '';
+			profileEmail = currentProfileEmail;
+			profileEmailChangePending = false;
+			pendingProfileEmail = '';
 		});
 	});
 
@@ -69,20 +83,56 @@
 		if (profileSaving) return;
 		profileSaving = true;
 		profileSaved = false;
+		profileError = '';
 
 		const originalName = user?.name ?? '';
-		profileName = profileName.trim() || originalName;
+		const originalEmail = currentProfileEmail;
+		const nextName = profileName.trim() || originalName;
+		const nextEmail = normalizedProfileEmail;
+		profileName = nextName;
+		profileEmail = nextEmail || originalEmail;
+
+		if (!nextEmail) {
+			profileError = 'Enter an email address.';
+			profileSaving = false;
+			return;
+		}
 
 		try {
-			await authClient.updateUser({ name: profileName });
+			if (nextName !== originalName) {
+				const { error } = await authClient.updateUser({ name: nextName });
+
+				if (error) {
+					profileError = error.message ?? 'Failed to update profile.';
+					return;
+				}
+			}
+
+			if (profileEmailChanged) {
+				const result = await requestEmailChange({
+					newEmail: nextEmail,
+					callbackURL: window.location.pathname + window.location.search
+				});
+
+				profileEmailChangePending = true;
+				pendingProfileEmail = result.email;
+			}
+
 			profileSaved = true;
 			setTimeout(() => (profileSaved = false), 1500);
 		} catch (error) {
 			console.error('Failed to update profile:', error);
+			profileError = error instanceof Error ? error.message : 'Failed to update profile.';
 			profileName = originalName;
+			profileEmail = originalEmail;
 		} finally {
 			profileSaving = false;
 		}
+	}
+
+	async function loadPendingProfileEmailChange() {
+		pendingProfileEmail = (await getPendingEmailChange()) ?? '';
+		profileEmailChangePending = Boolean(pendingProfileEmail);
 	}
 
 	// ── Password ──
@@ -299,7 +349,12 @@
 	$effect(() => {
 		if (!open) return;
 		untrack(() => {
-			void Promise.all([loadSshKeys(), loadTokens(), loadTwoFactorStatus()]);
+			void Promise.all([
+				loadSshKeys(),
+				loadTokens(),
+				loadTwoFactorStatus(),
+				loadPendingProfileEmailChange()
+			]);
 		});
 	});
 </script>
@@ -400,13 +455,27 @@
 								</div>
 								<div class="flex flex-col gap-1.5">
 									<Label>Email Address</Label>
-									<Input value={profileEmail} type="email" disabled />
+									<Input bind:value={profileEmail} type="email" />
+									{#if profileEmailChangePending}
+										<p class="text-xs text-gray-500">
+											Check {pendingProfileEmail} to verify this email change.
+										</p>
+									{/if}
 								</div>
-								<Button size="sm" onclick={saveProfile} disabled={profileSaving} class="w-fit">
+								{#if profileError}
+									<p class="text-xs text-red-400">{profileError}</p>
+								{/if}
+								<Button
+									size="sm"
+									onclick={saveProfile}
+									disabled={profileSaveDisabled}
+									class="w-fit"
+								>
 									{#if profileSaving}
 										Saving...
 									{:else if profileSaved}
-										<Check class="h-3 w-3" /> Saved
+										<Check class="h-3 w-3" />
+										{profileEmailChangePending ? 'Verification sent' : 'Saved'}
 									{:else}
 										Save Profile
 									{/if}
