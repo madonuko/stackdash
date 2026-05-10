@@ -89,16 +89,38 @@
 	let confirmPassword = $state('');
 	let showPassword = $state(false);
 	let passwordSaved = $state(false);
+	let passwordSaving = $state(false);
+	let passwordError = $state('');
 
-	function savePassword() {
-		if (newPassword !== confirmPassword || !currentPassword) return;
-		passwordSaved = true;
-		setTimeout(() => {
-			passwordSaved = false;
+	async function savePassword() {
+		if (passwordSaving || !currentPassword || !newPassword || newPassword !== confirmPassword) return;
+
+		passwordSaving = true;
+		passwordError = '';
+		passwordSaved = false;
+
+		try {
+			const response = await authClient.changePassword({
+				currentPassword,
+				newPassword,
+				revokeOtherSessions: true
+			});
+
+			if (response.error) {
+				passwordError = response.error.message ?? 'Failed to update password.';
+				return;
+			}
+
+			passwordSaved = true;
 			currentPassword = '';
 			newPassword = '';
 			confirmPassword = '';
-		}, 1200);
+			setTimeout(() => (passwordSaved = false), 1500);
+		} catch {
+			passwordError = 'Failed to update password.';
+		} finally {
+			passwordSaving = false;
+		}
 	}
 
 	// ── Two-Factor ──
@@ -431,13 +453,21 @@
 										<p class="text-xs text-red-400">Passwords do not match.</p>
 									{/if}
 								</div>
+								{#if passwordError}
+									<p class="text-xs text-red-400">{passwordError}</p>
+								{/if}
 								<Button
 									size="sm"
 									onclick={savePassword}
-									disabled={!currentPassword || !newPassword || newPassword !== confirmPassword}
+									disabled={passwordSaving ||
+										!currentPassword ||
+										!newPassword ||
+										newPassword !== confirmPassword}
 									class="w-fit"
 								>
-									{#if passwordSaved}
+									{#if passwordSaving}
+										Updating...
+									{:else if passwordSaved}
 										<Check class="h-3 w-3" /> Updated
 									{:else}
 										Update Password
