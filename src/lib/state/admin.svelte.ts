@@ -14,6 +14,7 @@ import {
 	setUserDisabled,
 	setUserTwoFactor,
 	setUserRole,
+	deleteUserWithVerification,
 	getUserResources,
 	getOrganizationResources,
 	type AdminUser,
@@ -327,6 +328,22 @@ export class AdminState {
 		}
 	}
 
+	async deleteUser(userId: string, method: string, code: string) {
+		this.adminUserError = '';
+		this.startUserSheetSave(userId, 'delete');
+		try {
+			await deleteUserWithVerification({ userId, method, code });
+			this.adminUsers = this.adminUsers.filter((u) => u.id !== userId);
+			this.closeUserSheet();
+			await invalidate('app:admin-users');
+		} catch (err) {
+			this.adminUserError = err instanceof Error ? err.message : 'Failed to delete user';
+			throw err;
+		} finally {
+			this.stopUserSheetSave(userId);
+		}
+	}
+
 	async loadUserResources(userId: string, type: typeof this.userResourcesOpen) {
 		this.userResourcesLoading = true;
 		this.userResourcesOpen = type;
@@ -357,7 +374,8 @@ export class AdminState {
 			this.orgVms = result.vms;
 			this.orgVolumes = result.volumes;
 		} catch (err) {
-			this.adminUserError = err instanceof Error ? err.message : 'Failed to load organization resources';
+			this.adminUserError =
+				err instanceof Error ? err.message : 'Failed to load organization resources';
 		} finally {
 			this.orgResourcesLoading = false;
 		}

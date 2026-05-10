@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { authClient } from '$lib/auth-client';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { featureFlagKeys } from '$lib/feature-flags';
+	import { beginDeleteUser, type AdminUser } from '$lib/remote/admin-users.remote';
 	import { AdminState, type AdminPageData } from '$lib/state/admin.svelte';
 	import {
 		AlertTriangle,
@@ -38,10 +42,12 @@
 		X,
 		ChevronRight,
 		Server,
-		HardDrive
+		HardDrive,
+		Trash2
 	} from '@lucide/svelte';
 
 	type AdminTab = 'features' | 'vmTypes' | 'images' | 'users';
+	type DeletionVerificationMethod = 'passkey' | 'totp' | 'email';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'users' as AdminTab;
 	const admin = new AdminState();
@@ -54,6 +60,34 @@
 	const verifiedCount = $derived(admin.adminUsers.filter((u) => u.emailVerified).length);
 	const disabledCount = $derived(admin.adminUsers.filter((u) => u.disabled).length);
 	const has2faCount = $derived(admin.adminUsers.filter((u) => u.twoFactorEnabled).length);
+	let deleteDialogOpen = $state(false);
+	let deletePreparing = $state(false);
+	let deleteVerifying = $state(false);
+	let deleteError = $state('');
+	let deleteUserId = $state('');
+	let deleteUserName = $state('');
+	let deleteUserEmail = $state('');
+	let deleteVerificationMethod = $state<DeletionVerificationMethod>('email');
+	let deleteVerificationEmail = $state('');
+	let deleteVerificationCode = $state('');
+	const normalizedDeleteVerificationCode = $derived(deleteVerificationCode.replace(/\D/g, ''));
+	const deleteVerificationDescription = $derived.by(() => {
+		if (deleteVerificationMethod === 'passkey') {
+			return `Use your registered passkey to confirm permanently deleting ${deleteUserEmail}.`;
+		}
+
+		if (deleteVerificationMethod === 'totp') {
+			return `Enter a code from your authenticator app to confirm permanently deleting ${deleteUserEmail}.`;
+		}
+
+		return `Enter the code sent to ${deleteVerificationEmail} to confirm permanently deleting ${deleteUserEmail}.`;
+	});
+	const deleteVerificationDisabled = $derived(
+		deleteVerifying ||
+			deletePreparing ||
+			!deleteUserId ||
+			(deleteVerificationMethod !== 'passkey' && normalizedDeleteVerificationCode.length !== 6)
+	);
 
 	const sortedUsers = $derived(
 		[...admin.adminUsers].sort((a, b) => {
@@ -112,6 +146,71 @@
 		vm: { label: 'Virtual Machines', icon: Server },
 		volume: { label: 'Volumes', icon: HardDrive }
 	} as const;
+
+	function resetDeleteDialog() {
+		deleteDialogOpen = false;
+		deleteError = '';
+		deleteUserId = '';
+		deleteUserName = '';
+		deleteUserEmail = '';
+		deleteVerificationMethod = 'email';
+		deleteVerificationEmail = '';
+		deleteVerificationCode = '';
+	}
+
+	async function openDeleteDialog(user: AdminUser) {
+		if (deletePreparing || deleteVerifying) return;
+
+		deletePreparing = true;
+		deleteError = '';
+		deleteUserId = user.id;
+		deleteUserName = user.name;
+		deleteUserEmail = user.email;
+		deleteVerificationCode = '';
+
+		try {
+			const result = await beginDeleteUser({ userId: user.id });
+			deleteUserName = result.targetName;
+			deleteUserEmail = result.targetEmail;
+			deleteVerificationMethod = result.method;
+			deleteVerificationEmail = result.email;
+			deleteDialogOpen = true;
+		} catch (err) {
+			admin.adminUserError = err instanceof Error ? err.message : 'Failed to prepare user deletion';
+			deleteUserId = '';
+		} finally {
+			deletePreparing = false;
+		}
+	}
+
+	async function confirmDeleteUser() {
+		if (deleteVerificationDisabled) return;
+
+		deleteVerifying = true;
+		deleteError = '';
+
+		try {
+			if (deleteVerificationMethod === 'passkey') {
+				const { error } = await authClient.signIn.passkey({ autoFill: false });
+
+				if (error) {
+					deleteError = error.message ?? 'Failed to verify passkey.';
+					return;
+				}
+			}
+
+			await admin.deleteUser(
+				deleteUserId,
+				deleteVerificationMethod,
+				normalizedDeleteVerificationCode
+			);
+			resetDeleteDialog();
+		} catch (err) {
+			deleteError = err instanceof Error ? err.message : 'Failed to delete user';
+		} finally {
+			deleteVerifying = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -122,7 +221,10 @@
 	<!-- Tabs -->
 	<div class="flex h-10 shrink-0 items-center gap-0 overflow-x-auto border-b border-gray-800">
 		<a
-			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab === 'vmTypes' ? 'border-red-500 text-gray-100' : 'border-transparent text-gray-500 hover:text-gray-300'}"
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'vmTypes'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
 			href={resolve('/admin')}
 		>
 			<Cpu class="h-3.5 w-3.5 shrink-0" />
@@ -130,7 +232,10 @@
 			<Badge variant="secondary" class="text-[10px]">{admin.vmTypes.length}</Badge>
 		</a>
 		<a
-			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab === 'images' ? 'border-red-500 text-gray-100' : 'border-transparent text-gray-500 hover:text-gray-300'}"
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'images'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
 			href={resolve('/admin/images')}
 		>
 			<Disc class="h-3.5 w-3.5 shrink-0" />
@@ -138,7 +243,10 @@
 			<Badge variant="secondary" class="text-[10px]">{admin.images.length}</Badge>
 		</a>
 		<a
-			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab === 'features' ? 'border-red-500 text-gray-100' : 'border-transparent text-gray-500 hover:text-gray-300'}"
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'features'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
 			href={resolve('/admin/features')}
 		>
 			<Flag class="h-3.5 w-3.5 shrink-0" />
@@ -148,7 +256,10 @@
 			</Badge>
 		</a>
 		<a
-			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab === 'users' ? 'border-red-500 text-gray-100' : 'border-transparent text-gray-500 hover:text-gray-300'}"
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'users'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
 			href={resolve('/admin/users')}
 		>
 			<UserCog class="h-3.5 w-3.5 shrink-0" />
@@ -161,7 +272,9 @@
 	<div class="flex-1 overflow-auto">
 		<div class="flex flex-col gap-5 p-5">
 			{#if admin.adminUserError}
-				<div class="flex items-center gap-2 rounded-md border border-red-800/50 bg-red-950/50 px-3 py-2 text-xs text-red-400">
+				<div
+					class="flex items-center gap-2 rounded-md border border-red-800/50 bg-red-950/50 px-3 py-2 text-xs text-red-400"
+				>
 					<AlertTriangle class="h-3.5 w-3.5 shrink-0" />
 					{admin.adminUserError}
 				</div>
@@ -171,45 +284,57 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<h2 class="text-base font-semibold tracking-tight text-gray-100">Users</h2>
-					<p class="mt-1 text-xs text-gray-500">Manage registered users, roles, and account settings.</p>
+					<p class="mt-1 text-xs text-gray-500">
+						Manage registered users, roles, and account settings.
+					</p>
 				</div>
 			</div>
 
 			<!-- Stat row -->
 			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-				<div class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3">
+				<div
+					class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3"
+				>
 					<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-500/10">
 						<Users class="h-4 w-4 text-sky-400" />
 					</div>
 					<div class="flex flex-col">
-						<span class="text-lg font-semibold leading-none text-gray-100">{userCount}</span>
+						<span class="text-lg leading-none font-semibold text-gray-100">{userCount}</span>
 						<span class="mt-0.5 text-[10px] text-gray-500">Total users</span>
 					</div>
 				</div>
-				<div class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3">
+				<div
+					class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3"
+				>
 					<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-500/10">
 						<ShieldCheck class="h-4 w-4 text-red-400" />
 					</div>
 					<div class="flex flex-col">
-						<span class="text-lg font-semibold leading-none text-gray-100">{adminCount}</span>
+						<span class="text-lg leading-none font-semibold text-gray-100">{adminCount}</span>
 						<span class="mt-0.5 text-[10px] text-gray-500">Admins</span>
 					</div>
 				</div>
-				<div class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3">
-					<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/10">
+				<div
+					class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3"
+				>
+					<div
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/10"
+					>
 						<Mail class="h-4 w-4 text-emerald-400" />
 					</div>
 					<div class="flex flex-col">
-						<span class="text-lg font-semibold leading-none text-gray-100">{verifiedCount}</span>
+						<span class="text-lg leading-none font-semibold text-gray-100">{verifiedCount}</span>
 						<span class="mt-0.5 text-[10px] text-gray-500">Verified</span>
 					</div>
 				</div>
-				<div class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3">
+				<div
+					class="flex items-center gap-3 rounded-md border border-gray-800/60 bg-gray-900/30 px-4 py-3"
+				>
 					<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-500/10">
 						<Key class="h-4 w-4 text-amber-400" />
 					</div>
 					<div class="flex flex-col">
-						<span class="text-lg font-semibold leading-none text-gray-100">{has2faCount}</span>
+						<span class="text-lg leading-none font-semibold text-gray-100">{has2faCount}</span>
 						<span class="mt-0.5 text-[10px] text-gray-500">With 2FA</span>
 					</div>
 				</div>
@@ -235,10 +360,12 @@
 										<img
 											src={account.image}
 											alt={account.name}
-											class="h-10 w-10 shrink-0 rounded-full object-cover"
+											class="h-10 w-10 shrink-0 object-cover"
 										/>
 									{:else}
-										<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold {colorClass}">
+										<div
+											class="flex h-10 w-10 shrink-0 items-center justify-center text-xs font-bold {colorClass}"
+										>
 											{initials(account.name)}
 										</div>
 									{/if}
@@ -261,26 +388,36 @@
 							<!-- Badge row -->
 							<div class="flex flex-wrap items-center gap-1.5">
 								{#if account.isAdmin}
-									<span class="inline-flex items-center gap-1 rounded-sm border border-red-500/20 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+									<span
+										class="inline-flex items-center gap-1 rounded-sm border border-red-500/20 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400"
+									>
 										<Shield class="h-2.5 w-2.5" />Admin
 									</span>
 								{:else}
-									<span class="inline-flex items-center gap-1 rounded-sm border border-gray-600/20 bg-gray-700/30 px-1.5 py-0.5 text-[10px] font-medium text-gray-400">
+									<span
+										class="inline-flex items-center gap-1 rounded-sm border border-gray-600/20 bg-gray-700/30 px-1.5 py-0.5 text-[10px] font-medium text-gray-400"
+									>
 										<User class="h-2.5 w-2.5" />User
 									</span>
 								{/if}
 								{#if account.emailVerified}
-									<span class="inline-flex items-center gap-1 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+									<span
+										class="inline-flex items-center gap-1 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400"
+									>
 										<Check class="h-2.5 w-2.5" />Verified
 									</span>
 								{/if}
 								{#if account.twoFactorEnabled}
-									<span class="inline-flex items-center gap-1 rounded-sm border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+									<span
+										class="inline-flex items-center gap-1 rounded-sm border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+									>
 										<Key class="h-2.5 w-2.5" />2FA
 									</span>
 								{/if}
 								{#if account.disabled}
-									<span class="inline-flex items-center gap-1 rounded-sm border border-red-500/20 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400">
+									<span
+										class="inline-flex items-center gap-1 rounded-sm border border-red-500/20 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400"
+									>
 										<X class="h-2.5 w-2.5" />Disabled
 									</span>
 								{/if}
@@ -298,9 +435,9 @@
 									class="h-7 gap-1.5 border-gray-700/50 text-xs text-gray-300 hover:bg-gray-800 hover:text-gray-100"
 									onclick={() => admin.openUserSheet(account)}
 								>
-								Manage
-								<ChevronRight class="h-3 w-3" />
-							</Button>
+									Manage
+									<ChevronRight class="h-3 w-3" />
+								</Button>
 							</div>
 						</div>
 					{/each}
@@ -317,13 +454,15 @@
 			{@const u = admin.selectedUser}
 			{@const colorClass = avatarColor(u.name)}
 			{@const RoleIcon = u.isAdmin ? Crown : User}
-			{@const isAdminSaving = admin.adminUserSaving[u.id] || (admin.userSheetSaving[u.id]?.saving)}
+			{@const isAdminSaving = admin.adminUserSaving[u.id] || admin.userSheetSaving[u.id]?.saving}
 			<!-- Header -->
 			<div class="flex items-center gap-4">
 				{#if u.image}
 					<img src={u.image} alt={u.name} class="h-12 w-12 shrink-0 rounded-full object-cover" />
 				{:else}
-					<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold {colorClass}">
+					<div
+						class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold {colorClass}"
+					>
 						{initials(u.name)}
 					</div>
 				{/if}
@@ -339,16 +478,22 @@
 				<!-- Status badges -->
 				<div class="flex flex-wrap items-center gap-2">
 					{#if u.emailVerified}
-						<span class="inline-flex items-center gap-1 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-400">
+						<span
+							class="inline-flex items-center gap-1 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-400"
+						>
 							<Check class="h-3 w-3" />Email verified
 						</span>
 					{:else}
-						<span class="inline-flex items-center gap-1 rounded-sm border border-gray-700/50 bg-gray-800 px-2 py-1 text-[11px] font-medium text-gray-500">
+						<span
+							class="inline-flex items-center gap-1 rounded-sm border border-gray-700/50 bg-gray-800 px-2 py-1 text-[11px] font-medium text-gray-500"
+						>
 							<Mail class="h-3 w-3" />Unverified
 						</span>
 					{/if}
 					{#if u.disabled}
-						<span class="inline-flex items-center gap-1 rounded-sm border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400">
+						<span
+							class="inline-flex items-center gap-1 rounded-sm border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400"
+						>
 							<X class="h-3 w-3" />Disabled
 						</span>
 					{/if}
@@ -400,7 +545,7 @@
 
 				<!-- Security toggles -->
 				<div class="flex flex-col gap-4">
-					<span class="text-xs font-medium uppercase tracking-wider text-gray-500">Security</span>
+					<span class="text-xs font-medium tracking-wider text-gray-500 uppercase">Security</span>
 
 					<!-- Disabled toggle -->
 					<div class="flex items-center justify-between">
@@ -424,8 +569,7 @@
 								<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
 							{/if}
 							<Switch
-								bind:checked={() => u.disabled,
-								(v) => admin.setUserDisabled(u.id, v)}
+								bind:checked={() => u.disabled, (v) => admin.setUserDisabled(u.id, v)}
 								disabled={isAdminSaving}
 							/>
 						</div>
@@ -451,8 +595,10 @@
 								<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
 							{/if}
 							<Switch
-								bind:checked={() => u.twoFactorEnabled,
-								(v) => u.twoFactorEnabled ? admin.prompt2FAConfirm(u.id, v) : undefined}
+								bind:checked={
+									() => u.twoFactorEnabled,
+									(v) => (u.twoFactorEnabled ? admin.prompt2FAConfirm(u.id, v) : undefined)
+								}
 								disabled={!u.twoFactorEnabled || isAdminSaving}
 							/>
 						</div>
@@ -463,7 +609,7 @@
 
 				<!-- Account info -->
 				<div class="flex flex-col gap-3">
-					<span class="text-xs font-medium uppercase tracking-wider text-gray-500">Account</span>
+					<span class="text-xs font-medium tracking-wider text-gray-500 uppercase">Account</span>
 					<div class="flex flex-col gap-2">
 						<div class="flex items-center justify-between">
 							<span class="flex items-center gap-2 text-xs text-gray-500">
@@ -493,8 +639,14 @@
 							<span class="flex items-center gap-2 text-xs text-gray-500">
 								<Mail class="h-3 w-3" />Verified
 							</span>
-							<span class="flex items-center gap-1 text-xs {u.emailVerified ? 'text-emerald-400' : 'text-gray-500'}">
-								{#if u.emailVerified}<Check class="h-3 w-3" />{:else}<AlertTriangle class="h-3 w-3" />{/if}
+							<span
+								class="flex items-center gap-1 text-xs {u.emailVerified
+									? 'text-emerald-400'
+									: 'text-gray-500'}"
+							>
+								{#if u.emailVerified}<Check class="h-3 w-3" />{:else}<AlertTriangle
+										class="h-3 w-3"
+									/>{/if}
 								{u.emailVerified ? 'Yes' : 'No'}
 							</span>
 						</div>
@@ -503,9 +655,40 @@
 
 				<Separator class="bg-gray-800" />
 
+				<!-- Danger zone -->
+				<div class="flex flex-col gap-3 rounded-sm border border-red-500/20 bg-red-500/5 p-3">
+					<div class="flex items-start gap-2">
+						<Trash2 class="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+						<div class="flex flex-col gap-1">
+							<span class="text-sm font-medium text-red-300">Delete user</span>
+							<span class="text-[11px] leading-4 text-red-300/70">
+								Permanently removes this account, sessions, sign-in methods, SSH keys, and API
+								tokens.
+							</span>
+						</div>
+					</div>
+					<Button
+						variant="destructive"
+						size="sm"
+						class="w-fit gap-1.5 text-xs"
+						onclick={() => openDeleteDialog(u)}
+						disabled={isAdminSaving || deletePreparing}
+					>
+						{#if deletePreparing && deleteUserId === u.id}
+							<Loader2 class="h-3 w-3 animate-spin" />
+							Preparing...
+						{:else}
+							<Trash2 class="h-3 w-3" />
+							Delete user
+						{/if}
+					</Button>
+				</div>
+
+				<Separator class="bg-gray-800" />
+
 				<!-- Resources counts with click-to-expand -->
 				<div class="flex flex-col gap-3">
-					<span class="text-xs font-medium uppercase tracking-wider text-gray-500">Resources</span>
+					<span class="text-xs font-medium tracking-wider text-gray-500 uppercase">Resources</span>
 					<div class="grid grid-cols-2 gap-2">
 						<button
 							class="flex items-center gap-2 rounded-sm border border-gray-800/60 bg-gray-800/20 px-3 py-2.5 text-left transition-colors hover:border-gray-700 hover:bg-gray-800/40"
@@ -597,7 +780,9 @@
 					</div>
 				{:else}
 					<div class="flex flex-col gap-2">
-						<span class="text-xs font-medium uppercase tracking-wider text-gray-500">Virtual Machines</span>
+						<span class="text-xs font-medium tracking-wider text-gray-500 uppercase"
+							>Virtual Machines</span
+						>
 						{#if admin.orgVms.length === 0}
 							<p class="text-xs text-gray-500">No VMs</p>
 						{:else}
@@ -606,7 +791,9 @@
 									<div class="flex items-center justify-between py-2.5">
 										<div class="flex flex-col">
 											<span class="text-xs text-gray-200">{vm.name}</span>
-											<span class="text-[11px] text-gray-600">{new Date(vm.createdAt).toLocaleString()}</span>
+											<span class="text-[11px] text-gray-600"
+												>{new Date(vm.createdAt).toLocaleString()}</span
+											>
 										</div>
 										<Badge variant="secondary" class="text-[10px]">{vm.status}</Badge>
 									</div>
@@ -616,7 +803,7 @@
 					</div>
 					<Separator class="bg-gray-800" />
 					<div class="flex flex-col gap-2">
-						<span class="text-xs font-medium uppercase tracking-wider text-gray-500">Volumes</span>
+						<span class="text-xs font-medium tracking-wider text-gray-500 uppercase">Volumes</span>
 						{#if admin.orgVolumes.length === 0}
 							<p class="text-xs text-gray-500">No volumes</p>
 						{:else}
@@ -625,7 +812,9 @@
 									<div class="flex items-center justify-between py-2.5">
 										<div class="flex flex-col">
 											<span class="text-xs text-gray-200">{vol.name}</span>
-											<span class="text-[11px] text-gray-600">{vol.size} GB · {new Date(vol.createdAt).toLocaleString()}</span>
+											<span class="text-[11px] text-gray-600"
+												>{vol.size} GB · {new Date(vol.createdAt).toLocaleString()}</span
+											>
 										</div>
 									</div>
 								{/each}
@@ -730,18 +919,120 @@
 							{#each admin.userApiTokens as t (t.id)}
 								<div class="flex flex-col gap-0.5 py-2.5">
 									<span class="text-xs text-gray-200">{t.name}</span>
-									<span class="text-[11px] text-gray-600">{new Date(t.createdAt).toLocaleString()}</span>
+									<span class="text-[11px] text-gray-600"
+										>{new Date(t.createdAt).toLocaleString()}</span
+									>
 								</div>
 							{/each}
 						</div>
 					{/if}
 				{/if}
 			</div>
-		{:else if admin.selectedUser && admin.userResourcesOpen === null}
-			<!-- Main user view was removed and replaced above, keeping empty for fallback -->
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>
+
+<!-- User Deletion Verification Modal -->
+<Dialog.Root
+	bind:open={deleteDialogOpen}
+	onOpenChange={(value) => {
+		if (!value && !deleteVerifying) resetDeleteDialog();
+	}}
+>
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title class="text-base text-gray-100">Delete {deleteUserName}?</Dialog.Title>
+			<Dialog.Description class="text-xs text-gray-500">
+				{deleteVerificationDescription}
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<form
+			class="flex flex-col gap-4 pt-4"
+			onsubmit={(event) => {
+				event.preventDefault();
+				void confirmDeleteUser();
+			}}
+		>
+			<div
+				class="flex flex-col gap-2 rounded-sm border border-red-500/20 bg-red-500/5 p-3 text-xs leading-5 text-red-200/80"
+			>
+				<p class="font-medium text-red-200">This action cannot be undone.</p>
+				<p>
+					Deleting {deleteUserEmail} permanently removes their account, sessions, sign-in methods, SSH
+					keys, and API tokens.
+				</p>
+				<p>
+					If they are the only member of an organization, that organization and all of its servers,
+					volumes, invitations, and local billing records will also be deleted.
+				</p>
+				<p>
+					If an organization has other members, the oldest remaining member will be promoted to
+					owner.
+				</p>
+			</div>
+
+			{#if deleteVerificationMethod === 'passkey'}
+				<div class="flex items-center gap-3 rounded-sm border border-gray-800 bg-gray-950/40 p-3">
+					<Fingerprint class="size-5 shrink-0 text-gray-500" />
+					<p class="text-sm text-gray-300">
+						Your browser will ask you to authenticate with your registered passkey.
+					</p>
+				</div>
+			{:else}
+				<div class="flex flex-col gap-1.5">
+					<Label>
+						{deleteVerificationMethod === 'totp' ? 'Authenticator Code' : 'Email Verification Code'}
+					</Label>
+					<Input
+						bind:value={deleteVerificationCode}
+						inputmode="numeric"
+						placeholder="000000"
+						maxlength={6}
+						autocomplete="one-time-code"
+					/>
+					{#if deleteVerificationMethod === 'email'}
+						<p class="text-xs text-gray-500">
+							We sent a deletion code to {deleteVerificationEmail}.
+						</p>
+					{/if}
+				</div>
+			{/if}
+
+			{#if deleteError}
+				<p class="text-xs text-red-400">{deleteError}</p>
+			{/if}
+
+			<Dialog.Footer class="flex items-center gap-2 pt-2">
+				<Button
+					variant="outline"
+					type="button"
+					size="sm"
+					class="border-gray-700/50 text-xs text-gray-300 hover:bg-gray-800 hover:text-gray-100"
+					onclick={() => resetDeleteDialog()}
+					disabled={deleteVerifying}
+				>
+					Cancel
+				</Button>
+				<Button
+					variant="destructive"
+					type="submit"
+					size="sm"
+					class="gap-1.5 text-xs"
+					disabled={deleteVerificationDisabled}
+				>
+					{#if deleteVerifying}
+						<Loader2 class="h-3 w-3 animate-spin" />
+						Deleting...
+					{:else}
+						<Trash2 class="h-3 w-3" />
+						{deleteVerificationMethod === 'passkey' ? 'Verify and delete' : 'Delete user'}
+					{/if}
+				</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <!-- 2FA Disable Confirmation Modal (only for disabling) -->
 <Dialog.Root open={admin.twoFADialogOpen} onOpenChange={(v) => !v && admin.cancel2FAConfirm()}>
@@ -749,7 +1040,8 @@
 		<Dialog.Header>
 			<Dialog.Title class="text-base text-gray-100">Disable two-factor auth?</Dialog.Title>
 			<Dialog.Description class="text-xs text-gray-500">
-				{admin.selectedUser?.name ?? 'This user'} will be required to reconfigure 2FA on their next sign-in. This reduces account security.
+				{admin.selectedUser?.name ?? 'This user'} will be required to reconfigure 2FA on their next sign-in.
+				This reduces account security.
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="flex items-center gap-2 pt-4">
