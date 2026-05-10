@@ -45,16 +45,21 @@
 
 		const loginData = res.data as SignInDataWithTwoFactor | null | undefined;
 
+		// the twoFactorMethods parameter is slightly inconsistent
+		// If you see twoFactorRedirect set to true, but no methods included, this means that it is totp.
+		// this is specifically only true because we don't use otp at all.
+		// https://github.com/better-auth/better-auth/issues/4101
+
 		if (loginData?.twoFactorRedirect) {
 			const methods = loginData.twoFactorMethods;
 
-			if (!methods || methods.includes('passkey')) {
-				goto(twoFactorHref('passkey'));
+			if (!methods || methods.includes('totp')) {
+				goto(twoFactorHref('totp'));
 				return;
 			}
 
-			if (methods.includes('totp')) {
-				goto(twoFactorHref('totp'));
+			if (methods.includes('passkey')) {
+				goto(twoFactorHref('passkey'));
 				return;
 			}
 		}
