@@ -12,12 +12,14 @@
 	import { authClient } from '$lib/auth-client';
 	import TotpOnboardingDialog from './totp-onboarding-dialog.svelte';
 	import PasskeyOnboardingDialog from './passkey-onboarding-dialog.svelte';
+	import PasswordVerificationDialog from './password-verification-dialog.svelte';
 	import {
 		createSshKey as createSshKeyRpc,
 		deleteSshKey,
 		listSshKeys
 	} from '$lib/remote/ssh-keys.remote';
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
+
 	import {
 		User,
 		Lock,
@@ -89,43 +91,44 @@
 	let confirmPassword = $state('');
 	let showPassword = $state(false);
 	let passwordSaved = $state(false);
-	let passwordSaving = $state(false);
 	let passwordError = $state('');
+	let passwordVerificationOpen = $state(false);
+	let passwordVerificationPreparing = $state(false);
 
-	async function savePassword() {
-		if (passwordSaving || !currentPassword || !newPassword || newPassword !== confirmPassword) return;
+	async function beginPasswordChange() {
+		if (
+			passwordVerificationOpen ||
+			passwordVerificationPreparing ||
+			!currentPassword ||
+			!newPassword ||
+			newPassword !== confirmPassword
+		) {
+			return;
+		}
 
-		passwordSaving = true;
 		passwordError = '';
 		passwordSaved = false;
-
+		passwordVerificationPreparing = true;
 		try {
-			const response = await authClient.changePassword({
-				currentPassword,
-				newPassword,
-				revokeOtherSessions: true
-			});
-
-			if (response.error) {
-				passwordError = response.error.message ?? 'Failed to update password.';
-				return;
-			}
-
-			passwordSaved = true;
-			currentPassword = '';
-			newPassword = '';
-			confirmPassword = '';
-			setTimeout(() => (passwordSaved = false), 1500);
-		} catch {
-			passwordError = 'Failed to update password.';
+			await loadTwoFactorStatus();
+			passwordVerificationOpen = true;
 		} finally {
-			passwordSaving = false;
+			passwordVerificationPreparing = false;
 		}
+	}
+
+	function onPasswordVerified() {
+		passwordSaved = true;
+		currentPassword = '';
+		newPassword = '';
+		confirmPassword = '';
+		setTimeout(() => (passwordSaved = false), 1500);
 	}
 
 	// ── Two-Factor ──
 	let twoFactorEnabled = $state(false);
 	let passkeys = $state<{ id: string; name: string; createdAt?: string }[]>([]);
+	let hasPasskey = $derived(passkeys.length > 0);
 	let totpDialogOpen = $state(false);
 	let passkeyDialogOpen = $state(false);
 	let totpDisableDialogOpen = $state(false);
@@ -458,15 +461,16 @@
 								{/if}
 								<Button
 									size="sm"
-									onclick={savePassword}
-									disabled={passwordSaving ||
+									onclick={beginPasswordChange}
+									disabled={passwordVerificationOpen ||
+										passwordVerificationPreparing ||
 										!currentPassword ||
 										!newPassword ||
 										newPassword !== confirmPassword}
 									class="w-fit"
 								>
-									{#if passwordSaving}
-										Updating...
+									{#if passwordVerificationPreparing}
+										Preparing...
 									{:else if passwordSaved}
 										<Check class="h-3 w-3" /> Updated
 									{:else}
@@ -742,6 +746,14 @@
 		<TotpOnboardingDialog bind:open={totpDialogOpen} onComplete={loadTwoFactorStatus} />
 	{/if}
 	<PasskeyOnboardingDialog bind:open={passkeyDialogOpen} onComplete={loadTwoFactorStatus} />
+	<PasswordVerificationDialog
+		bind:open={passwordVerificationOpen}
+		{hasPasskey}
+		{twoFactorEnabled}
+		{currentPassword}
+		{newPassword}
+		onVerified={onPasswordVerified}
+	/>
 	<Dialog.Root bind:open={totpDisableDialogOpen}>
 		<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 			<Dialog.Header>

@@ -23,6 +23,11 @@ import { ulid } from '$lib/server/id';
 const PENDING_PASSKEY_COOKIE = 'pending_passkey_2fa';
 const PENDING_PASSKEY_HINT_COOKIE = 'pending_passkey_2fa_hint';
 const PENDING_PASSKEY_MAX_AGE = 600;
+const PASSKEY_PASSWORD_CHANGE_MAX_AGE_MS = 60 * 1000;
+
+function passwordChangePasskeyIdentifier(userId: string) {
+	return `password-change-passkey:${userId}`;
+}
 
 type PasskeyRecord = {
 	userId: string;
@@ -237,14 +242,39 @@ export function initAuth() {
 							ctx.context.secret
 						);
 
-						if (!pendingUserId) return;
-
 						const verifiedPasskey = (await ctx.context.adapter.findOne({
 							model: 'passkey',
 							where: [{ field: 'credentialID', value: clientData.id }]
 						})) as PasskeyRecord | null;
 
-						if (!verifiedPasskey || verifiedPasskey.userId !== pendingUserId) {
+						if (!verifiedPasskey) return;
+
+						if (!pendingUserId) {
+							const sessionToken = await ctx.getSignedCookie(
+								ctx.context.authCookies.sessionToken.name,
+								ctx.context.secret
+							);
+							if (!sessionToken) return;
+
+							const currentSession = await ctx.context.internalAdapter.findSession(sessionToken);
+							if (currentSession?.user.id !== verifiedPasskey.userId) {
+								throw APIError.from('UNAUTHORIZED', {
+									code: 'INVALID_PASSKEY_PASSWORD_CHANGE',
+									message: 'Use a passkey registered to this account.'
+								});
+							}
+
+							const identifier = passwordChangePasskeyIdentifier(verifiedPasskey.userId);
+							await ctx.context.internalAdapter.deleteVerificationByIdentifier(identifier);
+							await ctx.context.internalAdapter.createVerificationValue({
+								identifier,
+								value: clientData.id,
+								expiresAt: new Date(Date.now() + PASSKEY_PASSWORD_CHANGE_MAX_AGE_MS)
+							});
+							return;
+						}
+
+						if (verifiedPasskey.userId !== pendingUserId) {
 							throw APIError.from('UNAUTHORIZED', {
 								code: 'INVALID_PASSKEY_SECOND_FACTOR',
 								message: 'Use a passkey registered to this account.'
