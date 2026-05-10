@@ -1,4 +1,4 @@
-import type { KVNamespace } from '@cloudflare/workers-types';
+import type { KVNamespace, SendEmail } from '@cloudflare/workers-types';
 import { getRequestEvent } from '$app/server';
 import { dev } from '$app/environment';
 import { env as privateEnv } from '$env/dynamic/private';
@@ -6,6 +6,13 @@ import { env as privateEnv } from '$env/dynamic/private';
 export type RuntimeEnv = {
 	ORIGIN: string;
 	BETTER_AUTH_SECRET: string;
+	EMAIL?: SendEmail;
+	EMAIL_FROM_ADDRESS: string;
+	EMAIL_FROM_NAME: string;
+	EMAIL_REPLY_TO: string;
+	CLOUDFLARE_ACCOUNT_ID?: string;
+	CLOUDFLARE_API_TOKEN?: string;
+	CLOUDFLARE_EMAIL_API_TOKEN?: string;
 	AUTUMN_SECRET: string;
 	AUTUMN_DEFAULT_PLAN_ID?: string;
 	AUTUMN_SERVER_ENTITY_FEATURE_ID?: string;
@@ -36,6 +43,13 @@ export function getRuntimeEnv(): RuntimeEnv {
 		return {
 			ORIGIN: required('ORIGIN', platformEnv.ORIGIN),
 			BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET', platformEnv.BETTER_AUTH_SECRET),
+			EMAIL: platformEnv.EMAIL,
+			EMAIL_FROM_ADDRESS: required('EMAIL_FROM_ADDRESS', platformEnv.EMAIL_FROM_ADDRESS),
+			EMAIL_FROM_NAME: required('EMAIL_FROM_NAME', platformEnv.EMAIL_FROM_NAME),
+			EMAIL_REPLY_TO: required('EMAIL_REPLY_TO', platformEnv.EMAIL_REPLY_TO),
+			CLOUDFLARE_ACCOUNT_ID: platformEnv.CLOUDFLARE_ACCOUNT_ID,
+			CLOUDFLARE_API_TOKEN: platformEnv.CLOUDFLARE_API_TOKEN,
+			CLOUDFLARE_EMAIL_API_TOKEN: platformEnv.CLOUDFLARE_EMAIL_API_TOKEN,
 			AUTUMN_SECRET: required('AUTUMN_SECRET', platformEnv.AUTUMN_SECRET),
 			AUTUMN_DEFAULT_PLAN_ID: platformEnv.AUTUMN_DEFAULT_PLAN_ID,
 			AUTUMN_SERVER_ENTITY_FEATURE_ID: platformEnv.AUTUMN_SERVER_ENTITY_FEATURE_ID,
@@ -57,6 +71,12 @@ export function getRuntimeEnv(): RuntimeEnv {
 	return {
 		ORIGIN: required('ORIGIN', privateEnv.ORIGIN),
 		BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET', privateEnv.BETTER_AUTH_SECRET),
+		EMAIL_FROM_ADDRESS: required('EMAIL_FROM_ADDRESS', privateEnv.EMAIL_FROM_ADDRESS),
+		EMAIL_FROM_NAME: required('EMAIL_FROM_NAME', privateEnv.EMAIL_FROM_NAME),
+		EMAIL_REPLY_TO: required('EMAIL_REPLY_TO', privateEnv.EMAIL_REPLY_TO),
+		CLOUDFLARE_ACCOUNT_ID: privateEnv.CLOUDFLARE_ACCOUNT_ID,
+		CLOUDFLARE_API_TOKEN: privateEnv.CLOUDFLARE_API_TOKEN,
+		CLOUDFLARE_EMAIL_API_TOKEN: privateEnv.CLOUDFLARE_EMAIL_API_TOKEN,
 		AUTUMN_SECRET: required('AUTUMN_SECRET', privateEnv.AUTUMN_SECRET),
 		AUTUMN_DEFAULT_PLAN_ID: privateEnv.AUTUMN_DEFAULT_PLAN_ID,
 		AUTUMN_SERVER_ENTITY_FEATURE_ID: privateEnv.AUTUMN_SERVER_ENTITY_FEATURE_ID,

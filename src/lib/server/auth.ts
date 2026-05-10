@@ -6,12 +6,17 @@ import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { admin, organization, twoFactor } from 'better-auth/plugins';
 import { passkey } from '@better-auth/passkey';
 import { autumn } from 'autumn-js/better-auth';
-import { count } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import { dev } from '$app/environment';
 import { getRequestEvent } from '$app/server';
 import { ac, organizationRoles } from '$lib/auth/organization-permissions';
+import OrganizationInvitationEmail from '$lib/emails/organization-invitation.svelte';
+import ResetPasswordEmail from '$lib/emails/reset-password.svelte';
+import VerifyEmail from '$lib/emails/verify-email.svelte';
 import { initDrizzle } from '$lib/server/db';
 import { user as userTable } from '$lib/server/db/schema';
+import { sendRenderedEmail } from '$lib/server/email';
+import { sendSecurityAlertEmail } from '$lib/server/email-notifications';
 import { getRuntimeEnv } from '$lib/server/env';
 import { ulid } from '$lib/server/id';
 
@@ -23,14 +28,58 @@ type PasskeyRecord = {
 	userId: string;
 };
 
+async function sendAuthEmail(email: Promise<void>) {
+	const event = getRequestEvent();
+	const ctx = event.platform?.ctx;
+
+	if (ctx) {
+		ctx.waitUntil(email);
+		return;
+	}
+
+	await email;
+}
+
+function securityAlertDetails() {
+	const headers = getRequestEvent().request.headers;
+	const ipAddress =
+		headers.get('cf-connecting-ip') ?? headers.get('x-forwarded-for')?.split(',')[0];
+	const userAgent = headers.get('user-agent');
+	const details = [
+		ipAddress ? `IP: ${ipAddress.trim()}` : null,
+		userAgent ? `Device: ${userAgent}` : null
+	]
+		.filter(Boolean)
+		.join(' | ');
+
+	return details || null;
+}
+
+async function sendSignInSecurityAlert(
+	user: { email: string; name?: string | null },
+	baseURL: string
+) {
+	await sendAuthEmail(
+		sendSecurityAlertEmail({
+			to: user.email,
+			userName: user.name,
+			alertType: 'New sign-in',
+			message: 'A new sign-in to your Stack account was completed.',
+			details: securityAlertDetails(),
+			actionUrl: baseURL
+		})
+	);
+}
+
 export function initAuth() {
 	const env = getRuntimeEnv();
 	const db = initDrizzle();
 	const requestOrigin = getRequestEvent().url.origin;
+	const baseURL = dev ? requestOrigin : env.ORIGIN;
 
 	return betterAuth({
 		appName: 'Stack',
-		baseURL: dev ? requestOrigin : env.ORIGIN,
+		baseURL,
 		secret: env.BETTER_AUTH_SECRET,
 		database: drizzleAdapter(db, { provider: 'pg' }),
 		advanced: {
@@ -75,15 +124,27 @@ export function initAuth() {
 				id
 			}),
 			sendResetPassword: async ({ user, url }) => {
-				// TODO: replace with real email provider
-				console.log(`[auth] Password reset for ${user.email}: ${url}`);
+				await sendAuthEmail(
+					sendRenderedEmail({
+						component: ResetPasswordEmail,
+						props: { userName: user.name, resetUrl: url },
+						subject: 'Reset your Stack password',
+						to: user.email
+					})
+				);
 			}
 		},
 
 		emailVerification: {
 			sendVerificationEmail: async ({ user, url }) => {
-				// TODO: replace with real email provider
-				console.log(`[auth] Verify email for ${user.email}: ${url}`);
+				await sendAuthEmail(
+					sendRenderedEmail({
+						component: VerifyEmail,
+						props: { userName: user.name, verificationUrl: url },
+						subject: 'Verify your Stack email',
+						to: user.email
+					})
+				);
 			},
 			sendOnSignUp: true
 		},
@@ -104,7 +165,10 @@ export function initAuth() {
 		},
 
 		plugins: [
-			admin({ defaultRole: 'user' }),
+			admin({
+				defaultRole: 'user',
+				bannedUserMessage: 'Please contact support: support@fyrastack.com'
+			}),
 			{
 				id: 'passkey-second-factor',
 				hooks: {
@@ -120,7 +184,12 @@ export function initAuth() {
 									where: [{ field: 'userId', value: data.user.id }]
 								});
 
-								if (userPasskeys.length === 0) return;
+								if (userPasskeys.length === 0) {
+									if (!data.user.twoFactorEnabled) {
+										await sendSignInSecurityAlert(data.user, baseURL);
+									}
+									return;
+								}
 
 								deleteSessionCookie(ctx, true);
 								await ctx.context.internalAdapter.deleteSession(data.session.token);
@@ -190,6 +259,14 @@ export function initAuth() {
 							sameSite: 'lax',
 							secure: !dev
 						});
+
+						const verifiedUser = await db.query.user.findFirst({
+							where: eq(userTable.id, pendingUserId)
+						});
+
+						if (verifiedUser) {
+							await sendSignInSecurityAlert(verifiedUser, baseURL);
+						}
 					}
 				}
 			}),
@@ -197,8 +274,15 @@ export function initAuth() {
 				ac,
 				roles: organizationRoles,
 				sendInvitationEmail: async ({ email, id, organization }) => {
-					const url = `${env.ORIGIN}/accept-invitation/${id}`;
-					console.log(`[auth] Invite ${email} to ${organization.name}: ${url}`);
+					const invitationUrl = `${baseURL}/accept-invitation/${id}`;
+					await sendAuthEmail(
+						sendRenderedEmail({
+							component: OrganizationInvitationEmail,
+							props: { organizationName: organization.name, invitationUrl },
+							subject: `You're invited to join ${organization.name} on Stack`,
+							to: email
+						})
+					);
 				}
 			}),
 			autumn({ customerScope: 'organization', secretKey: env.AUTUMN_SECRET }),

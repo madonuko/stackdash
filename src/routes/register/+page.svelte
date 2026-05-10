@@ -11,6 +11,11 @@
 	const loginHref = $derived(
 		redirectTo === '/' ? '/login' : `/login?redirectTo=${encodeURIComponent(redirectTo)}`
 	);
+	const verificationCallbackUrl = $derived(
+		redirectTo === '/'
+			? '/login?verified=1'
+			: `/login?verified=1&redirectTo=${encodeURIComponent(redirectTo)}`
+	);
 
 	let name = $state('');
 	let email = $state('');
@@ -37,7 +42,7 @@
 			name,
 			email,
 			password,
-			callbackURL: redirectTo
+			callbackURL: verificationCallbackUrl
 		});
 
 		loading = false;

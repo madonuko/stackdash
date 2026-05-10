@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { authClient } from '$lib/auth-client';
-	import { Eye, EyeOff, AlertCircle, Loader2, Fingerprint } from '@lucide/svelte';
+	import { AlertCircle, CheckCircle2, Eye, EyeOff, Fingerprint, Loader2 } from '@lucide/svelte';
 	import { LogoGithub } from 'carbon-icons-svelte';
 	import type { PageData } from './$types';
 	type SignInDataWithTwoFactor = {
@@ -13,6 +13,7 @@
 
 	let { data }: { data: PageData } = $props();
 	const redirectTo = $derived(data.redirectTo ?? '/');
+	const verified = $derived(data.verified ?? false);
 	const registerHref = $derived(
 		redirectTo === '/' ? '/register' : `/register?redirectTo=${encodeURIComponent(redirectTo)}`
 	);
@@ -106,6 +107,15 @@
 				>
 					<AlertCircle class="h-3.5 w-3.5 shrink-0" />
 					{error}
+				</div>
+			{/if}
+
+			{#if verified}
+				<div
+					class="flex items-center gap-2 border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300"
+				>
+					<CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-red-400" />
+					Email verified! Please sign in.
 				</div>
 			{/if}
 

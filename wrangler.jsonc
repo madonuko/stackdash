@@ -20,6 +20,11 @@
 			"id": "0ad17de8747747bca1975d473e66e295"
 		}
 	],
+	"send_email": [
+		{
+			"name": "EMAIL"
+		}
+	],
 	"observability": {
 		"enabled": true
 	}
