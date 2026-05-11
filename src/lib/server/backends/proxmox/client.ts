@@ -29,12 +29,15 @@ export class ProxmoxClient {
 		const { baseUrl, tokenId, tokenSecret, verifySsl = true } = config;
 
 		// Build a custom fetch that skips TLS verification for self-signed certs
+		const insecureAgent = !verifySsl
+			? new Agent({ connect: { rejectUnauthorized: false } })
+			: undefined;
 		const insecureFetch = !verifySsl
 			? (input: RequestInfo | URL, init?: RequestInit) =>
 					fetch(input, {
 						...init,
 						// @ts-expect-error -- Node/undici dispatcher extension
-						dispatcher: new Agent({ connect: { rejectUnauthorized: false } })
+						dispatcher: insecureAgent
 					})
 			: undefined;
 
