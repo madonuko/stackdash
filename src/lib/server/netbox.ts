@@ -3,7 +3,8 @@ import { getRuntimeEnv } from '$lib/server/env';
 /*
 docs for how to get this working:
 
-you need to make a site and cluster*/
+you need to make a site and cluste in the netbox webui
+*/
 
 async function netbox(route: String, method: String, data: any) {
 	const env = getRuntimeEnv();
