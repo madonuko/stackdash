@@ -6,6 +6,7 @@ import type {
 	PveQemuVm,
 	PveQemuConfig,
 	PveQemuStatus,
+	PveQemuRrdData,
 	PveStorage,
 	PveStorageContent,
 	PveTaskStatus,
@@ -126,6 +127,22 @@ export class ProxmoxClient {
 		const res = await this.api
 			.get(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/config`)
 			.json<PveResponse<PveQemuConfig>>();
+		return res.data;
+	}
+
+	async getQemuRrdData(
+		node: string,
+		vmid: number,
+		params: { timeframe: 'hour' | 'day' | 'week' | 'month' | 'year'; cf?: 'AVERAGE' | 'MAX' }
+	): Promise<PveQemuRrdData[]> {
+		const res = await this.api
+			.get(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/rrddata`, {
+				searchParams: {
+					timeframe: params.timeframe,
+					cf: params.cf ?? 'AVERAGE'
+				}
+			})
+			.json<PveResponse<PveQemuRrdData[]>>();
 		return res.data;
 	}
 

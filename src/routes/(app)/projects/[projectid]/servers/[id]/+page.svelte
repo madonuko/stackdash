@@ -20,13 +20,14 @@
 	let liveLoaded = $derived(selectedServer.liveLoaded || serversState.firstStatusRefreshComplete);
 
 	type ChartSample = {
+		time?: number;
 		cpu: number | null;
 		memory: number | null;
 		bandwidth: number | null;
 		diskIo: number | null;
 	};
 
-	let chartSamplesByServer = $state<Record<string, ChartSample[]>>({});
+	let liveChartSamplesByServer = $state<Record<string, ChartSample[]>>({});
 	let lastSampleKeyByServer = $state<Record<string, string>>({});
 
 	function formatPercent(value: number | null) {
@@ -63,7 +64,7 @@
 	$effect(() => {
 		if (!selectedServer.liveLoaded) return;
 		const metrics = selectedServer.metrics;
-		const sample: ChartSample = {
+		const sampleValues = {
 			cpu: metrics?.cpu ?? null,
 			memory: metrics?.memory ?? null,
 			bandwidth:
@@ -75,26 +76,34 @@
 					? null
 					: (metrics.diskRead ?? 0) + (metrics.diskWrite ?? 0)
 		};
-		const sampleKey = JSON.stringify(sample);
+		const sample: ChartSample = {
+			...sampleValues,
+			time: Math.floor(Date.now() / 1000)
+		};
+		const sampleKey = JSON.stringify(sampleValues);
 		if (lastSampleKeyByServer[selectedServer.id] === sampleKey) return;
 
 		lastSampleKeyByServer[selectedServer.id] = sampleKey;
-		chartSamplesByServer[selectedServer.id] = [
-			...(chartSamplesByServer[selectedServer.id] ?? []),
+		liveChartSamplesByServer[selectedServer.id] = [
+			...(liveChartSamplesByServer[selectedServer.id] ?? []),
 			sample
 		].slice(-12);
 	});
 
 	let charts = $derived.by(() => {
-		const samples = chartSamplesByServer[selectedServer.id] ?? [];
+		const history = selectedServer.id === data.serverId ? (data.metricsHistory ?? []) : [];
+		const liveSamples = liveChartSamplesByServer[selectedServer.id] ?? [];
+		const samples = [...history, ...liveSamples].slice(-12);
 		const latest = samples.at(-1);
 		const bandwidthMax = Math.max(...samples.map((sample) => sample.bandwidth ?? 0), 1);
 		const diskIoMax = Math.max(...samples.map((sample) => sample.diskIo ?? 0), 1);
+		const loaded = samples.length > 0 || liveLoaded;
 
 		return [
 			{
 				label: 'CPU Usage',
 				color: '#ef6b6b',
+				loaded,
 				points: buildPoints(
 					samples.map((sample) => sample.cpu),
 					1
@@ -104,6 +113,7 @@
 			{
 				label: 'RAM Usage',
 				color: '#4ade80',
+				loaded,
 				points: buildPoints(
 					samples.map((sample) => sample.memory),
 					1
@@ -113,6 +123,7 @@
 			{
 				label: 'Bandwidth',
 				color: '#60a5fa',
+				loaded,
 				points: buildPoints(
 					samples.map((sample) => sample.bandwidth),
 					bandwidthMax
@@ -122,6 +133,7 @@
 			{
 				label: 'Disk I/O',
 				color: '#fb923c',
+				loaded,
 				points: buildPoints(
 					samples.map((sample) => sample.diskIo),
 					diskIoMax
@@ -176,7 +188,7 @@
 		<div class="relative flex flex-col">
 			<div class="flex items-baseline justify-between px-4 pt-3 pb-1">
 				<span class="relative z-10 text-xs font-medium text-gray-400">{chart.label}</span>
-				{#if liveLoaded}
+				{#if chart.loaded}
 					<span class="relative z-10 text-xs font-semibold text-gray-200">{chart.value}</span>
 				{:else}
 					<span class="relative z-10 h-3 w-10 animate-pulse rounded bg-gray-800"></span>
@@ -185,7 +197,7 @@
 			<div>
 				<svg viewBox="0 0 240 80" class="block h-28 w-full" preserveAspectRatio="none">
 					<polygon points="{chart.points} 240,80 0,80" fill={chart.color} opacity="0.08" />
-					{#if liveLoaded}
+					{#if chart.loaded}
 						<polyline
 							points={chart.points}
 							fill="none"

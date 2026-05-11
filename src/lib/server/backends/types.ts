@@ -23,6 +23,16 @@ export interface VmMetrics {
 	diskWrite?: number;
 }
 
+export type VmMetricsTimeframe = 'hour' | 'day' | 'week' | 'month' | 'year';
+
+export interface VmMetricsHistorySample {
+	time: number;
+	cpu: number | null;
+	memory: number | null;
+	bandwidth: number | null;
+	diskIo: number | null;
+}
+
 export interface BackendImage {
 	volid: string;
 	filename: string;
@@ -73,6 +83,11 @@ export interface VmBackend {
 	readonly name: string;
 	listVms(): Promise<VmInfo[]>;
 	getVm(id: string, proxmoxId?: number): Promise<VmInfo>;
+	getVmMetricsHistory(
+		id: string,
+		proxmoxId: number | undefined,
+		timeframe: VmMetricsTimeframe
+	): Promise<VmMetricsHistorySample[]>;
 	createVm(params: VmCreateParams): Promise<VmCreateResult>;
 	deleteVm(id: string, proxmoxId?: number): Promise<void>;
 	startVm(id: string, proxmoxId?: number): Promise<void>;

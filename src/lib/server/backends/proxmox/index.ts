@@ -9,7 +9,9 @@ import type {
 	VmInfo,
 	VmCreateParams,
 	VmCreateResult,
-	VmStatus
+	VmStatus,
+	VmMetricsHistorySample,
+	VmMetricsTimeframe
 } from '../types';
 
 interface ResolvedVm {
@@ -216,6 +218,29 @@ export class ProxmoxBackend implements VmBackend {
 				diskWrite: status.diskwrite
 			}
 		};
+	}
+
+	async getVmMetricsHistory(
+		id: string,
+		proxmoxId: number | undefined,
+		timeframe: VmMetricsTimeframe
+	): Promise<VmMetricsHistorySample[]> {
+		const { node, vmid } = await this.resolve(id, proxmoxId);
+		const samples = await this.client.getQemuRrdData(node, vmid, { timeframe });
+
+		return samples.map((sample) => ({
+			time: sample.time,
+			cpu: sample.cpu ?? null,
+			memory: sample.mem != null && sample.maxmem ? sample.mem / sample.maxmem : null,
+			bandwidth:
+				sample.netin == null && sample.netout == null
+					? null
+					: (sample.netin ?? 0) + (sample.netout ?? 0),
+			diskIo:
+				sample.diskread == null && sample.diskwrite == null
+					? null
+					: (sample.diskread ?? 0) + (sample.diskwrite ?? 0)
+		}));
 	}
 
 	async createVm(params: VmCreateParams): Promise<VmCreateResult> {

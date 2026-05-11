@@ -67,6 +67,17 @@ export interface PveQemuStatus {
 	ha?: { managed: number };
 }
 
+export interface PveQemuRrdData {
+	time: number;
+	cpu?: number;
+	mem?: number;
+	maxmem?: number;
+	netin?: number;
+	netout?: number;
+	diskread?: number;
+	diskwrite?: number;
+}
+
 export interface PveStorage {
 	storage: string;
 	type: string;

@@ -4,7 +4,7 @@ import { type } from 'arktype';
 import { and, eq, sql } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
-import { getBackend, type VmInfo } from '$lib/server/backends';
+import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
 import { deleteProjectServerEntity, ensureProjectServerEntity } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
@@ -175,6 +175,28 @@ export const getVm = query(getParams, async (params) => {
 	}
 
 	return mapVmRow(row, live);
+});
+
+const metricsHistoryParams = type({
+	vmId: 'string',
+	timeframe: "'hour' | 'day' | 'week' | 'month' | 'year'?"
+});
+export const getVmMetricsHistory = query(metricsHistoryParams, async (params) => {
+	const event = getRequestEvent();
+	if (!event?.locals.user) error(401, 'Authentication required');
+
+	const db = initDrizzle();
+	const row = await db.query.vms.findFirst({ where: eq(vms.id, params.vmId) });
+	if (!row) error(404, `VM "${params.vmId}" not found`);
+	if (row.ownerProjectId) {
+		await requireProjectAccess(db, event.locals.user.id, row.ownerProjectId);
+	}
+
+	return getBackend(row.backend).getVmMetricsHistory(
+		row.id,
+		row.proxmoxId ?? undefined,
+		(params.timeframe ?? 'hour') as VmMetricsTimeframe
+	);
 });
 
 const statusParams = type({ projectId: 'string' });
