@@ -76,6 +76,7 @@ export interface VmCreateParams {
 export interface VmCreateResult {
 	id: string;
 	proxmoxId?: number;
+	macAddress?: string;
 	taskId?: string;
 }
 

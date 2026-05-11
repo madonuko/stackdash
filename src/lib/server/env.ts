@@ -8,6 +8,8 @@ export type RuntimeEnv = {
 	BETTER_AUTH_SECRET: string;
 	NETBOX_API_TOKEN?: string;
 	NETBOX_API_URL?: string;
+	NETBOX_SITE_ID?: string;
+	NETBOX_CLUSTER_ID?: string;
 	EMAIL?: SendEmail;
 	EMAIL_FROM_ADDRESS: string;
 	EMAIL_FROM_NAME: string;
@@ -47,6 +49,8 @@ export function getRuntimeEnv(): RuntimeEnv {
 			BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET', platformEnv.BETTER_AUTH_SECRET),
 			NETBOX_API_TOKEN: platformEnv.NETBOX_API_TOKEN,
 			NETBOX_API_URL: platformEnv.NETBOX_API_URL,
+			NETBOX_SITE_ID: platformEnv.NETBOX_SITE_ID,
+			NETBOX_CLUSTER_ID: platformEnv.NETBOX_CLUSTER_ID,
 			EMAIL: platformEnv.EMAIL,
 			EMAIL_FROM_ADDRESS: required('EMAIL_FROM_ADDRESS', platformEnv.EMAIL_FROM_ADDRESS),
 			EMAIL_FROM_NAME: required('EMAIL_FROM_NAME', platformEnv.EMAIL_FROM_NAME),
@@ -77,6 +81,8 @@ export function getRuntimeEnv(): RuntimeEnv {
 		BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET', privateEnv.BETTER_AUTH_SECRET),
 		NETBOX_API_TOKEN: privateEnv.NETBOX_API_TOKEN,
 		NETBOX_API_URL: privateEnv.NETBOX_API_URL,
+		NETBOX_SITE_ID: privateEnv.NETBOX_SITE_ID,
+		NETBOX_CLUSTER_ID: privateEnv.NETBOX_CLUSTER_ID,
 		EMAIL_FROM_ADDRESS: required('EMAIL_FROM_ADDRESS', privateEnv.EMAIL_FROM_ADDRESS),
 		EMAIL_FROM_NAME: required('EMAIL_FROM_NAME', privateEnv.EMAIL_FROM_NAME),
 		EMAIL_REPLY_TO: required('EMAIL_REPLY_TO', privateEnv.EMAIL_REPLY_TO),

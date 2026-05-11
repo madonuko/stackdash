@@ -14,6 +14,16 @@ type NetboxVmInterface = { id: number };
 type NetboxMacAddress = { id: number };
 type NetboxIpAddress = { id: number };
 
+type CreateNetboxVmParams = {
+	name: string;
+	macAddress: string;
+	ipAddresses: string[];
+	vcpus: number;
+	memoryMb: number;
+	diskGb: number;
+	description?: string;
+};
+
 export class NetboxError extends Error {
 	constructor(
 		message: string,
@@ -44,10 +54,24 @@ async function parseResponse(response: Response) {
 function getNetboxConfig() {
 	const env = getRuntimeEnv();
 	if (!env.NETBOX_API_TOKEN || !env.NETBOX_API_URL) return null;
+	const siteId = env.NETBOX_SITE_ID ? Number.parseInt(env.NETBOX_SITE_ID, 10) : null;
+	const clusterId = env.NETBOX_CLUSTER_ID ? Number.parseInt(env.NETBOX_CLUSTER_ID, 10) : null;
+
+	if (siteId === null && clusterId === null) {
+		throw new NetboxError('NETBOX_SITE_ID or NETBOX_CLUSTER_ID is required', 500, null);
+	}
+	if (siteId !== null && Number.isNaN(siteId)) {
+		throw new NetboxError('NETBOX_SITE_ID must be a number', 500, env.NETBOX_SITE_ID);
+	}
+	if (clusterId !== null && Number.isNaN(clusterId)) {
+		throw new NetboxError('NETBOX_CLUSTER_ID must be a number', 500, env.NETBOX_CLUSTER_ID);
+	}
 
 	return {
 		apiToken: env.NETBOX_API_TOKEN,
-		apiUrl: env.NETBOX_API_URL.replace(/\/+$/, '')
+		apiUrl: env.NETBOX_API_URL.replace(/\/+$/, ''),
+		siteId,
+		clusterId
 	};
 }
 
@@ -102,20 +126,27 @@ async function assignMACToVM(mac_address: string, vm_interface_id: number) {
 	return mac_address_create.id;
 }
 
-export async function createVMandAssignIPs(
-	vmid: string,
-	mac_address: string,
-	ip_addresses: string[]
-): Promise<NetboxCreateResult | null> {
+export async function createVMandAssignIPs({
+	name,
+	macAddress,
+	ipAddresses,
+	vcpus,
+	memoryMb,
+	diskGb,
+	description
+}: CreateNetboxVmParams): Promise<NetboxCreateResult | null> {
+	const config = getNetboxConfig();
+	if (!config) return null;
+
 	const vm_create = await netbox<NetboxVm>('/api/virtualization/virtual-machines/', 'POST', {
-		name: vmid,
+		name,
 		status: 'offline',
-		site: 1,
-		cluster: 1,
-		vcpus: 2,
-		memory: 8,
-		disk: 60,
-		description: 'should work'
+		...(config.siteId === null ? {} : { site: config.siteId }),
+		...(config.clusterId === null ? {} : { cluster: config.clusterId }),
+		vcpus,
+		memory: memoryMb,
+		disk: diskGb,
+		...(description ? { description } : {})
 	});
 	if (!vm_create) return null;
 
@@ -131,9 +162,9 @@ export async function createVMandAssignIPs(
 
 	const promises: Promise<number | NetboxIpAddress | null>[] = [];
 
-	promises.push(assignMACToVM(mac_address, vm_interface_create.id));
+	promises.push(assignMACToVM(macAddress, vm_interface_create.id));
 
-	for (const ip_address of ip_addresses) {
+	for (const ip_address of ipAddresses) {
 		promises.push(assignIPToVM(vm_interface_create.id, ip_address));
 	}
 
@@ -159,11 +190,7 @@ export async function deleteVM(
 	netbox_vm_interface_id: number,
 	netbox_mac_address_id: number
 ) {
-	const promises = [];
-
-	promises.push(netbox(`/api/virtualization/virtual-machines/${netbox_vm_id}/`, 'DELETE'));
-	promises.push(netbox(`/api/virtualization/interfaces/${netbox_vm_interface_id}/`, 'DELETE'));
-	promises.push(netbox(`/api/dcim/mac-addresses/${netbox_mac_address_id}/`, 'DELETE'));
-
-	await Promise.all(promises);
+	await netbox(`/api/virtualization/interfaces/${netbox_vm_interface_id}/`, 'DELETE');
+	await netbox(`/api/dcim/mac-addresses/${netbox_mac_address_id}/`, 'DELETE');
+	await netbox(`/api/virtualization/virtual-machines/${netbox_vm_id}/`, 'DELETE');
 }

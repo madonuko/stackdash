@@ -3,12 +3,13 @@ import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
 import { and, eq, sql } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
-import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
+import { vms, vmTypes, sshKeys, baseImages, ipAssignments } from '$lib/server/db/schema';
 import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
 import { deleteProjectServerEntity, ensureProjectServerEntity } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
 import { getCachedProxmoxVms, refreshProxmoxVmCache } from '$lib/server/vm-live-cache';
+import { createVMandAssignIPs, deleteIP, deleteVM, isNetboxConfigured } from '$lib/server/netbox';
 
 type VmRow = {
 	id: string;
@@ -324,6 +325,7 @@ export const createVm = command(createParams, async (params) => {
 
 	const vmId = inserted.id;
 	let result;
+	let netboxResult;
 	try {
 		await ensureProjectServerEntity({
 			projectId: params.projectId,
@@ -351,7 +353,29 @@ export const createVm = command(createParams, async (params) => {
 					.catch((err) => console.error(`VM ${vmId} status update failed:`, err));
 			}
 		});
+
+		if (isNetboxConfigured()) {
+			if (!result.macAddress) error(502, 'Proxmox did not return a MAC address for NetBox');
+
+			netboxResult = await createVMandAssignIPs({
+				name: vmId,
+				macAddress: result.macAddress,
+				ipAddresses: [],
+				vcpus: vmType.cores,
+				memoryMb: vmType.ramCapacity,
+				diskGb: vmType.storageAmount,
+				description: params.name
+			});
+			if (!netboxResult) error(502, 'NetBox is configured but VM sync was skipped');
+		}
 	} catch (err) {
+		if (result?.proxmoxId != null) {
+			await getBackend('proxmox')
+				.deleteVm(vmId, result.proxmoxId)
+				.catch((deleteErr) => {
+					console.warn(`Failed to clean up Proxmox VM ${vmId} after provisioning error`, deleteErr);
+				});
+		}
 		await deleteProjectServerEntity(params.projectId, vmId).catch(() => {});
 		await db.delete(vms).where(eq(vms.id, inserted.id));
 		throw err;
@@ -359,7 +383,12 @@ export const createVm = command(createParams, async (params) => {
 
 	await db
 		.update(vms)
-		.set({ proxmoxId: result.proxmoxId ?? null })
+		.set({
+			proxmoxId: result.proxmoxId ?? null,
+			netboxVmId: netboxResult?.netbox_vm_id ?? null,
+			netboxVmInterfaceId: netboxResult?.netbox_vm_interface_id ?? null,
+			netboxMacAddressId: netboxResult?.netbox_mac_address_id ?? null
+		})
 		.where(eq(vms.id, vmId));
 	await createBillingMeter({
 		projectId: params.projectId,
@@ -386,12 +415,35 @@ export const deleteVm = command(deleteParams, async (params) => {
 	if (row.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, row.ownerProjectId, 'admin');
 	}
+	const netboxVmIds = [row.netboxVmId, row.netboxVmInterfaceId, row.netboxMacAddressId];
+	const hasNetboxVm = netboxVmIds.every((id) => id != null);
+	if (netboxVmIds.some((id) => id != null) && !hasNetboxVm) {
+		error(502, `VM "${row.name}" has incomplete NetBox metadata`);
+	}
 
 	try {
 		await getBackend(row.backend).deleteVm(row.id, row.proxmoxId ?? undefined);
 	} catch (err) {
 		console.warn(`Failed to delete backend VM ${row.id}`, err);
 		error(502, `Failed to deprovision VM "${row.name}" in Proxmox`);
+	}
+
+	if (isNetboxConfigured() && hasNetboxVm) {
+		try {
+			const netboxIpAssignments = await db.query.ipAssignments.findMany({
+				where: eq(ipAssignments.associatedVmId, row.id),
+				columns: { netboxIpAddressId: true }
+			});
+			await Promise.all(
+				netboxIpAssignments.flatMap((assignment) =>
+					assignment.netboxIpAddressId == null ? [] : [deleteIP(assignment.netboxIpAddressId)]
+				)
+			);
+			await deleteVM(row.netboxVmId!, row.netboxVmInterfaceId!, row.netboxMacAddressId!);
+		} catch (err) {
+			console.warn(`Failed to delete NetBox VM ${row.id}`, err);
+			error(502, `Failed to remove VM "${row.name}" from NetBox`);
+		}
 	}
 
 	const metered = await meterResourceThrough('vm', row.id);

@@ -19,6 +19,13 @@ interface ResolvedVm {
 	vmid: number;
 }
 
+function generateMacAddress() {
+	const bytes = crypto.getRandomValues(new Uint8Array(6));
+	bytes[0] = (bytes[0] & 0xfe) | 0x02;
+
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(':');
+}
+
 export class ProxmoxBackend implements VmBackend {
 	readonly name = 'proxmox' as const;
 	private client: ProxmoxClient;
@@ -264,6 +271,7 @@ export class ProxmoxBackend implements VmBackend {
 					}
 				: {};
 		const bootDisk = 'virtio0';
+		const macAddress = generateMacAddress();
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
@@ -279,7 +287,7 @@ export class ProxmoxBackend implements VmBackend {
 			efidisk0: 'local-lvm:0,efitype=4m,pre-enrolled-keys=1',
 			scsihw: 'virtio-scsi-single',
 			...(params.imageSource ? {} : { virtio0: `local-lvm:${params.diskGb}` }),
-			net0: 'virtio,bridge=vmbr0',
+			net0: `virtio=${macAddress},bridge=vmbr0`,
 			boot: `order=${bootDisk}`,
 			serial0: 'socket',
 			agent: '1'
@@ -320,7 +328,7 @@ export class ProxmoxBackend implements VmBackend {
 			params.onProvisionSettled?.({ ok: true });
 		}
 
-		return { id: params.id, proxmoxId: vmid, taskId: String(vmid) };
+		return { id: params.id, proxmoxId: vmid, macAddress, taskId: String(vmid) };
 	}
 
 	async deleteVm(id: string, proxmoxId?: number): Promise<void> {

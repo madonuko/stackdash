@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
-import { createVMandAssignIPs, deleteIP, deleteVM } from '$lib/server/netbox';
+import { assignIPToVM, deleteIP, isNetboxConfigured } from '$lib/server/netbox';
 
 export const listIpBlocks = query(type({ projectId: 'string' }), async (params) => {
 	const event = getRequestEvent();
@@ -44,15 +44,38 @@ export const assignIp = command(assignParams, async (params) => {
 	const db = initDrizzle();
 	const vm = await db.query.vms.findFirst({ where: eq(vms.id, params.vmId) });
 	if (!vm) error(404, 'VM not found');
+	const block = await db.query.ipBlocks.findFirst({ where: eq(ipBlocks.id, params.blockId) });
+	if (!block) error(404, 'IP block not found');
 	if (vm.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, vm.ownerProjectId, 'admin');
 	}
 
-	await db.insert(ipAssignments).values({
-		ip: params.ip,
-		ipBlockId: params.blockId,
-		associatedVmId: params.vmId
-	});
+	let netboxIpAddressId: number | null = null;
+	if (isNetboxConfigured()) {
+		if (vm.netboxVmInterfaceId == null) {
+			error(502, `VM "${vm.name}" is missing NetBox interface metadata`);
+		}
+
+		const netboxAssignment = await assignIPToVM(vm.netboxVmInterfaceId, params.ip);
+		if (!netboxAssignment) error(502, 'NetBox is configured but IP assignment was skipped');
+		netboxIpAddressId = netboxAssignment.id;
+	}
+
+	try {
+		await db.insert(ipAssignments).values({
+			ip: params.ip,
+			ipBlockId: params.blockId,
+			associatedVmId: params.vmId,
+			netboxIpAddressId
+		});
+	} catch (err) {
+		if (netboxIpAddressId != null) {
+			await deleteIP(netboxIpAddressId).catch((deleteErr) => {
+				console.warn(`Failed to roll back NetBox IP assignment ${netboxIpAddressId}`, deleteErr);
+			});
+		}
+		throw err;
+	}
 });
 
 const unassignParams = type({ ip: 'string' });
@@ -72,30 +95,13 @@ export const unassignIp = command(unassignParams, async (params) => {
 	if (vm.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, vm.ownerProjectId, 'admin');
 	}
+	if (isNetboxConfigured()) {
+		if (assignment.netboxIpAddressId == null) {
+			error(502, `IP assignment "${params.ip}" is missing NetBox metadata`);
+		}
 
-	await db.delete(ipAssignments).where(eq(ipAssignments.ip, params.ip));
-});
-
-const testParams = type({ ip: 'string' });
-
-export const testNetworking = command(testParams, async (params) => {
-	let ids = await createVMandAssignIPs('01KRA74DC5GA63Y8QE9RNTWBT9', 'aa:bb:cc:11:22:39', [
-		'135.17.80.89',
-		'2001:db8:109::10/64'
-	]);
-	if (!ids) return { skipped: true };
-
-	console.log('finished creating vm. deleting in 30 seconds');
-
-	await new Promise((resolve) => setTimeout(resolve, 30000));
-
-	console.log('deleting');
-
-	await deleteVM(ids.netbox_vm_id, ids.netbox_vm_interface_id, ids.netbox_mac_address_id);
-
-	for (const ip_address_id of ids.netbox_ip_address_ids) {
-		await deleteIP(ip_address_id);
+		await deleteIP(assignment.netboxIpAddressId);
 	}
 
-	return { skipped: false };
+	await db.delete(ipAssignments).where(eq(ipAssignments.ip, params.ip));
 });
