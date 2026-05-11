@@ -28,19 +28,21 @@ export async function requireProjectAccess(
 	projectId: string,
 	minLevel: PermissionLevel | 'owner' = 'read'
 ): Promise<void> {
-	const project = await db.query.organization.findFirst({
-		where: eq(organization.id, projectId)
-	});
+	const [projectAccess] = await db
+		.select({
+			projectId: organization.id,
+			role: member.role
+		})
+		.from(organization)
+		.leftJoin(member, and(eq(member.organizationId, organization.id), eq(member.userId, userId)))
+		.where(eq(organization.id, projectId))
+		.limit(1);
 
-	if (!project) {
+	if (!projectAccess) {
 		error(404, `Project "${projectId}" not found`);
 	}
 
-	const projectMember = await db.query.member.findFirst({
-		where: and(eq(member.organizationId, projectId), eq(member.userId, userId))
-	});
-
-	if (!projectMember || !hasProjectRole(projectMember.role, minLevel)) {
+	if (!projectAccess.role || !hasProjectRole(projectAccess.role, minLevel)) {
 		error(403, 'Insufficient project permissions');
 	}
 }
