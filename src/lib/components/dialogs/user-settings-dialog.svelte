@@ -21,6 +21,7 @@
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
 	import { getPendingEmailChange, requestEmailChange } from '$lib/remote/email-change.remote';
 	import { disableTwoFactorWithVerification } from '$lib/remote/two-factor.remote';
+	import { toast } from 'svelte-sonner';
 
 	import {
 		User,
@@ -37,6 +38,7 @@
 		Terminal,
 		ShieldCheck,
 		Fingerprint,
+		Loader2,
 		X
 	} from '@lucide/svelte';
 	import { Dialog as DialogPrimitive } from 'bits-ui';
@@ -258,39 +260,67 @@
 
 	async function removePasskey(id: string) {
 		removingPasskey = id;
-		await authClient.passkey.deletePasskey({ id });
-		passkeys = passkeys.filter((p) => p.id !== id);
-		removingPasskey = null;
+		try {
+			await authClient.passkey.deletePasskey({ id });
+			passkeys = passkeys.filter((p) => p.id !== id);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to remove passkey');
+		} finally {
+			removingPasskey = null;
+		}
 	}
 
 	// ── SSH Keys ──
 	let sshKeys = $state<{ id: string; name: string; fingerprint: string }[]>([]);
 	let sshKeysLoaded = $state(false);
+	let sshKeyAdding = $state(false);
+	let sshKeyRemoving = $state<string | null>(null);
 	let newKeyName = $state('');
 	let newKeyValue = $state('');
 
 	async function loadSshKeys() {
 		if (sshKeysLoaded) return;
-		sshKeys = await listSshKeys();
-		sshKeysLoaded = true;
+		try {
+			sshKeys = await listSshKeys();
+			sshKeysLoaded = true;
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to load SSH keys');
+		}
 	}
 
 	async function addSshKey() {
-		if (!newKeyName.trim() || !newKeyValue.trim()) return;
-		const res = await createSshKeyRpc({
-			name: newKeyName.trim(),
-			publicKey: newKeyValue.trim()
-		});
-		await invalidate('app:ssh-keys');
-		sshKeys.push({ id: res.id, name: newKeyName.trim(), fingerprint: res.fingerprint });
-		newKeyName = '';
-		newKeyValue = '';
+		if (!newKeyName.trim() || !newKeyValue.trim() || sshKeyAdding) return;
+		sshKeyAdding = true;
+		try {
+			const res = await createSshKeyRpc({
+				name: newKeyName.trim(),
+				publicKey: newKeyValue.trim()
+			});
+			await invalidate('app:ssh-keys');
+			sshKeys.push({ id: res.id, name: newKeyName.trim(), fingerprint: res.fingerprint });
+			newKeyName = '';
+			newKeyValue = '';
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to add SSH key');
+		} finally {
+			sshKeyAdding = false;
+		}
 	}
 
 	async function removeSshKey(id: string) {
-		await deleteSshKey({ keyId: id });
-		await invalidate('app:ssh-keys');
+		if (sshKeyRemoving) return;
+		sshKeyRemoving = id;
+		const key = sshKeys.find((k) => k.id === id);
 		sshKeys = sshKeys.filter((k) => k.id !== id);
+		try {
+			await deleteSshKey({ keyId: id });
+			await invalidate('app:ssh-keys');
+		} catch (err) {
+			sshKeys = [...sshKeys, key!];
+			toast.error(err instanceof Error ? err.message : 'Failed to remove SSH key');
+		} finally {
+			sshKeyRemoving = null;
+		}
 	}
 
 	// ── API Tokens ──
@@ -317,8 +347,8 @@
 				created: new Date(t.createdAt).toISOString().slice(0, 10),
 				lastUsedAt: t.lastUsedAt
 			}));
-		} catch (e) {
-			console.error('Failed to load tokens:', e);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to load API tokens');
 		} finally {
 			tokensLoading = false;
 		}
@@ -337,9 +367,9 @@
 			generatedToken = result.token;
 			const idx = tokens.findIndex((t) => t.id === tempId);
 			if (idx !== -1) tokens[idx] = { ...tokens[idx], id: result.id };
-		} catch (e) {
-			console.error('Failed to create token:', e);
+		} catch (err) {
 			tokens = tokens.filter((t) => t.id !== tempId);
+			toast.error(err instanceof Error ? err.message : 'Failed to create API token');
 		} finally {
 			newTokenName = '';
 		}
@@ -353,9 +383,9 @@
 
 		try {
 			await revokeApiToken({ tokenId: id });
-		} catch (e) {
-			console.error('Failed to revoke token:', e);
+		} catch (err) {
 			tokens.splice(idx, 0, tokenToRemove);
+			toast.error(err instanceof Error ? err.message : 'Failed to revoke API token');
 		}
 	}
 
@@ -721,6 +751,7 @@
 													size="sm"
 													class="h-7 w-7 shrink-0 p-0 text-red-400 hover:text-red-300"
 													onclick={() => removeSshKey(key.id)}
+													disabled={sshKeyRemoving === key.id}
 												>
 													<Trash2 class="h-3 w-3" />
 												</Button>
@@ -745,10 +776,15 @@
 									size="sm"
 									class="w-fit gap-1.5 text-xs"
 									onclick={addSshKey}
-									disabled={!newKeyName.trim() || !newKeyValue.trim()}
+									disabled={!newKeyName.trim() || !newKeyValue.trim() || sshKeyAdding}
 								>
-									<Plus class="h-3 w-3" />
-									Add Key
+									{#if sshKeyAdding}
+										<Loader2 class="h-3 w-3 animate-spin" />
+										Adding...
+									{:else}
+										<Plus class="h-3 w-3" />
+										Add Key
+									{/if}
 								</Button>
 							</div>
 						</div>

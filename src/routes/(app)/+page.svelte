@@ -19,6 +19,7 @@
 		ArrowRight,
 		Loader2
 	} from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
 
 	type Project = { id: string; projectName: string; role: string };
 
@@ -85,6 +86,8 @@
 			deleteTarget = null;
 			deleteConfirm = '';
 			deleteOpen = false;
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to delete project');
 		} finally {
 			deletingProject = false;
 		}

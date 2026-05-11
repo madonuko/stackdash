@@ -26,6 +26,7 @@ import {
 } from '$lib/remote/admin-users.remote';
 import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
 import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
+import { toast } from 'svelte-sonner';
 import { untrack } from 'svelte';
 import {
 	defaultFeatureFlags,
@@ -467,7 +468,7 @@ export class AdminState {
 			await deleteVmType({ vmTypeId: id });
 			this.vmTypes = this.vmTypes.filter((vmType) => vmType.id !== id);
 		} catch (err) {
-			alert(err instanceof Error ? err.message : 'Failed to delete');
+			toast.error(err instanceof Error ? err.message : 'Failed to delete VM type');
 		}
 	}
 
@@ -654,7 +655,7 @@ export class AdminState {
 			await deleteImage({ imageId: id });
 			this.images = this.images.filter((image) => image.id !== id);
 		} catch (err) {
-			alert(err instanceof Error ? err.message : 'Failed to delete');
+			toast.error(err instanceof Error ? err.message : 'Failed to delete image');
 		}
 	}
 }

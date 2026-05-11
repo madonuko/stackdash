@@ -6,11 +6,13 @@
 		UserSettingsState,
 		type UserSettingsTab
 	} from '$lib/state/user-settings.svelte';
+	import { Toaster } from '$lib/components/ui/sonner';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	import * as Command from '$lib/components/ui/command';
+	import { toast } from 'svelte-sonner';
 	import { goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
@@ -263,7 +265,7 @@
 			commandServersLoadedProjectId = projectId;
 		} catch (error) {
 			if (requestId !== commandServersRequestId) return;
-			console.error('Failed to load command palette servers:', error);
+			toast.error('Failed to load servers');
 			commandServers = [];
 			commandServersLoadedProjectId = projectId;
 		} finally {
@@ -324,6 +326,8 @@
 	const showFirewall = $derived(!!featureFlags.firewall);
 	const showImages = $derived(!!featureFlags.images);
 </script>
+
+<Toaster position="top-center" />
 
 <svelte:window onkeydown={handleKeydown} />
 

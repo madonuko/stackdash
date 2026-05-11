@@ -41,10 +41,21 @@ export const createSshKey = command(createParams, async (params) => {
 	if (parts.length < 2) error(400, 'Invalid SSH public key format');
 
 	const keyData = parts[1];
-	const raw = Uint8Array.from(atob(keyData), (c) => c.charCodeAt(0));
-	const hash = await crypto.subtle.digest('SHA-256', raw);
-	const fingerprint =
-		'SHA256:' + btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/=+$/, '');
+	let raw: Uint8Array;
+	try {
+		raw = Uint8Array.from(atob(keyData), (c) => c.charCodeAt(0));
+	} catch {
+		error(400, 'Invalid SSH public key: key data is not valid base64');
+	}
+
+	let fingerprint: string;
+	try {
+		const hash = await crypto.subtle.digest('SHA-256', raw as BufferSource);
+		fingerprint =
+			'SHA256:' + btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/=+$/, '');
+	} catch {
+		error(400, 'Invalid SSH public key: could not compute fingerprint');
+	}
 
 	const [inserted] = await db
 		.insert(sshKeys)
