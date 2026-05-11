@@ -294,7 +294,15 @@
 		<div
 			class="min-h-[180px] flex-1 bg-gray-950 p-4 font-mono text-sm leading-relaxed text-gray-300"
 		>
-			{#if selectedServer.status === 'running'}
+			{#if !data.featureFlags.vpsConsole}
+				<div class="flex h-full min-h-[148px] flex-col items-center justify-center gap-3">
+					<Terminal class="h-8 w-8 text-gray-500/60" />
+					<div class="text-center">
+						<p class="text-sm font-medium text-gray-300">Coming soon</p>
+						<p class="mt-1 text-xs text-gray-500">Console access is not available yet.</p>
+					</div>
+				</div>
+			{:else if selectedServer.status === 'running'}
 				{#each terminalLines as line (line.type + line.text)}
 					{#if line.type === 'prompt'}
 						<div>
@@ -325,22 +333,32 @@
 			<FileText class="h-3 w-3 text-gray-500" />
 			<span class="text-xs font-semibold text-gray-400">Logs</span>
 		</div>
-		<div class="flex items-center gap-1">
-			<Button
-				variant="ghost"
-				size="sm"
-				class="h-6 w-6 p-0"
-				onclick={() => (logStreaming = !logStreaming)}
-			>
-				{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play class="h-2.5 w-2.5" />{/if}
-			</Button>
-			<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-red-400" disabled>
-				<Trash2 class="h-2.5 w-2.5" />
-			</Button>
-		</div>
+		{#if data.featureFlags.vpsLogs}
+			<div class="flex items-center gap-1">
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-6 w-6 p-0"
+					onclick={() => (logStreaming = !logStreaming)}
+				>
+					{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play class="h-2.5 w-2.5" />{/if}
+				</Button>
+				<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-red-400" disabled>
+					<Trash2 class="h-2.5 w-2.5" />
+				</Button>
+			</div>
+		{/if}
 	</div>
 	<div class="flex-1 overflow-auto bg-gray-950 font-mono text-[11px] leading-relaxed">
-		{#if selectedServer.status !== 'running'}
+		{#if !data.featureFlags.vpsLogs}
+			<div class="flex h-full flex-col items-center justify-center gap-3">
+				<FileText class="h-8 w-8 text-gray-500/60" />
+				<div class="text-center">
+					<p class="text-sm font-medium text-gray-300">Coming soon</p>
+					<p class="mt-1 text-xs text-gray-500">Log streaming is not available yet.</p>
+				</div>
+			</div>
+		{:else if selectedServer.status !== 'running'}
 			<div class="flex h-full flex-col items-center justify-center gap-3">
 				<AlertTriangle class="h-8 w-8 text-amber-500/60" />
 				<div class="text-center">
