@@ -16,7 +16,7 @@ async function netbox(route: String, method: String, data: any) {
 			Authorization: `Bearer ${apiToken}`,
 			'Content-Type': 'application/json'
 		},
-		method: method,
+		method: method as string,
 		body: JSON.stringify(data)
 	});
 
@@ -32,10 +32,10 @@ async function netbox(route: String, method: String, data: any) {
 
 export async function setupVMIPAM() {
 	// todo: get these from db
-	const ipv4_address = '135.17.80.85';
-	const vmid = '01KRA74DC5GA63Y8QE9RNTWBT5';
-	const mac_address = 'aa:bb:cc:11:22:35';
-	const ipv6_block = '';
+	const ipv4_address = '135.17.80.87';
+	const vmid = '01KRA74DC5GA63Y8QE9RNTWBT7';
+	const mac_address = 'aa:bb:cc:11:22:37';
+	const ipv6_block = '2001:db8:100::10/64';
 
 	let vm_create = await netbox('/api/virtualization/virtual-machines/', 'POST', {
 		name: vmid,
@@ -68,14 +68,23 @@ export async function setupVMIPAM() {
 	console.log('mac_address_create');
 	console.log(mac_address_create);
 
-	let ip_address_create = await netbox('/api/ipam/ip-addresses/', 'POST', {
+	let ipv4_address_create = await netbox('/api/ipam/ip-addresses/', 'POST', {
 		address: ipv4_address,
 		assigned_object_type: 'virtualization.vminterface',
 		assigned_object_id: vm_interface_create.id
 	});
 
-	console.log('ip_address_create');
-	console.log(ip_address_create);
+	console.log('ipv4_address_create');
+	console.log(ipv4_address_create);
+
+	let ipv6_block_create = await netbox('/api/ipam/ip-addresses/', 'POST', {
+		address: ipv6_block,
+		assigned_object_type: 'virtualization.vminterface',
+		assigned_object_id: vm_interface_create.id
+	});
+
+	console.log('ipv6_block_create');
+	console.log(ipv6_block_create);
 
 	let vm_interface_patch_add_mac = await netbox('/api/virtualization/interfaces/', 'PATCH', [
 		{
