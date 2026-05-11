@@ -20,6 +20,7 @@
 	} from '$lib/remote/ssh-keys.remote';
 	import { listApiTokens, createApiToken, revokeApiToken } from '$lib/remote/api-tokens.remote';
 	import { getPendingEmailChange, requestEmailChange } from '$lib/remote/email-change.remote';
+	import { disableTwoFactorWithVerification } from '$lib/remote/two-factor.remote';
 
 	import {
 		User,
@@ -183,9 +184,22 @@
 	let passkeyDialogOpen = $state(false);
 	let totpDisableDialogOpen = $state(false);
 	let totpDisablePassword = $state('');
+	type TotpDisableMethod = 'totp' | 'backupCode';
+	let totpDisableMethod = $state<TotpDisableMethod>('totp');
+	let totpDisableCode = $state('');
 	let disablingTotp = $state(false);
 	let totpDisableError = $state('');
 	let removingPasskey = $state<string | null>(null);
+	let normalizedTotpDisableCode = $derived(totpDisableCode.replace(/\D/g, '').slice(0, 6));
+	let totpDisableCodeLabel = $derived(
+		totpDisableMethod === 'totp' ? 'Authenticator Code' : 'Backup Code'
+	);
+	let totpDisableCodeValid = $derived(
+		totpDisableMethod === 'totp' ? normalizedTotpDisableCode.length === 6 : Boolean(totpDisableCode)
+	);
+	let totpDisableSubmitDisabled = $derived(
+		disablingTotp || !totpDisablePassword || !totpDisableCodeValid
+	);
 
 	async function loadTwoFactorStatus() {
 		const { data: session } = await authClient.getSession();
@@ -210,23 +224,33 @@
 			return;
 		}
 
+		if (!totpDisableCodeValid) {
+			totpDisableError =
+				totpDisableMethod === 'totp'
+					? 'Enter the verification code from your authenticator app.'
+					: 'Enter a backup code.';
+			return;
+		}
+
 		totpDisableError = '';
 		disablingTotp = true;
 		try {
-			const { error } = await authClient.twoFactor.disable({ password: totpDisablePassword });
-
-			if (error) {
-				totpDisableError = error.message ?? 'Failed to disable authenticator app 2FA.';
-				return;
-			}
+			await disableTwoFactorWithVerification({
+				password: totpDisablePassword,
+				method: totpDisableMethod,
+				code: totpDisableMethod === 'totp' ? normalizedTotpDisableCode : totpDisableCode
+			});
 
 			twoFactorEnabled = false;
 			totpDisableDialogOpen = false;
 			totpDisablePassword = '';
+			totpDisableMethod = 'totp';
+			totpDisableCode = '';
 			totpDisableError = '';
 			currentPassword = '';
-		} catch {
-			totpDisableError = 'Failed to disable authenticator app 2FA.';
+		} catch (err) {
+			totpDisableError =
+				err instanceof Error ? err.message : 'Failed to disable authenticator app 2FA.';
 		} finally {
 			disablingTotp = false;
 		}
@@ -577,6 +601,8 @@
 										onclick={() => {
 											totpDisableError = '';
 											totpDisablePassword = '';
+											totpDisableMethod = 'totp';
+											totpDisableCode = '';
 											totpDisableDialogOpen = true;
 										}}
 									>
@@ -828,7 +854,8 @@
 			<Dialog.Header>
 				<Dialog.Title>Disable Authenticator App</Dialog.Title>
 				<Dialog.Description>
-					Enter your current password to disable authenticator app two-factor authentication.
+					Disabling authenticator app two-factor authentication requires your current password plus
+					a current authenticator code or backup code.
 				</Dialog.Description>
 			</Dialog.Header>
 
@@ -847,6 +874,65 @@
 						placeholder="********"
 						autocomplete="current-password"
 					/>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label>Verification Method</Label>
+					<div class="flex rounded-xs border border-gray-800 bg-gray-950/40 p-1">
+						<button
+							type="button"
+							class={[
+								'flex-1 rounded-xs px-3 py-1.5 text-xs font-medium transition-colors',
+								totpDisableMethod === 'totp'
+									? 'bg-gray-800 text-gray-100'
+									: 'text-gray-500 hover:text-gray-300'
+							]}
+							onclick={() => {
+								totpDisableMethod = 'totp';
+								totpDisableCode = '';
+								totpDisableError = '';
+							}}
+						>
+							Authenticator code
+						</button>
+						<button
+							type="button"
+							class={[
+								'flex-1 rounded-xs px-3 py-1.5 text-xs font-medium transition-colors',
+								totpDisableMethod === 'backupCode'
+									? 'bg-gray-800 text-gray-100'
+									: 'text-gray-500 hover:text-gray-300'
+							]}
+							onclick={() => {
+								totpDisableMethod = 'backupCode';
+								totpDisableCode = '';
+								totpDisableError = '';
+							}}
+						>
+							Backup code
+						</button>
+					</div>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label>{totpDisableCodeLabel}</Label>
+					{#if totpDisableMethod === 'totp'}
+						<Input
+							bind:value={totpDisableCode}
+							inputmode="numeric"
+							pattern="[0-9]*"
+							placeholder="000000"
+							maxlength={6}
+							autocomplete="one-time-code"
+						/>
+					{:else}
+						<Input
+							bind:value={totpDisableCode}
+							type="text"
+							placeholder="Backup code"
+							autocomplete="off"
+						/>
+					{/if}
 					{#if totpDisableError}
 						<p class="text-xs text-red-400">{totpDisableError}</p>
 					{/if}
@@ -855,6 +941,7 @@
 				<Dialog.Footer>
 					<Button
 						variant="outline"
+						type="button"
 						onclick={() => (totpDisableDialogOpen = false)}
 						disabled={disablingTotp}
 					>
@@ -864,7 +951,7 @@
 						variant="destructive"
 						type="submit"
 						class="gap-1.5"
-						disabled={disablingTotp || !totpDisablePassword}
+						disabled={totpDisableSubmitDisabled}
 					>
 						{#if !disablingTotp}
 							<Minus class="h-3 w-3" />

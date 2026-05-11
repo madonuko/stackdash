@@ -12,8 +12,7 @@
 	let code = $state('');
 	let error = $state('');
 	let loading = $state(false);
-	const normalizeTotpCode = (value: string) => value.replace(/\D/g, '');
-	let normalizedCode = $derived(normalizeTotpCode(code));
+	let normalizedCode = $derived(code.replace(/\D/g, ''));
 
 	async function handleVerify() {
 		if (!normalizedCode) return;

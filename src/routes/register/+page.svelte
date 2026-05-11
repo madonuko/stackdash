@@ -54,14 +54,6 @@
 
 		success = true;
 	}
-
-	async function handleGithub() {
-		await authClient.signIn.social({ provider: 'github', callbackURL: redirectTo });
-	}
-
-	async function handleGoogle() {
-		await authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
-	}
 </script>
 
 <svelte:head>
@@ -145,11 +137,21 @@
 			</div>
 
 			<div class="flex gap-2">
-				<Button variant="outline" size="sm" class="flex-1 gap-1.5" onclick={handleGithub}>
+				<Button
+					variant="outline"
+					size="sm"
+					class="flex-1 gap-1.5"
+					onclick={() => authClient.signIn.social({ provider: 'github', callbackURL: redirectTo })}
+				>
 					<LogoGithub class="h-3.5 w-3.5" />
 					GitHub
 				</Button>
-				<Button variant="outline" size="sm" class="flex-1 gap-1.5" onclick={handleGoogle}>
+				<Button
+					variant="outline"
+					size="sm"
+					class="flex-1 gap-1.5"
+					onclick={() => authClient.signIn.social({ provider: 'google', callbackURL: redirectTo })}
+				>
 					<LogoGithub class="h-3.5 w-3.5" />
 					Google
 				</Button>

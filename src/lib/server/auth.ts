@@ -24,6 +24,7 @@ const PENDING_PASSKEY_COOKIE = 'pending_passkey_2fa';
 const PENDING_PASSKEY_HINT_COOKIE = 'pending_passkey_2fa_hint';
 const PENDING_PASSKEY_MAX_AGE = 600;
 const PASSKEY_PASSWORD_CHANGE_MAX_AGE_MS = 60 * 1000;
+export const VERIFIED_2FA_DISABLE_HEADER = 'x-fyra-verified-2fa-disable';
 
 function passwordChangePasskeyIdentifier(userId: string) {
 	return `password-change-passkey:${userId}`;
@@ -199,6 +200,27 @@ export function initAuth() {
 				defaultRole: 'user',
 				bannedUserMessage: 'Please contact support: support@fyrastack.com'
 			}),
+			{
+				id: 'verified-two-factor-disable',
+				hooks: {
+					before: [
+						{
+							matcher: (context) => context.path === '/two-factor/disable',
+							handler: createAuthMiddleware(async (ctx) => {
+								if (ctx.headers?.get(VERIFIED_2FA_DISABLE_HEADER) === env.BETTER_AUTH_SECRET) {
+									return;
+								}
+
+								throw APIError.from('FORBIDDEN', {
+									code: 'TWO_FACTOR_VERIFICATION_REQUIRED',
+									message:
+										'Verify with an authenticator app or backup code before disabling two-factor authentication.'
+								});
+							})
+						}
+					]
+				}
+			},
 			{
 				id: 'passkey-second-factor',
 				hooks: {

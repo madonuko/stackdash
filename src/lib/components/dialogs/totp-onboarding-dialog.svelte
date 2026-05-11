@@ -40,8 +40,7 @@
 			: ''
 	);
 	let qrCodeSrc = $derived(qrSvg ? `data:image/svg+xml;utf8,${encodeURIComponent(qrSvg)}` : '');
-	const normalizeTotpCode = (value: string) => value.replace(/\D/g, '');
-	let normalizedVerifyCode = $derived(normalizeTotpCode(verifyCode));
+	let normalizedVerifyCode = $derived(verifyCode.replace(/\D/g, ''));
 	const invalidCodeMessage =
 		'Invalid code. Use the newest scanned Fyra entry and make sure your device time is set automatically.';
 

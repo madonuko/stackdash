@@ -109,17 +109,6 @@ export const colorOptions = [
 	'bg-gray-600'
 ];
 
-function toIsa(value: string): VmIsa {
-	return 'x86';
-}
-
-function createFeatureFlagSaving() {
-	return Object.fromEntries(featureFlagKeys.map((key) => [key, false])) as Record<
-		FeatureFlagKey,
-		boolean
-	>;
-}
-
 export class AdminState {
 	vmTypes = $state<VmType[]>([]);
 	images = $state<BaseImage[]>([]);
@@ -148,7 +137,12 @@ export class AdminState {
 	orgVms = $state<{ id: string; name: string; status: string; createdAt: number }[]>([]);
 	orgVolumes = $state<{ id: string; name: string; size: number; createdAt: number }[]>([]);
 	featureFlags = $state<FeatureFlags>({ ...defaultFeatureFlags });
-	featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>(createFeatureFlagSaving());
+	featureFlagSaving = $state<Record<FeatureFlagKey, boolean>>(
+		Object.fromEntries(featureFlagKeys.map((key) => [key, false])) as Record<
+			FeatureFlagKey,
+			boolean
+		>
+	);
 	featureFlagError = $state('');
 	featureFlagSyncCooldowns = $state<Partial<Record<FeatureFlagKey, number>>>({});
 	vtDialogOpen = $state(false);
@@ -424,7 +418,7 @@ export class AdminState {
 	vtOpenEdit(vt: VmType) {
 		this.vtEditing = vt;
 		this.vtName = vt.name;
-		this.vtIsa = toIsa(vt.isa);
+		this.vtIsa = 'x86';
 		this.vtCores = vt.cores;
 		this.vtRam = vt.ramCapacity;
 		this.vtStorage = vt.storageAmount;
