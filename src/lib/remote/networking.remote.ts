@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
-import { setupVMIPAM } from '$lib/server/netbox';
+import { createVMandAssignIPs, deleteIP, deleteVM, setupVMIPAM } from '$lib/server/netbox';
 
 export const listIpBlocks = query(type({ projectId: 'string' }), async (params) => {
 	const event = getRequestEvent();
@@ -79,5 +79,21 @@ export const unassignIp = command(unassignParams, async (params) => {
 const testParams = type({ ip: 'string' });
 
 export const testNetworking = command(testParams, async (params) => {
-	setupVMIPAM();
+  let ids = await createVMandAssignIPs(
+    '01KRA74DC5GA63Y8QE9RNTWBT9',
+    'aa:bb:cc:11:22:39',
+    ['135.17.80.89', '2001:db8:109::10/64']
+  )
+
+  console.log("finished creating vm. deleting in 30 seconds")
+
+  await new Promise(resolve => setTimeout(resolve, 30000));
+
+  console.log("deleting")
+
+  await deleteVM(ids.netbox_vm_id, ids.netbox_vm_interface_id, ids.netbox_mac_address_id)
+
+  for (const ip_address_id of ids.netbox_ip_address_ids) {
+    await deleteIP(ip_address_id)
+  }
 });

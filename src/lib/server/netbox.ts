@@ -3,10 +3,10 @@ import { getRuntimeEnv } from '$lib/server/env';
 /*
 docs for how to get this working:
 
-you need to make a site and cluste in the netbox webui
+you need to make a site and cluster in the netbox webui
 */
 
-async function netbox(route: String, method: String, data: any) {
+async function netbox(route: String, method: String, data?: any) {
 	const env = getRuntimeEnv();
 
 	const apiToken = env.NETBOX_API_TOKEN;
@@ -31,13 +31,55 @@ async function netbox(route: String, method: String, data: any) {
 	return res_body;
 }
 
-export async function setupVMIPAM() {
-	// todo: get these from db
-	const ipv4_address = '135.17.80.87';
-	const vmid = '01KRA74DC5GA63Y8QE9RNTWBT7';
-	const mac_address = 'aa:bb:cc:11:22:37';
-	const ipv6_block = '2001:db8:100::10/64';
 
+
+export async function assignIPToVM(
+  netbox_vm_interface_id: Number,
+  ip_address: String
+) {
+  return await netbox('/api/ipam/ip-addresses/', 'POST', {
+		address: ip_address,
+		assigned_object_type: 'virtualization.vminterface',
+		assigned_object_id: netbox_vm_interface_id
+	});
+}
+
+export async function deleteIP(netbox_ip_address_id: Number) {
+  return await netbox(`/api/ipam/ip-addresses/${netbox_ip_address_id}/`, 'DELETE');
+}
+
+
+async function assignMACToVM(
+  mac_address: String,
+  vm_interface_id: Number
+) {
+ 	let mac_address_create = await netbox('/api/dcim/mac-addresses/', 'POST', {
+		mac_address: mac_address,
+		assigned_object_type: 'virtualization.vminterface',
+		assigned_object_id: vm_interface_id
+	});
+
+	console.log('mac_address_create');
+  console.log(mac_address_create);
+
+   let vm_interface_patch_add_mac = await netbox('/api/virtualization/interfaces/', 'PATCH', [
+     {
+       id: vm_interface_id,
+       primary_mac_address: mac_address_create.id
+     }
+   ]);
+
+	console.log('vm_interface_patch_add_mac');
+  console.log(vm_interface_patch_add_mac);
+
+  return mac_address_create.id
+}
+
+export async function createVMandAssignIPs(
+  vmid: String,
+  mac_address: String,
+  ip_addresses: String[]
+) {
 	let vm_create = await netbox('/api/virtualization/virtual-machines/', 'POST', {
 		name: vmid,
 		status: 'offline',
@@ -60,40 +102,37 @@ export async function setupVMIPAM() {
 	console.log('vm_interface_create');
 	console.log(vm_interface_create);
 
-	let mac_address_create = await netbox('/api/dcim/mac-addresses/', 'POST', {
-		mac_address: mac_address,
-		assigned_object_type: 'virtualization.vminterface',
-		assigned_object_id: vm_interface_create.id
-	});
+  const promises = []
 
-	console.log('mac_address_create');
-	console.log(mac_address_create);
+  promises.push(assignMACToVM(mac_address, vm_interface_create.id))
 
-	let ipv4_address_create = await netbox('/api/ipam/ip-addresses/', 'POST', {
-		address: ipv4_address,
-		assigned_object_type: 'virtualization.vminterface',
-		assigned_object_id: vm_interface_create.id
-	});
+  for (const ip_address of ip_addresses) {
+    promises.push(assignIPToVM(vm_interface_create.id, ip_address))
+  }
 
-	console.log('ipv4_address_create');
-	console.log(ipv4_address_create);
+  const ip_address_ids = await Promise.all(promises)
 
-	let ipv6_block_create = await netbox('/api/ipam/ip-addresses/', 'POST', {
-		address: ipv6_block,
-		assigned_object_type: 'virtualization.vminterface',
-		assigned_object_id: vm_interface_create.id
-	});
+  const mac_address_id = ip_address_ids.shift()
 
-	console.log('ipv6_block_create');
-	console.log(ipv6_block_create);
+  return {
+    netbox_vm_id: vm_create.id,
+    netbox_vm_interface_id: vm_interface_create.id,
+    netbox_mac_address_id: mac_address_id,
+    netbox_ip_address_ids: ip_address_ids,
+  }
+}
 
-	let vm_interface_patch_add_mac = await netbox('/api/virtualization/interfaces/', 'PATCH', [
-		{
-			id: vm_interface_create.id,
-			primary_mac_address: mac_address_create.id
-		}
-	]);
 
-	console.log('vm_interface_patch_add_mac');
-	console.log(vm_interface_patch_add_mac);
+export async function deleteVM(
+  netbox_vm_id: Number,
+  netbox_vm_interface_id: Number,
+  netbox_mac_address_id: Number
+) {
+  const promises = []
+
+  promises.push(netbox(`/api/virtualization/virtual-machines/${netbox_vm_id}/`, 'DELETE'));
+  promises.push(netbox(`/api/virtualization/interfaces/${netbox_vm_interface_id}/`, 'DELETE'));
+  promises.push(netbox(`/api/dcim/mac-addresses/${netbox_mac_address_id}/`, 'DELETE'));
+
+  await Promise.all(promises)
 }
