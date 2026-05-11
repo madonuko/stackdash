@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
@@ -9,7 +8,6 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import {
-		getProject as getProjectRpc,
 		updateProject as updateProjectRpc,
 		deleteProject as deleteProjectRpc,
 		addMember as addMemberRpc,
@@ -24,14 +22,14 @@
 	type MemberRole = Exclude<ProjectRole, 'owner'>;
 	type ProjectMember = { userId: string; name: string; email: string; permissions: ProjectRole };
 
-	let projectLoading = $state(true);
-	let projectName = $state('');
-	let projectOwnerId = $state('');
-	let projectOwnerName = $state('');
-	let projectOwnerEmail = $state('');
-	let members = $state<ProjectMember[]>([]);
+	let projectName = $derived(data.project.projectName);
+	let projectOwnerId = $derived(data.project.ownerUserId);
+	let projectOwnerName = $derived(data.project.ownerName);
+	let projectOwnerEmail = $derived(data.project.ownerEmail);
+	let members = $derived<ProjectMember[]>([...data.project.members]);
 	let saving = $state(false);
 	let saved = $state(false);
+	let savedTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Delete
 	let deleteConfirm = $state('');
@@ -43,27 +41,16 @@
 	let selectedMemberRole = $state<MemberRole>('read_write');
 	let addingMember = $state(false);
 
-	let projectId = $derived(page.params.projectid);
+	let projectId = $derived(data.project.id);
 
 	$effect(() => {
-		loadProject();
+		return clearSavedTimeout;
 	});
 
-	async function loadProject() {
-		if (!projectId) return;
-		projectLoading = true;
-		try {
-			const proj = await getProjectRpc({ projectId });
-			projectName = proj.projectName;
-			projectOwnerId = proj.ownerUserId;
-			projectOwnerName = proj.ownerName;
-			projectOwnerEmail = proj.ownerEmail;
-			members = proj.members;
-		} catch (e) {
-			console.error('Failed to load project:', e);
-		} finally {
-			projectLoading = false;
-		}
+	function clearSavedTimeout() {
+		if (!savedTimeout) return;
+		clearTimeout(savedTimeout);
+		savedTimeout = undefined;
 	}
 
 	async function saveName() {
@@ -73,7 +60,11 @@
 		try {
 			await updateProjectRpc({ projectId, name: projectName.trim() });
 			saved = true;
-			setTimeout(() => (saved = false), 1500);
+			clearSavedTimeout();
+			savedTimeout = setTimeout(() => {
+				saved = false;
+				savedTimeout = undefined;
+			}, 1500);
 		} catch (e) {
 			console.error('Failed to update project:', e);
 		} finally {
@@ -122,7 +113,7 @@
 			await removeMemberRpc({ projectId, userId });
 		} catch (e) {
 			console.error('Failed to remove member:', e);
-			members.splice(idx, 0, removed);
+			members = [...members.slice(0, idx), removed, ...members.slice(idx)];
 		}
 	}
 
@@ -131,12 +122,16 @@
 		const idx = members.findIndex((m) => m.userId === userId);
 		if (idx === -1) return;
 		const oldRole = members[idx].permissions;
-		members[idx] = { ...members[idx], permissions: newRole };
+		members = members.map((member) =>
+			member.userId === userId ? { ...member, permissions: newRole } : member
+		);
 		try {
 			await updateMemberRoleRpc({ projectId, userId, permissions: newRole });
 		} catch (e) {
 			console.error('Failed to update member role:', e);
-			members[idx] = { ...members[idx], permissions: oldRole };
+			members = members.map((member) =>
+				member.userId === userId ? { ...member, permissions: oldRole } : member
+			);
 		}
 	}
 </script>
@@ -147,201 +142,193 @@
 
 <div class="flex h-full w-full flex-col overflow-hidden">
 	<div class="flex-1 overflow-auto">
-		{#if projectLoading}
-			<div class="flex items-center justify-center py-10">
-				<p class="text-sm text-gray-500">Loading...</p>
-			</div>
-		{:else}
-			<div class="max-w-2xl px-6 py-6">
-				<div class="flex flex-col gap-6">
-					<!-- Project Name -->
-					<div class="rounded-xs border border-gray-800/60 p-5">
-						<div class="mb-4 flex items-center gap-2 border-b border-gray-800/50 pb-3">
-							<Settings class="h-4 w-4 text-red-400" />
-							<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-								Project Name
-							</p>
-						</div>
-						<div class="flex flex-col gap-3">
-							<Input bind:value={projectName} class="font-medium" />
-							<Button size="sm" onclick={saveName} disabled={saving} class="w-fit">
-								{#if saving}
-									Saving...
-								{:else if saved}
-									<Check class="h-3 w-3" /> Saved
-								{:else}
-									Save Name
-								{/if}
-							</Button>
-						</div>
+		<div class="max-w-2xl px-6 py-6">
+			<div class="flex flex-col gap-6">
+				<!-- Project Name -->
+				<div class="rounded-xs border border-gray-800/60 p-5">
+					<div class="mb-4 flex items-center gap-2 border-b border-gray-800/50 pb-3">
+						<Settings class="h-4 w-4 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Project Name</p>
 					</div>
+					<div class="flex flex-col gap-3">
+						<Input bind:value={projectName} class="font-medium" />
+						<Button size="sm" onclick={saveName} disabled={saving} class="w-fit">
+							{#if saving}
+								Saving...
+							{:else if saved}
+								<Check class="h-3 w-3" /> Saved
+							{:else}
+								Save Name
+							{/if}
+						</Button>
+					</div>
+				</div>
 
-					<!-- Members -->
-					<div class="rounded-xs border border-gray-800/60 p-5">
-						<div class="mb-4 flex items-center justify-between border-b border-gray-800/50 pb-3">
-							<div class="flex items-center gap-2">
-								<User class="h-4 w-4 text-red-400" />
-								<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Members</p>
-							</div>
-							<Button
-								variant="outline"
-								size="sm"
-								class="h-7 gap-1.5 text-xs"
-								onclick={() => (addMemberOpen = true)}
-							>
-								<Plus class="h-3 w-3" />
-								Add
-							</Button>
+				<!-- Members -->
+				<div class="rounded-xs border border-gray-800/60 p-5">
+					<div class="mb-4 flex items-center justify-between border-b border-gray-800/50 pb-3">
+						<div class="flex items-center gap-2">
+							<User class="h-4 w-4 text-red-400" />
+							<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Members</p>
 						</div>
-						<div class="max-h-48 overflow-y-auto">
-							<!-- Owner -->
+						<Button
+							variant="outline"
+							size="sm"
+							class="h-7 gap-1.5 text-xs"
+							onclick={() => (addMemberOpen = true)}
+						>
+							<Plus class="h-3 w-3" />
+							Add
+						</Button>
+					</div>
+					<div class="max-h-48 overflow-y-auto">
+						<!-- Owner -->
+						<div class="flex items-center justify-between py-2.5">
+							<div class="min-w-0">
+								<p class="truncate text-sm font-medium text-gray-100">{projectOwnerName}</p>
+								<p class="truncate text-xs text-gray-500">{projectOwnerEmail}</p>
+							</div>
+							<Badge variant="secondary" class="shrink-0 text-[10px]">Owner</Badge>
+						</div>
+						<div class="border-b border-gray-800/30"></div>
+						<!-- Other members -->
+						{#each members as member (member.userId)}
 							<div class="flex items-center justify-between py-2.5">
 								<div class="min-w-0">
-									<p class="truncate text-sm font-medium text-gray-100">{projectOwnerName}</p>
-									<p class="truncate text-xs text-gray-500">{projectOwnerEmail}</p>
+									<p class="truncate text-sm font-medium text-gray-100">{member.name}</p>
+									<p class="truncate text-xs text-gray-500">{member.email}</p>
+									<DropdownMenu.Root>
+										<DropdownMenu.Trigger>
+											<span
+												class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-700"
+												>{member.permissions}</span
+											>
+										</DropdownMenu.Trigger>
+										<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
+											<DropdownMenu.Item
+												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+												onclick={() => updateMemberRole(member.userId, 'admin')}
+												>Admin</DropdownMenu.Item
+											>
+											<DropdownMenu.Item
+												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+												onclick={() => updateMemberRole(member.userId, 'read_write')}
+												>Read Write</DropdownMenu.Item
+											>
+											<DropdownMenu.Item
+												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+												onclick={() => updateMemberRole(member.userId, 'read')}
+												>Read</DropdownMenu.Item
+											>
+										</DropdownMenu.Content>
+									</DropdownMenu.Root>
 								</div>
-								<Badge variant="secondary" class="shrink-0 text-[10px]">Owner</Badge>
+								<Button
+									variant="ghost"
+									size="sm"
+									class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
+									onclick={() => removeMember(member.userId)}
+								>
+									<Trash2 class="h-3.5 w-3.5" />
+								</Button>
 							</div>
-							<div class="border-b border-gray-800/30"></div>
-							<!-- Other members -->
-							{#each members as member (member.userId)}
-								<div class="flex items-center justify-between py-2.5">
-									<div class="min-w-0">
-										<p class="truncate text-sm font-medium text-gray-100">{member.name}</p>
-										<p class="truncate text-xs text-gray-500">{member.email}</p>
-										<DropdownMenu.Root>
-											<DropdownMenu.Trigger>
-												<span
-													class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-700"
-													>{member.permissions}</span
-												>
-											</DropdownMenu.Trigger>
-											<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
-												<DropdownMenu.Item
-													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-													onclick={() => updateMemberRole(member.userId, 'admin')}
-													>Admin</DropdownMenu.Item
-												>
-												<DropdownMenu.Item
-													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-													onclick={() => updateMemberRole(member.userId, 'read_write')}
-													>Read Write</DropdownMenu.Item
-												>
-												<DropdownMenu.Item
-													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-													onclick={() => updateMemberRole(member.userId, 'read')}
-													>Read</DropdownMenu.Item
-												>
-											</DropdownMenu.Content>
-										</DropdownMenu.Root>
-									</div>
-									<Button
-										variant="ghost"
-										size="sm"
-										class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
-										onclick={() => removeMember(member.userId)}
-									>
-										<Trash2 class="h-3.5 w-3.5" />
-									</Button>
-								</div>
-							{/each}
-							{#if members.length === 0}
-								<p class="py-2 text-center text-xs text-gray-500">No additional members.</p>
-							{/if}
-						</div>
-
-						<!-- Add Member Form -->
-						{#if addMemberOpen}
-							<div class="mt-3 border-t border-gray-800/50 pt-3">
-								<p class="mb-2 text-xs font-medium text-gray-400">Invite member by email</p>
-								<div class="flex flex-col gap-2">
-									<div class="flex gap-2">
-										<Input
-											bind:value={memberInviteEmail}
-											placeholder="member@example.com"
-											type="email"
-											class="h-8 text-xs"
-										/>
-										<Button
-											variant="outline"
-											size="sm"
-											class="h-8 shrink-0 gap-1.5 text-xs"
-											onclick={addMember}
-											disabled={addingMember || !memberInviteEmail.trim()}
-										>
-											<Plus class="h-3 w-3" />
-											{addingMember ? 'Inviting...' : 'Invite'}
-										</Button>
-									</div>
-									<div class="flex items-center gap-2">
-										<span class="text-xs text-gray-500">Role:</span>
-										<div class="flex gap-1">
-											<button
-												type="button"
-												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
-												'admin'
-													? 'bg-gray-700 text-gray-100'
-													: 'text-gray-500 hover:text-gray-300'}"
-												onclick={() => (selectedMemberRole = 'admin')}>Admin</button
-											>
-											<button
-												type="button"
-												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
-												'read_write'
-													? 'bg-gray-700 text-gray-100'
-													: 'text-gray-500 hover:text-gray-300'}"
-												onclick={() => (selectedMemberRole = 'read_write')}>Read Write</button
-											>
-											<button
-												type="button"
-												class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
-												'read'
-													? 'bg-gray-700 text-gray-100'
-													: 'text-gray-500 hover:text-gray-300'}"
-												onclick={() => (selectedMemberRole = 'read')}>Read</button
-											>
-										</div>
-									</div>
-								</div>
-							</div>
+						{/each}
+						{#if members.length === 0}
+							<p class="py-2 text-center text-xs text-gray-500">No additional members.</p>
 						{/if}
 					</div>
 
-					<!-- Delete Project -->
-					<div class="rounded-xs border border-red-900/30 bg-red-950/10 p-5">
-						<div class="mb-3 flex items-center gap-2 border-b border-red-900/20 pb-2">
-							<Trash2 class="h-4 w-4 text-red-400" />
-							<p class="text-xs font-semibold tracking-wider text-red-400 uppercase">
-								Delete Project
-							</p>
+					<!-- Add Member Form -->
+					{#if addMemberOpen}
+						<div class="mt-3 border-t border-gray-800/50 pt-3">
+							<p class="mb-2 text-xs font-medium text-gray-400">Invite member by email</p>
+							<div class="flex flex-col gap-2">
+								<div class="flex gap-2">
+									<Input
+										bind:value={memberInviteEmail}
+										placeholder="member@example.com"
+										type="email"
+										class="h-8 text-xs"
+									/>
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-8 shrink-0 gap-1.5 text-xs"
+										onclick={addMember}
+										disabled={addingMember || !memberInviteEmail.trim()}
+									>
+										<Plus class="h-3 w-3" />
+										{addingMember ? 'Inviting...' : 'Invite'}
+									</Button>
+								</div>
+								<div class="flex items-center gap-2">
+									<span class="text-xs text-gray-500">Role:</span>
+									<div class="flex gap-1">
+										<button
+											type="button"
+											class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+											'admin'
+												? 'bg-gray-700 text-gray-100'
+												: 'text-gray-500 hover:text-gray-300'}"
+											onclick={() => (selectedMemberRole = 'admin')}>Admin</button
+										>
+										<button
+											type="button"
+											class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+											'read_write'
+												? 'bg-gray-700 text-gray-100'
+												: 'text-gray-500 hover:text-gray-300'}"
+											onclick={() => (selectedMemberRole = 'read_write')}>Read Write</button
+										>
+										<button
+											type="button"
+											class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
+											'read'
+												? 'bg-gray-700 text-gray-100'
+												: 'text-gray-500 hover:text-gray-300'}"
+											onclick={() => (selectedMemberRole = 'read')}>Read</button
+										>
+									</div>
+								</div>
+							</div>
 						</div>
-						<p class="mb-3 text-xs text-gray-400">
-							This will permanently delete the project and all its resources. Type the project name
-							to confirm.
+					{/if}
+				</div>
+
+				<!-- Delete Project -->
+				<div class="rounded-xs border border-red-900/30 bg-red-950/10 p-5">
+					<div class="mb-3 flex items-center gap-2 border-b border-red-900/20 pb-2">
+						<Trash2 class="h-4 w-4 text-red-400" />
+						<p class="text-xs font-semibold tracking-wider text-red-400 uppercase">
+							Delete Project
 						</p>
-						<div class="flex flex-col gap-3">
-							<Input
-								bind:value={deleteConfirm}
-								placeholder={data.project?.projectName ?? 'project name'}
-								class="border-red-900/50"
-							/>
-							<Button
-								variant="destructive"
-								size="sm"
-								onclick={deleteProject}
-								disabled={deleteConfirm.trim() !== data.project?.projectName || deleting}
-								class="w-fit"
-							>
-								{#if deleting}
-									Deleting...
-								{:else}
-									Delete Project
-								{/if}
-							</Button>
-						</div>
+					</div>
+					<p class="mb-3 text-xs text-gray-400">
+						This will permanently delete the project and all its resources. Type the project name to
+						confirm.
+					</p>
+					<div class="flex flex-col gap-3">
+						<Input
+							bind:value={deleteConfirm}
+							placeholder={data.project.projectName}
+							class="border-red-900/50"
+						/>
+						<Button
+							variant="destructive"
+							size="sm"
+							onclick={deleteProject}
+							disabled={deleteConfirm.trim() !== data.project.projectName || deleting}
+							class="w-fit"
+						>
+							{#if deleting}
+								Deleting...
+							{:else}
+								Delete Project
+							{/if}
+						</Button>
 					</div>
 				</div>
 			</div>
-		{/if}
+		</div>
 	</div>
 </div>
