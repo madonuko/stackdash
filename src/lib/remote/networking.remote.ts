@@ -79,5 +79,5 @@ export const unassignIp = command(unassignParams, async (params) => {
 const testParams = type({ ip: 'string' });
 
 export const testNetworking = command(testParams, async (params) => {
-  setupVMIPAM()
-})
+	setupVMIPAM();
+});

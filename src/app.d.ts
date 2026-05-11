@@ -17,9 +17,9 @@ declare global {
 			ctx: ExecutionContext;
 			env: {
 				ORIGIN: string;
-        BETTER_AUTH_SECRET: string;
-        NETBOX_API_TOKEN: string;
-        NETBOX_API_URL: string;
+				BETTER_AUTH_SECRET: string;
+				NETBOX_API_TOKEN: string;
+				NETBOX_API_URL: string;
 				EMAIL?: SendEmail;
 				EMAIL_FROM_ADDRESS: string;
 				EMAIL_FROM_NAME: string;
