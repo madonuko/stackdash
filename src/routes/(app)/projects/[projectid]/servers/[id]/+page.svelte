@@ -61,10 +61,10 @@
 			.join(' ');
 	}
 
-	$effect(() => {
-		if (!selectedServer.liveLoaded) return;
+	function serverMetricsSample(): ChartSample | null {
+		if (!selectedServer.liveLoaded) return null;
 		const metrics = selectedServer.metrics;
-		const sampleValues = {
+		return {
 			cpu: metrics?.cpu ?? null,
 			memory: metrics?.memory ?? null,
 			bandwidth:
@@ -74,16 +74,27 @@
 			diskIo:
 				metrics?.diskRead == null && metrics?.diskWrite == null
 					? null
-					: (metrics.diskRead ?? 0) + (metrics.diskWrite ?? 0)
-		};
-		const sample: ChartSample = {
-			...sampleValues,
+					: (metrics.diskRead ?? 0) + (metrics.diskWrite ?? 0),
 			time: Math.floor(Date.now() / 1000)
 		};
-		const sampleKey = JSON.stringify(sampleValues);
-		if (lastSampleKeyByServer[selectedServer.id] === sampleKey) return;
+	}
 
-		lastSampleKeyByServer[selectedServer.id] = sampleKey;
+	function sampleKey(sample: ChartSample) {
+		return JSON.stringify({
+			cpu: sample.cpu,
+			memory: sample.memory,
+			bandwidth: sample.bandwidth,
+			diskIo: sample.diskIo
+		});
+	}
+
+	$effect(() => {
+		const sample = serverMetricsSample();
+		if (!sample) return;
+		const key = sampleKey(sample);
+		if (lastSampleKeyByServer[selectedServer.id] === key) return;
+
+		lastSampleKeyByServer[selectedServer.id] = key;
 		liveChartSamplesByServer[selectedServer.id] = [
 			...(liveChartSamplesByServer[selectedServer.id] ?? []),
 			sample
@@ -93,7 +104,15 @@
 	let charts = $derived.by(() => {
 		const history = selectedServer.id === data.serverId ? (data.metricsHistory ?? []) : [];
 		const liveSamples = liveChartSamplesByServer[selectedServer.id] ?? [];
-		const samples = [...history, ...liveSamples].slice(-12);
+		const currentSample = serverMetricsSample();
+		const lastLiveSample = liveSamples.at(-1);
+		const samples = [
+			...history,
+			...liveSamples,
+			...(currentSample && (!lastLiveSample || sampleKey(currentSample) !== sampleKey(lastLiveSample))
+				? [currentSample]
+				: [])
+		].slice(-12);
 		const latest = samples.at(-1);
 		const bandwidthMax = Math.max(...samples.map((sample) => sample.bandwidth ?? 0), 1);
 		const diskIoMax = Math.max(...samples.map((sample) => sample.diskIo ?? 0), 1);

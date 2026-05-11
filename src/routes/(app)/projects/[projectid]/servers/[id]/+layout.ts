@@ -1,7 +1,7 @@
 import type { LayoutLoad } from './$types';
 import type { ServerInfo } from '../lib/server-summary';
 import { error } from '@sveltejs/kit';
-import { listVms } from '$lib/remote/vms.remote';
+import { getVm } from '$lib/remote/vms.remote';
 import { vpsServerTabFeatureFlags } from '$lib/feature-flags';
 import { toServerInfo } from '../lib/server-summary';
 
@@ -18,12 +18,9 @@ export const load: LayoutLoad = async ({ params, parent, url }) => {
 		error(404, 'Project not found');
 	}
 
-	const vms = await listVms({ projectId }).run();
-	const vm = vms.find((item) => item.id === params.id);
+	const vm = await getVm({ vmId: params.id }).run();
 
-	if (!vm) {
-		error(404, `VM "${params.id}" not found`);
-	}
+	if (vm.ownerProjectId !== projectId) error(404, `VM "${params.id}" not found`);
 
 	const server = toServerInfo(vm);
 

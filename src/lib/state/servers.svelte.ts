@@ -42,7 +42,10 @@ export function getServer(id: string): ServerInfo | null {
 }
 
 export function getServerWithFallback(id: string, fallback: ServerInfo): ServerInfo {
-	return getServer(id) ?? fallback;
+	const server = getServer(id);
+	if (!server) return fallback;
+	if (!server.liveLoaded && fallback.liveLoaded) return fallback;
+	return server;
 }
 
 export function upsertServer(server: ServerInfo): void {
