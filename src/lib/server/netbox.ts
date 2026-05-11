@@ -116,12 +116,9 @@ async function assignMACToVM(mac_address: string, vm_interface_id: number) {
 	});
 	if (!mac_address_create) return null;
 
-	await netbox('/api/virtualization/interfaces/', 'PATCH', [
-		{
-			id: vm_interface_id,
-			primary_mac_address: mac_address_create.id
-		}
-	]);
+	await netbox(`/api/virtualization/interfaces/${vm_interface_id}/`, 'PATCH', {
+		primary_mac_address: mac_address_create.id
+	});
 
 	return mac_address_create.id;
 }
@@ -190,7 +187,10 @@ export async function deleteVM(
 	netbox_vm_interface_id: number,
 	netbox_mac_address_id: number
 ) {
-	await netbox(`/api/virtualization/interfaces/${netbox_vm_interface_id}/`, 'DELETE');
+	await netbox(`/api/virtualization/interfaces/${netbox_vm_interface_id}/`, 'PATCH', {
+		primary_mac_address: null
+	});
 	await netbox(`/api/dcim/mac-addresses/${netbox_mac_address_id}/`, 'DELETE');
+	await netbox(`/api/virtualization/interfaces/${netbox_vm_interface_id}/`, 'DELETE');
 	await netbox(`/api/virtualization/virtual-machines/${netbox_vm_id}/`, 'DELETE');
 }
