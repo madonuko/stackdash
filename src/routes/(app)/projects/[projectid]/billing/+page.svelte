@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
+	import BillingSetupDialog from '$lib/components/billing-setup-dialog.svelte';
 	import { openBillingPortal } from '$lib/remote/billing.remote';
-	import { CreditCard, Server, HardDrive, Database, Cpu } from '@lucide/svelte';
+	import { CreditCard, Server, HardDrive, Cpu } from '@lucide/svelte';
 
 	type DateValue = Date | number | string | null | undefined;
 
@@ -24,25 +24,22 @@
 		activeResources?: ActiveResource[];
 		customer?: CustomerDetails | null;
 		lastUpdatedAt?: DateValue;
+		setupRequired?: boolean;
+		status?: string;
 	};
 
 	let { data } = $props();
 
+	let billingSetupOpen = $state(false);
 	let portalLoading = $state(false);
-	let actionError = $state(false);
+	let actionError = $state('');
 
 	const projectId = $derived(data.projectId ?? '');
+	const canManageBilling = $derived(Boolean(data.canManageBilling));
 	const billing = $derived(data.billing as BillingDetails | null | undefined);
+	const billingReady = $derived(billing?.status === 'active');
 	const activeResources = $derived((billing?.activeResources ?? []) as ActiveResource[]);
 	const activeResourceCount = $derived(activeResources.length || billing?.activeResourceCount || 0);
-	const statusLabel = $derived(
-		readString(billing, 'statusLabel') ?? (billing?.customer ? 'Ready' : 'Not set up')
-	);
-	const planLabel = $derived(
-		readString(billing, 'planLabel') ??
-			readString(billing, 'subscriptionLabel') ??
-			'Project billing'
-	);
 	const computeUnits = $derived(
 		activeResources
 			.filter((r) => (r.resourceType ?? r.type ?? '').toLowerCase() === 'vm')
@@ -108,15 +105,20 @@
 		return '';
 	}
 
-	async function manageBilling() {
+	async function handleBillingAction() {
+		if (!billingReady) {
+			billingSetupOpen = true;
+			return;
+		}
 		if (!projectId || portalLoading) return;
+
 		portalLoading = true;
-		actionError = false;
+		actionError = '';
 		try {
 			const result = await openBillingPortal({ projectId });
 			window.location.href = result.url;
-		} catch {
-			actionError = true;
+		} catch (err) {
+			actionError = err instanceof Error ? err.message : 'Billing portal could not be opened.';
 			portalLoading = false;
 		}
 	}
@@ -127,6 +129,15 @@
 </svelte:head>
 
 <div class="flex flex-1 flex-col overflow-hidden">
+	<BillingSetupDialog
+		bind:open={billingSetupOpen}
+		{projectId}
+		{billingReady}
+		{canManageBilling}
+		mode="billing-page"
+		returnTo={`/projects/${projectId}/billing`}
+	/>
+
 	<div class="flex h-12 shrink-0 items-center border-b border-gray-800 px-5">
 		<div class="flex items-center gap-2">
 			<CreditCard class="size-4 text-gray-400" />
@@ -136,7 +147,7 @@
 
 	{#if actionError}
 		<div class="border-b border-red-900/40 bg-red-950/20 px-5 py-3 text-sm text-red-300">
-			We couldn't open your billing portal. Please try again in a moment.
+			{actionError}
 		</div>
 	{/if}
 
@@ -186,11 +197,15 @@
 					<div class="mt-2 flex flex-col gap-1.5">
 						<button
 							class="flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-gray-300 transition-colors hover:bg-gray-800/50"
-							onclick={manageBilling}
+							onclick={handleBillingAction}
 							disabled={portalLoading}
 						>
 							<CreditCard class="size-3.5 text-gray-500" />
-							{portalLoading ? 'Opening portal…' : 'Open billing portal'}
+							{portalLoading
+								? 'Opening portal...'
+								: billingReady
+									? 'Open billing portal'
+									: 'Set up billing'}
 						</button>
 					</div>
 				</div>

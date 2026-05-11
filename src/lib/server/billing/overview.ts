@@ -1,8 +1,16 @@
 import { and, eq } from 'drizzle-orm';
-import { ensureProjectCustomer } from './autumn';
+import { ensureProjectCustomer, getProjectBillingState } from './autumn';
 import { meterProjectActiveResources, syncProjectUsage } from './metering';
 import { initDrizzle } from '$lib/server/db';
-import { billingMeters, projectBillingCustomers } from '$lib/server/db/schema';
+import { billingMeters } from '$lib/server/db/schema';
+
+function statusLabel(status: Awaited<ReturnType<typeof getProjectBillingState>>['status']) {
+	if (status === 'active') return 'Ready';
+	if (status === 'past_due') return 'Past due';
+	if (status === 'failed') return 'Needs attention';
+	if (status === 'payment_required') return 'Payment method required';
+	return 'Not set up';
+}
 
 export async function refreshProjectBilling(projectId: string) {
 	await ensureProjectCustomer(projectId).catch((err) => {
@@ -14,9 +22,7 @@ export async function refreshProjectBilling(projectId: string) {
 
 export async function getProjectBillingOverview(projectId: string) {
 	const db = initDrizzle();
-	const customer = await db.query.projectBillingCustomers.findFirst({
-		where: eq(projectBillingCustomers.projectId, projectId)
-	});
+	const billingState = await getProjectBillingState(projectId);
 
 	const activeResourceRows = await db
 		.select({
@@ -35,9 +41,12 @@ export async function getProjectBillingOverview(projectId: string) {
 		);
 
 	return {
-		customer: customer ? { autumnCustomerId: customer.autumnCustomerId } : null,
-		statusLabel: customer ? 'Ready' : 'Not set up',
+		customer: billingState.customer,
+		status: billingState.status,
+		statusLabel: statusLabel(billingState.status),
 		planLabel: 'Project billing',
+		setupRequired: billingState.status !== 'active',
+		syncError: billingState.syncError,
 		lastUpdatedAt: Date.now(),
 		activeResourceCount: activeResourceRows.length,
 		activeResources: activeResourceRows.map((item) => ({

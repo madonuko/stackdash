@@ -32,6 +32,23 @@ function defaultPlanId() {
 	return getRuntimeEnv().AUTUMN_DEFAULT_PLAN_ID;
 }
 
+function isActiveSubscription(subscription: {
+	planId?: string | null;
+	status?: string | null;
+	pastDue?: boolean | null;
+	canceledAt?: number | null;
+	expiresAt?: number | null;
+}) {
+	const now = Date.now();
+
+	return (
+		subscription.status === 'active' &&
+		!subscription.pastDue &&
+		!subscription.canceledAt &&
+		(!subscription.expiresAt || subscription.expiresAt > now)
+	);
+}
+
 async function getProjectCustomerData(projectId: string) {
 	const db = initDrizzle();
 	const project = await db.query.organization.findFirst({
@@ -149,6 +166,102 @@ export async function attachDefaultProjectPlan(projectId: string, successUrl?: s
 			.set({ syncStatus: 'failed', syncError: errorMessage(err), updatedAt: Date.now() })
 			.where(eq(projectBillingCustomers.projectId, projectId));
 		throw err;
+	}
+}
+
+export async function setupProjectPayment(projectId: string, successUrl: string) {
+	await ensureProjectCustomer(projectId);
+
+	const response = await createAutumnClient().billing.setupPayment({
+		customerId: projectId,
+		successUrl
+	});
+
+	return response.url;
+}
+
+export async function getProjectBillingState(projectId: string) {
+	const db = initDrizzle();
+	const localCustomer = await db.query.projectBillingCustomers.findFirst({
+		where: eq(projectBillingCustomers.projectId, projectId)
+	});
+
+	if (!localCustomer) {
+		return {
+			status: 'not_setup' as const,
+			customer: null,
+			planId: defaultPlanId() ?? null,
+			syncError: null
+		};
+	}
+
+	if (localCustomer.syncStatus === 'failed') {
+		return {
+			status: 'failed' as const,
+			customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+			planId: defaultPlanId() ?? null,
+			syncError: localCustomer.syncError
+		};
+	}
+
+	const planId = defaultPlanId();
+	if (!planId) {
+		return {
+			status: 'active' as const,
+			customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+			planId: null,
+			syncError: null
+		};
+	}
+
+	try {
+		const customer = await createAutumnClient().customers.get({
+			customerId: projectId
+		});
+		const subscription = customer.subscriptions.find((item) => item.planId === planId);
+
+		if (subscription?.pastDue) {
+			return {
+				status: 'past_due' as const,
+				customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+				planId,
+				syncError: null
+			};
+		}
+
+		return {
+			status:
+				subscription && isActiveSubscription(subscription)
+					? ('active' as const)
+					: ('payment_required' as const),
+			customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+			planId,
+			syncError: null
+		};
+	} catch (err) {
+		if (autumnStatus(err) === 404) {
+			return {
+				status: 'not_setup' as const,
+				customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+				planId,
+				syncError: null
+			};
+		}
+
+		return {
+			status: 'failed' as const,
+			customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+			planId,
+			syncError: errorMessage(err)
+		};
+	}
+}
+
+export async function requireProjectBillingActive(projectId: string) {
+	const state = await getProjectBillingState(projectId);
+
+	if (state.status !== 'active') {
+		error(402, 'Set up billing before creating servers.');
 	}
 }
 

@@ -6,7 +6,11 @@ import { initDrizzle } from '$lib/server/db';
 import { vms, vmTypes, sshKeys, baseImages, ipAssignments } from '$lib/server/db/schema';
 import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
-import { deleteProjectServerEntity, ensureProjectServerEntity } from '$lib/server/billing/autumn';
+import {
+	deleteProjectServerEntity,
+	ensureProjectServerEntity,
+	requireProjectBillingActive
+} from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
 import { getCachedProxmoxVms, refreshProxmoxVmCache } from '$lib/server/vm-live-cache';
 import {
@@ -287,6 +291,7 @@ export const createVm = command(createParams, async (params) => {
 
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'read_write');
+	await requireProjectBillingActive(params.projectId);
 
 	const [vmType, baseImage, keys] = await Promise.all([
 		db.query.vmTypes.findFirst({

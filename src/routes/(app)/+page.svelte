@@ -10,7 +10,15 @@
 		createProject as createProjectRpc,
 		deleteProject as deleteProjectRpc
 	} from '$lib/remote/projects.remote';
-	import { Plus, FolderOpen, Settings, Trash2, MoreHorizontal, ArrowRight } from '@lucide/svelte';
+	import {
+		Plus,
+		FolderOpen,
+		Settings,
+		Trash2,
+		MoreHorizontal,
+		ArrowRight,
+		Loader2
+	} from '@lucide/svelte';
 
 	type Project = { id: string; projectName: string; role: string };
 
@@ -19,23 +27,32 @@
 
 	let createOpen = $state(false);
 	let newProjectName = $state('');
+	let creatingProject = $state(false);
+	let createProjectError = $state('');
 
 	let deleteOpen = $state(false);
 	let deleteTarget = $state<Project | null>(null);
 	let deleteConfirm = $state('');
+	let deletingProject = $state(false);
 
 	async function handleCreateProject() {
-		if (!newProjectName.trim()) return;
-		const res = await createProjectRpc({ name: newProjectName.trim() });
-		projects = [...projects, { id: res.id, projectName: newProjectName.trim(), role: 'owner' }];
-		newProjectName = '';
-		createOpen = false;
-		await authClient.organization.setActive({ organizationId: res.id });
-		if (res.billingSetupUrl) {
-			window.location.href = res.billingSetupUrl;
-			return;
+		if (!newProjectName.trim() || creatingProject) return;
+
+		creatingProject = true;
+		createProjectError = '';
+		try {
+			const name = newProjectName.trim();
+			const res = await createProjectRpc({ name });
+			projects = [...projects, { id: res.id, projectName: name, role: 'owner' }];
+			newProjectName = '';
+			createOpen = false;
+			await authClient.organization.setActive({ organizationId: res.id });
+			await goto(`/projects/${res.id}/servers`);
+		} catch (err) {
+			createProjectError = err instanceof Error ? err.message : 'Project could not be created.';
+		} finally {
+			creatingProject = false;
 		}
-		await goto(`/projects/${res.id}/servers`);
 	}
 
 	async function openProject(project: Project, path = 'servers') {
@@ -43,14 +60,33 @@
 		await goto(`/projects/${project.id}/${path}`);
 	}
 
+	function openCreateDialog() {
+		createProjectError = '';
+		createOpen = true;
+	}
+
+	function closeCreateDialog() {
+		if (creatingProject) return;
+
+		createOpen = false;
+		createProjectError = '';
+	}
+
 	async function handleDeleteProject() {
-		if (!deleteTarget || deleteConfirm.trim() !== deleteTarget.projectName) return;
+		if (!deleteTarget || deleteConfirm.trim() !== deleteTarget.projectName || deletingProject)
+			return;
+
+		deletingProject = true;
 		const target = deleteTarget;
-		await deleteProjectRpc({ projectId: target.id });
-		projects = projects.filter((p) => p.id !== target.id);
-		deleteTarget = null;
-		deleteConfirm = '';
-		deleteOpen = false;
+		try {
+			await deleteProjectRpc({ projectId: target.id });
+			projects = projects.filter((p) => p.id !== target.id);
+			deleteTarget = null;
+			deleteConfirm = '';
+			deleteOpen = false;
+		} finally {
+			deletingProject = false;
+		}
 	}
 
 	function openDeleteDialog(project: Project) {
@@ -60,6 +96,8 @@
 	}
 
 	function closeDeleteDialog() {
+		if (deletingProject) return;
+
 		deleteOpen = false;
 		deleteTarget = null;
 		deleteConfirm = '';
@@ -89,7 +127,7 @@
 					variant="outline"
 					size="sm"
 					class="mt-6 gap-1.5 border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600 hover:bg-gray-800 hover:text-gray-100"
-					onclick={() => (createOpen = true)}
+					onclick={openCreateDialog}
 				>
 					<Plus class="size-3.5" />
 					Create Project
@@ -165,7 +203,7 @@
 					{/each}
 					<button
 						class="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-gray-900/70"
-						onclick={() => (createOpen = true)}
+						onclick={openCreateDialog}
 					>
 						<span
 							class="flex size-10 shrink-0 items-center justify-center border border-dashed border-gray-800"
@@ -183,7 +221,12 @@
 	</div>
 </div>
 
-<Dialog.Root bind:open={createOpen}>
+<Dialog.Root
+	bind:open={createOpen}
+	onOpenChange={(v) => {
+		if (!v) closeCreateDialog();
+	}}
+>
 	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
 		<Dialog.Header>
 			<Dialog.Title>Create Project</Dialog.Title>
@@ -193,14 +236,28 @@
 		</Dialog.Header>
 		<div class="flex flex-col gap-2 py-4">
 			<Label>Project Name</Label>
-			<Input bind:value={newProjectName} placeholder="my-project" />
+			<Input bind:value={newProjectName} placeholder="my-project" disabled={creatingProject} />
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (createOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={handleCreateProject} disabled={!newProjectName.trim()}
-				>Create</Button
+			<Button variant="outline" size="sm" onclick={closeCreateDialog} disabled={creatingProject}
+				>Cancel</Button
 			>
+			<Button
+				size="sm"
+				onclick={handleCreateProject}
+				disabled={!newProjectName.trim() || creatingProject}
+			>
+				{#if creatingProject}
+					<Loader2 class="size-3.5 animate-spin" />
+					Creating...
+				{:else}
+					Create
+				{/if}
+			</Button>
 		</Dialog.Footer>
+		{#if createProjectError}
+			<p class="text-sm text-red-300">{createProjectError}</p>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>
 
@@ -223,17 +280,25 @@
 				bind:value={deleteConfirm}
 				placeholder={deleteTarget?.projectName ?? 'project name'}
 				class="border-red-900/50"
+				disabled={deletingProject}
 			/>
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={closeDeleteDialog}>Cancel</Button>
+			<Button variant="outline" size="sm" onclick={closeDeleteDialog} disabled={deletingProject}
+				>Cancel</Button
+			>
 			<Button
 				variant="destructive"
 				size="sm"
 				onclick={handleDeleteProject}
-				disabled={deleteConfirm.trim() !== deleteTarget?.projectName}
+				disabled={deleteConfirm.trim() !== deleteTarget?.projectName || deletingProject}
 			>
-				Delete Project
+				{#if deletingProject}
+					<Loader2 class="size-3.5 animate-spin" />
+					Deleting...
+				{:else}
+					Delete Project
+				{/if}
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>

@@ -46,3 +46,17 @@ export async function requireProjectAccess(
 		error(403, 'Insufficient project permissions');
 	}
 }
+
+export async function getProjectMemberRole(
+	db: any,
+	userId: string,
+	projectId: string
+): Promise<string | null> {
+	const [projectAccess] = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(and(eq(member.organizationId, projectId), eq(member.userId, userId)))
+		.limit(1);
+
+	return projectAccess?.role ?? null;
+}

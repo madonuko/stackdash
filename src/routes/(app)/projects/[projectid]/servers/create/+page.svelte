@@ -3,6 +3,7 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
+	import BillingSetupDialog from '$lib/components/billing-setup-dialog.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import type { FeatureFlags } from '$lib/feature-flags';
@@ -38,6 +39,8 @@
 		dbImages?: DbImage[];
 		volumes?: ExistingVolume[];
 		featureFlags?: FeatureFlags;
+		billing?: { status?: string; setupRequired?: boolean } | null;
+		canManageBilling?: boolean;
 	};
 
 	type ImageTab = 'os' | 'snapshots' | 'apps';
@@ -80,6 +83,9 @@
 	const officialDbImages = $derived(dbImages.filter((image) => image.isOfficial));
 	const customDbImages = $derived(dbImages.filter((image) => !image.isOfficial));
 	const volumesEnabled = $derived(!!data.featureFlags?.volumes);
+	const projectId = $derived(data.currentProject?.id ?? page.params.projectid ?? '');
+	const billingReady = $derived(data.billing?.status === 'active');
+	const canManageBilling = $derived(Boolean(data.canManageBilling));
 
 	let serverName = $state('');
 	let selectedImageId = $state<string | null>(null);
@@ -100,6 +106,7 @@
 
 	let creating = $state(false);
 	let createError = $state('');
+	let billingSetupOpen = $state(false);
 
 	let selectedImage = $derived(dbImages.find((i) => i.id === selectedImageId) ?? null);
 	let selectedPlan = $derived(vmTypes.find((t) => t.id === selectedPlanId) ?? null);
@@ -168,6 +175,7 @@
 
 	onMount(() => {
 		serverPassword = generatePassword();
+		if (!billingReady) billingSetupOpen = true;
 	});
 
 	function randomIndex(max: number): number {
@@ -267,9 +275,12 @@
 			return;
 		}
 
-		const projectId = page.params.projectid;
 		if (!projectId) {
 			createError = 'No project selected. Please select a project.';
+			return;
+		}
+		if (!billingReady) {
+			billingSetupOpen = true;
 			return;
 		}
 
@@ -304,6 +315,15 @@
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
+	<BillingSetupDialog
+		bind:open={billingSetupOpen}
+		{projectId}
+		{billingReady}
+		{canManageBilling}
+		mode="server-create"
+		returnTo={`/projects/${projectId}/servers/create`}
+	/>
+
 	<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-5">
 		<div class="flex items-center gap-3">
 			<Button
@@ -869,6 +889,17 @@
 				</div>
 
 				<div class="border-t border-gray-800 px-4 py-3">
+					{#if !billingReady}
+						<div
+							class="mb-3 rounded-md border border-amber-900/40 bg-amber-950/20 p-3 text-xs text-amber-200"
+						>
+							{#if canManageBilling}
+								Set up billing before creating this server.
+							{:else}
+								A project owner must set up billing before servers can be created.
+							{/if}
+						</div>
+					{/if}
 					<Button
 						class="w-full"
 						disabled={!serverName.trim() ||
@@ -881,7 +912,7 @@
 							<Loader2 class="mr-2 h-3 w-3 animate-spin" />
 							Creating...
 						{:else}
-							Create Server
+							{billingReady ? 'Create Server' : 'Set up billing to create server'}
 						{/if}
 					</Button>
 					{#if createError}
