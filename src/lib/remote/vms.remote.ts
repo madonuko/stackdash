@@ -83,9 +83,9 @@ function toDashboardStatus(
 	status: VmRow['status'],
 	liveStatus: VmInfo['status'] | null | undefined
 ): 'running' | 'stopped' | 'restarting' | 'provisioning' {
-	if (status === 'provisioning') return 'provisioning';
 	if (liveStatus === 'running') return 'running';
 	if (liveStatus === 'paused') return 'restarting';
+	if (status === 'provisioning') return 'provisioning';
 	return 'stopped';
 }
 

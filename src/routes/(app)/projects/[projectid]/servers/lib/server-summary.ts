@@ -113,9 +113,13 @@ export function toServerInfo(vm: VmSummary): ServerInfo {
 		),
 		ipv6: getFirstIp(vm.live?.networkInterfaces, (address) => address.includes(':')),
 		status:
-			vm.status === 'provisioning'
-				? 'provisioning'
-				: ((vm.live?.status ?? 'stopped') as ServerStatus),
+			vm.live?.status === 'running'
+				? 'running'
+				: vm.live?.status === 'paused'
+					? 'restarting'
+					: vm.status === 'provisioning'
+						? 'provisioning'
+						: 'stopped',
 		agentConnected: vm.live?.status === 'running',
 		os: vm.vmType?.name ?? 'Unknown',
 		region: 'New York',

@@ -229,6 +229,7 @@
 	}
 
 	function formatVmStatus(status: string, liveStatus?: string | null) {
+		if (liveStatus === 'running') return 'Running';
 		if (status === 'provisioning') return 'Provisioning';
 		if (status === 'error') return 'Error';
 		if (!liveStatus || liveStatus === 'unknown') return 'Ready';
