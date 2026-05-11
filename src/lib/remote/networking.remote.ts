@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
-import { createVMandAssignIPs, deleteIP, deleteVM, setupVMIPAM } from '$lib/server/netbox';
+import { createVMandAssignIPs, deleteIP, deleteVM } from '$lib/server/netbox';
 
 export const listIpBlocks = query(type({ projectId: 'string' }), async (params) => {
 	const event = getRequestEvent();
