@@ -65,6 +65,9 @@ export const vms = pgTable(
 		netboxVmId: integer('netbox_vm_id'),
 		netboxVmInterfaceId: integer('netbox_vm_interface_id'),
 		netboxMacAddressId: integer('netbox_mac_address_id'),
+		netboxPrimaryIpv4Id: integer('netbox_primary_ipv4_id'),
+		netboxPrimaryIpv6Id: integer('netbox_primary_ipv6_id'),
+		netboxIpv6PrefixId: integer('netbox_ipv6_prefix_id'),
 		active: boolean('active').notNull().default(true),
 		ownerProjectId: ulidFk('owner_project_id').references(() => organization.id),
 		vmTypeId: ulidFk('vm_type_id')
@@ -84,7 +87,10 @@ export const vms = pgTable(
 		index('vms_proxmox_id_index').on(table.proxmoxId),
 		uniqueIndex('vms_netbox_vm_id_index').on(table.netboxVmId),
 		uniqueIndex('vms_netbox_vm_interface_id_index').on(table.netboxVmInterfaceId),
-		uniqueIndex('vms_netbox_mac_address_id_index').on(table.netboxMacAddressId)
+		uniqueIndex('vms_netbox_mac_address_id_index').on(table.netboxMacAddressId),
+		uniqueIndex('vms_netbox_primary_ipv4_id_index').on(table.netboxPrimaryIpv4Id),
+		uniqueIndex('vms_netbox_primary_ipv6_id_index').on(table.netboxPrimaryIpv6Id),
+		uniqueIndex('vms_netbox_ipv6_prefix_id_index').on(table.netboxIpv6PrefixId)
 	]
 );
 

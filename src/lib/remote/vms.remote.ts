@@ -9,7 +9,14 @@ import { requireProjectAccess } from '$lib/server/auth-context';
 import { deleteProjectServerEntity, ensureProjectServerEntity } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
 import { getCachedProxmoxVms, refreshProxmoxVmCache } from '$lib/server/vm-live-cache';
-import { createVMandAssignIPs, deleteIP, deleteVM, isNetboxConfigured } from '$lib/server/netbox';
+import {
+	createVMandAssignIPs,
+	clearVMPrimaryIPs,
+	deleteIP,
+	deletePrefix,
+	deleteVM,
+	isNetboxConfigured
+} from '$lib/server/netbox';
 
 type VmRow = {
 	id: string;
@@ -385,9 +392,14 @@ export const createVm = command(createParams, async (params) => {
 		.update(vms)
 		.set({
 			proxmoxId: result.proxmoxId ?? null,
+			lastKnownIpv4: netboxResult?.primary_ipv4 ?? null,
+			lastKnownIpv6: netboxResult?.primary_ipv6 ?? null,
 			netboxVmId: netboxResult?.netbox_vm_id ?? null,
 			netboxVmInterfaceId: netboxResult?.netbox_vm_interface_id ?? null,
-			netboxMacAddressId: netboxResult?.netbox_mac_address_id ?? null
+			netboxMacAddressId: netboxResult?.netbox_mac_address_id ?? null,
+			netboxPrimaryIpv4Id: netboxResult?.netbox_primary_ipv4_id ?? null,
+			netboxPrimaryIpv6Id: netboxResult?.netbox_primary_ipv6_id ?? null,
+			netboxIpv6PrefixId: netboxResult?.netbox_ipv6_prefix_id ?? null
 		})
 		.where(eq(vms.id, vmId));
 	await createBillingMeter({
@@ -430,16 +442,25 @@ export const deleteVm = command(deleteParams, async (params) => {
 
 	if (isNetboxConfigured() && hasNetboxVm) {
 		try {
+			await clearVMPrimaryIPs(row.netboxVmId!);
 			const netboxIpAssignments = await db.query.ipAssignments.findMany({
 				where: eq(ipAssignments.associatedVmId, row.id),
 				columns: { netboxIpAddressId: true }
 			});
+			const netboxIpAddressIds = new Set(
+				[
+					row.netboxPrimaryIpv4Id,
+					row.netboxPrimaryIpv6Id,
+					...netboxIpAssignments.map((assignment) => assignment.netboxIpAddressId)
+				].filter((id): id is number => id != null)
+			);
 			await Promise.all(
-				netboxIpAssignments.flatMap((assignment) =>
-					assignment.netboxIpAddressId == null ? [] : [deleteIP(assignment.netboxIpAddressId)]
-				)
+				Array.from(netboxIpAddressIds, (netboxIpAddressId) => deleteIP(netboxIpAddressId))
 			);
 			await deleteVM(row.netboxVmId!, row.netboxVmInterfaceId!, row.netboxMacAddressId!);
+			if (row.netboxIpv6PrefixId != null) {
+				await deletePrefix(row.netboxIpv6PrefixId);
+			}
 		} catch (err) {
 			console.warn(`Failed to delete NetBox VM ${row.id}`, err);
 			error(502, `Failed to remove VM "${row.name}" from NetBox`);
