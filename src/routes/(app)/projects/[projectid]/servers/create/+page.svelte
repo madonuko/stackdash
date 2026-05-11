@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -287,8 +287,9 @@
 				...(selectedSshKeyIds.length > 0 ? { sshKeyIds: selectedSshKeyIds } : {}),
 				...(usePasswordAuthentication ? { password: serverPassword.trim() } : {})
 			};
-			await createVm(payload);
-			goto(resolve(`/projects/${page.params.projectid}/servers`));
+			const created = await createVm(payload);
+			await invalidate('project:vms');
+			goto(resolve(`/projects/${projectId}/servers/${created.id}`));
 		} catch (err) {
 			createError =
 				err instanceof Error ? err.message : 'Failed to create server. Please try again.';
