@@ -12,6 +12,7 @@
 		deleteVolume as deleteProjectVolume,
 		detachVolume as detachProjectVolume
 	} from '$lib/remote/volumes.remote';
+	import { getErrorMessage } from '$lib/utils';
 	import { untrack } from 'svelte';
 	import { Plus, Trash2, Link, Unlink, HardDrive } from '@lucide/svelte';
 
@@ -148,7 +149,7 @@
 			newSize = 25;
 			createOpen = false;
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Failed to create volume.';
+			actionError = getErrorMessage(err, 'Failed to create volume.');
 		} finally {
 			creatingVolume = false;
 		}
@@ -166,7 +167,7 @@
 			volumes = volumes.filter((v) => v.id !== id);
 		} catch (err) {
 			volumes[idx].status = volumes[idx].server ? 'attached' : 'available';
-			actionError = err instanceof Error ? err.message : 'Failed to delete volume.';
+			actionError = getErrorMessage(err, 'Failed to delete volume.');
 		} finally {
 			deletingVolumeIds = deletingVolumeIds.filter((item) => item !== id);
 		}
@@ -185,7 +186,7 @@
 			volumes[idx].usageHistory = buildUsageHistory(volumes[idx].size, 0);
 			volumes[idx].status = 'available';
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Failed to detach volume.';
+			actionError = getErrorMessage(err, 'Failed to detach volume.');
 		} finally {
 			detachingVolumeIds = detachingVolumeIds.filter((item) => item !== id);
 		}
@@ -212,7 +213,7 @@
 			attachOpen = false;
 			attachTarget = null;
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Failed to attach volume.';
+			actionError = getErrorMessage(err, 'Failed to attach volume.');
 		} finally {
 			attachingVolume = false;
 		}

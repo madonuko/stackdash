@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { openBillingPortal, setupProjectBillingPayment } from '$lib/remote/billing.remote';
+	import { getErrorMessage } from '$lib/utils';
 
 	type Mode = 'server-create' | 'billing-page';
 
@@ -46,7 +47,7 @@
 				: await setupProjectBillingPayment({ projectId, returnTo });
 			window.location.href = result.url;
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Billing could not be opened. Try again.';
+			actionError = getErrorMessage(err, 'Billing could not be opened. Try again.');
 			loading = false;
 		}
 	}

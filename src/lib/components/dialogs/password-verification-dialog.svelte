@@ -11,6 +11,7 @@
 		confirmPasswordChangeWithTotp,
 		sendPasswordChangeCode
 	} from '$lib/remote/password-change.remote';
+	import { getErrorMessage } from '$lib/utils';
 	import { Fingerprint } from '@lucide/svelte';
 
 	type VerificationMethod = 'passkey' | 'totp' | 'email';
@@ -110,7 +111,7 @@
 			passwordCodeSent = false;
 			onVerified?.();
 		} catch (err) {
-			passwordVerificationError = err instanceof Error ? err.message : 'Failed to update password.';
+			passwordVerificationError = getErrorMessage(err, 'Failed to update password.');
 		} finally {
 			passwordVerifying = false;
 		}
@@ -131,7 +132,7 @@
 		} catch (err) {
 			passwordCodeSent = false;
 			passwordVerificationError =
-				err instanceof Error ? err.message : 'Failed to send verification code.';
+				getErrorMessage(err, 'Failed to send verification code.');
 		} finally {
 			passwordCodeSending = false;
 		}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import BillingSetupDialog from '$lib/components/billing-setup-dialog.svelte';
 	import { openBillingPortal } from '$lib/remote/billing.remote';
+	import { getErrorMessage } from '$lib/utils';
 	import { CreditCard, Server, HardDrive, Cpu } from '@lucide/svelte';
 
 	type DateValue = Date | number | string | null | undefined;
@@ -118,7 +119,7 @@
 			const result = await openBillingPortal({ projectId });
 			window.location.href = result.url;
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Billing portal could not be opened.';
+			actionError = getErrorMessage(err, 'Billing portal could not be opened.');
 			portalLoading = false;
 		}
 	}

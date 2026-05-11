@@ -16,6 +16,7 @@
 	} from '$lib/remote/projects.remote';
 	import { Settings, User, Trash2, Check, Plus, Loader2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import { getErrorMessage } from '$lib/utils';
 
 	let { data } = $props();
 
@@ -70,7 +71,7 @@
 				savedTimeout = undefined;
 			}, 1500);
 		} catch (e) {
-			toast.error('Failed to update project name');
+			toast.error(getErrorMessage(e, 'Failed to update project name'));
 		} finally {
 			saving = false;
 		}
@@ -83,7 +84,7 @@
 			await deleteProjectRpc({ projectId });
 			await goto(resolve('/'));
 		} catch (e) {
-			toast.error('Failed to delete project');
+			toast.error(getErrorMessage(e, 'Failed to delete project'));
 		} finally {
 			deleting = false;
 		}
@@ -101,7 +102,7 @@
 			memberInviteEmail = '';
 			addMemberOpen = false;
 		} catch (e) {
-			toast.error('Failed to add member');
+			toast.error(getErrorMessage(e, 'Failed to add member'));
 		} finally {
 			addingMember = false;
 		}
@@ -118,7 +119,7 @@
 			await removeMemberRpc({ projectId, userId });
 		} catch (e) {
 			members = [...members.slice(0, idx), removed, ...members.slice(idx)];
-			toast.error('Failed to remove member');
+			toast.error(getErrorMessage(e, 'Failed to remove member'));
 		} finally {
 			removingMemberIds = removingMemberIds.filter((id) => id !== userId);
 		}
@@ -140,7 +141,7 @@
 			members = members.map((member) =>
 				member.userId === userId ? { ...member, permissions: oldRole } : member
 			);
-			toast.error('Failed to update member role');
+			toast.error(getErrorMessage(e, 'Failed to update member role'));
 		} finally {
 			updatingMemberIds = updatingMemberIds.filter((id) => id !== userId);
 		}

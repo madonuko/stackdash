@@ -10,6 +10,7 @@
 	import { userSettingsHref } from '$lib/state/user-settings.svelte';
 	import { createVolume as createProjectVolume } from '$lib/remote/volumes.remote';
 	import { createVm } from '$lib/remote/vms.remote';
+	import { getErrorMessage } from '$lib/utils';
 	import { onMount } from 'svelte';
 	import {
 		ArrowLeft,
@@ -250,7 +251,7 @@
 			showCreateVolume = false;
 		} catch (err) {
 			createError =
-				err instanceof Error ? err.message : 'Failed to create volume. Please try again.';
+				getErrorMessage(err, 'Failed to create volume. Please try again.');
 		} finally {
 			creatingVolume = false;
 		}
@@ -307,7 +308,7 @@
 			goto(resolve(`/projects/${projectId}/servers/${created.id}`));
 		} catch (err) {
 			createError =
-				err instanceof Error ? err.message : 'Failed to create server. Please try again.';
+				getErrorMessage(err, 'Failed to create server. Please try again.');
 		} finally {
 			creating = false;
 		}

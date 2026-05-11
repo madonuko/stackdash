@@ -20,6 +20,7 @@
 		Loader2
 	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import { getErrorMessage } from '$lib/utils';
 
 	type Project = { id: string; projectName: string; role: string };
 
@@ -50,7 +51,7 @@
 			await authClient.organization.setActive({ organizationId: res.id });
 			await goto(`/projects/${res.id}/servers`);
 		} catch (err) {
-			createProjectError = err instanceof Error ? err.message : 'Project could not be created.';
+			createProjectError = getErrorMessage(err, 'Project could not be created.');
 		} finally {
 			creatingProject = false;
 		}
@@ -87,7 +88,7 @@
 			deleteConfirm = '';
 			deleteOpen = false;
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to delete project');
+			toast.error(getErrorMessage(err, 'Failed to delete project'));
 		} finally {
 			deletingProject = false;
 		}

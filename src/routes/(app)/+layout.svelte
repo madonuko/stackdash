@@ -13,6 +13,7 @@
 
 	import * as Command from '$lib/components/ui/command';
 	import { toast } from 'svelte-sonner';
+	import { getErrorMessage } from '$lib/utils';
 	import { goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
@@ -265,7 +266,7 @@
 			commandServersLoadedProjectId = projectId;
 		} catch (error) {
 			if (requestId !== commandServersRequestId) return;
-			toast.error('Failed to load servers');
+			toast.error(getErrorMessage(error, 'Failed to load servers'));
 			commandServers = [];
 			commandServersLoadedProjectId = projectId;
 		} finally {

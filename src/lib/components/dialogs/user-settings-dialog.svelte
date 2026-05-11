@@ -22,6 +22,7 @@
 	import { getPendingEmailChange, requestEmailChange } from '$lib/remote/email-change.remote';
 	import { disableTwoFactorWithVerification } from '$lib/remote/two-factor.remote';
 	import { toast } from 'svelte-sonner';
+	import { getErrorMessage } from '$lib/utils';
 
 	import {
 		User,
@@ -125,7 +126,7 @@
 			setTimeout(() => (profileSaved = false), 1500);
 		} catch (error) {
 			console.error('Failed to update profile:', error);
-			profileError = error instanceof Error ? error.message : 'Failed to update profile.';
+			profileError = getErrorMessage(error, 'Failed to update profile.');
 			profileName = originalName;
 			profileEmail = originalEmail;
 		} finally {
@@ -252,7 +253,7 @@
 			currentPassword = '';
 		} catch (err) {
 			totpDisableError =
-				err instanceof Error ? err.message : 'Failed to disable authenticator app 2FA.';
+				getErrorMessage(err, 'Failed to disable authenticator app 2FA.');
 		} finally {
 			disablingTotp = false;
 		}
@@ -264,7 +265,7 @@
 			await authClient.passkey.deletePasskey({ id });
 			passkeys = passkeys.filter((p) => p.id !== id);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to remove passkey');
+			toast.error(getErrorMessage(err, 'Failed to remove passkey'));
 		} finally {
 			removingPasskey = null;
 		}
@@ -284,7 +285,7 @@
 			sshKeys = await listSshKeys();
 			sshKeysLoaded = true;
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to load SSH keys');
+			toast.error(getErrorMessage(err, 'Failed to load SSH keys'));
 		}
 	}
 
@@ -301,7 +302,7 @@
 			newKeyName = '';
 			newKeyValue = '';
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to add SSH key');
+			toast.error(getErrorMessage(err, 'Failed to add SSH key'));
 		} finally {
 			sshKeyAdding = false;
 		}
@@ -317,7 +318,7 @@
 			await invalidate('app:ssh-keys');
 		} catch (err) {
 			sshKeys = [...sshKeys, key!];
-			toast.error(err instanceof Error ? err.message : 'Failed to remove SSH key');
+			toast.error(getErrorMessage(err, 'Failed to remove SSH key'));
 		} finally {
 			sshKeyRemoving = null;
 		}
@@ -348,7 +349,7 @@
 				lastUsedAt: t.lastUsedAt
 			}));
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to load API tokens');
+			toast.error(getErrorMessage(err, 'Failed to load API tokens'));
 		} finally {
 			tokensLoading = false;
 		}
@@ -369,7 +370,7 @@
 			if (idx !== -1) tokens[idx] = { ...tokens[idx], id: result.id };
 		} catch (err) {
 			tokens = tokens.filter((t) => t.id !== tempId);
-			toast.error(err instanceof Error ? err.message : 'Failed to create API token');
+			toast.error(getErrorMessage(err, 'Failed to create API token'));
 		} finally {
 			newTokenName = '';
 		}
@@ -385,7 +386,7 @@
 			await revokeApiToken({ tokenId: id });
 		} catch (err) {
 			tokens.splice(idx, 0, tokenToRemove);
-			toast.error(err instanceof Error ? err.message : 'Failed to revoke API token');
+			toast.error(getErrorMessage(err, 'Failed to revoke API token'));
 		}
 	}
 

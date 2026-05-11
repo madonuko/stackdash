@@ -12,6 +12,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { featureFlagKeys } from '$lib/feature-flags';
 	import { beginDeleteUser, type AdminUser } from '$lib/remote/admin-users.remote';
+	import { getErrorMessage } from '$lib/utils';
 	import { AdminState, type AdminPageData } from '$lib/state/admin.svelte';
 	import {
 		AlertTriangle,
@@ -176,7 +177,7 @@
 			deleteVerificationEmail = result.email;
 			deleteDialogOpen = true;
 		} catch (err) {
-			admin.adminUserError = err instanceof Error ? err.message : 'Failed to prepare user deletion';
+			admin.adminUserError = getErrorMessage(err, 'Failed to prepare user deletion');
 			deleteUserId = '';
 		} finally {
 			deletePreparing = false;
@@ -206,7 +207,7 @@
 			);
 			resetDeleteDialog();
 		} catch (err) {
-			deleteError = err instanceof Error ? err.message : 'Failed to delete user';
+			deleteError = getErrorMessage(err, 'Failed to delete user');
 		} finally {
 			deleteVerifying = false;
 		}

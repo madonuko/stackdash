@@ -27,6 +27,7 @@ import {
 import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
 import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
 import { toast } from 'svelte-sonner';
+import { getErrorMessage } from '$lib/utils';
 import { untrack } from 'svelte';
 import {
 	defaultFeatureFlags,
@@ -217,7 +218,7 @@ export class AdminState {
 			await invalidate('app:admin-users');
 		} catch (err) {
 			this.adminUsers = previousUsers;
-			this.adminUserError = err instanceof Error ? err.message : 'Failed to update admin access';
+			this.adminUserError = getErrorMessage(err, 'Failed to update admin access');
 		} finally {
 			this.adminUserSaving[userId] = false;
 		}
@@ -262,7 +263,7 @@ export class AdminState {
 			await invalidate('app:admin-users');
 		} catch (err) {
 			this.adminUsers = previousUsers;
-			this.adminUserError = err instanceof Error ? err.message : 'Failed to update status';
+			this.adminUserError = getErrorMessage(err, 'Failed to update status');
 		} finally {
 			this.stopUserSheetSave(userId);
 		}
@@ -295,7 +296,7 @@ export class AdminState {
 		} catch (err) {
 			this.adminUsers = previousUsers;
 			this.adminUserError =
-				err instanceof Error ? err.message : 'Failed to update two-factor status';
+				getErrorMessage(err, 'Failed to update two-factor status');
 		} finally {
 			this.stopUserSheetSave(userId);
 			this.twoFAPendingUserId = '';
@@ -317,7 +318,7 @@ export class AdminState {
 			await invalidate('app:admin-users');
 		} catch (err) {
 			this.adminUsers = previousUsers;
-			this.adminUserError = err instanceof Error ? err.message : 'Failed to update role';
+			this.adminUserError = getErrorMessage(err, 'Failed to update role');
 		} finally {
 			this.stopUserSheetSave(userId);
 		}
@@ -332,7 +333,7 @@ export class AdminState {
 			this.closeUserSheet();
 			await invalidate('app:admin-users');
 		} catch (err) {
-			this.adminUserError = err instanceof Error ? err.message : 'Failed to delete user';
+			this.adminUserError = getErrorMessage(err, 'Failed to delete user');
 			throw err;
 		} finally {
 			this.stopUserSheetSave(userId);
@@ -350,7 +351,7 @@ export class AdminState {
 			this.userSshKeys = result.sshKeys;
 			this.userApiTokens = result.apiTokens;
 		} catch (err) {
-			this.adminUserError = err instanceof Error ? err.message : 'Failed to load resources';
+			this.adminUserError = getErrorMessage(err, 'Failed to load resources');
 		} finally {
 			this.userResourcesLoading = false;
 		}
@@ -370,7 +371,7 @@ export class AdminState {
 			this.orgVolumes = result.volumes;
 		} catch (err) {
 			this.adminUserError =
-				err instanceof Error ? err.message : 'Failed to load organization resources';
+				getErrorMessage(err, 'Failed to load organization resources');
 		} finally {
 			this.orgResourcesLoading = false;
 		}
@@ -396,7 +397,7 @@ export class AdminState {
 			await invalidate('app:feature-flags');
 		} catch (err) {
 			this.featureFlags = { ...this.featureFlags, [flag]: previousEnabled };
-			this.featureFlagError = err instanceof Error ? err.message : 'Failed to update feature flag';
+			this.featureFlagError = getErrorMessage(err, 'Failed to update feature flag');
 		} finally {
 			this.featureFlagSaving[flag] = false;
 		}
@@ -457,7 +458,7 @@ export class AdminState {
 
 			this.vtDialogOpen = false;
 		} catch (err) {
-			this.vtError = err instanceof Error ? err.message : 'Failed to save';
+			this.vtError = getErrorMessage(err, 'Failed to save');
 		} finally {
 			this.vtSaving = false;
 		}
@@ -468,7 +469,7 @@ export class AdminState {
 			await deleteVmType({ vmTypeId: id });
 			this.vmTypes = this.vmTypes.filter((vmType) => vmType.id !== id);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to delete VM type');
+			toast.error(getErrorMessage(err, 'Failed to delete VM type'));
 		}
 	}
 
@@ -483,7 +484,7 @@ export class AdminState {
 			this.pveImages = images;
 			this.pveImageImportTargets = targets;
 		} catch (err) {
-			this.isoError = err instanceof Error ? err.message : 'Failed to scan Proxmox images';
+			this.isoError = getErrorMessage(err, 'Failed to scan Proxmox images');
 		} finally {
 			this.isoLoading = false;
 		}
@@ -566,7 +567,7 @@ export class AdminState {
 				}
 			}
 		} catch (err) {
-			this.importError = err instanceof Error ? err.message : 'Failed to import image';
+			this.importError = getErrorMessage(err, 'Failed to import image');
 		} finally {
 			this.importSaving = false;
 		}
@@ -644,7 +645,7 @@ export class AdminState {
 
 			this.imgDialogOpen = false;
 		} catch (err) {
-			this.imgError = err instanceof Error ? err.message : 'Failed to save';
+			this.imgError = getErrorMessage(err, 'Failed to save');
 		} finally {
 			this.imgSaving = false;
 		}
@@ -655,7 +656,7 @@ export class AdminState {
 			await deleteImage({ imageId: id });
 			this.images = this.images.filter((image) => image.id !== id);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to delete image');
+			toast.error(getErrorMessage(err, 'Failed to delete image'));
 		}
 	}
 }
