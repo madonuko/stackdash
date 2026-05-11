@@ -14,7 +14,7 @@
 		updateMemberRole as updateMemberRoleRpc,
 		removeMember as removeMemberRpc
 	} from '$lib/remote/projects.remote';
-	import { Settings, User, Trash2, Check, Plus } from '@lucide/svelte';
+	import { Settings, User, Trash2, Check, Plus, Loader2 } from '@lucide/svelte';
 
 	let { data } = $props();
 
@@ -40,6 +40,8 @@
 	let memberInviteEmail = $state('');
 	let selectedMemberRole = $state<MemberRole>('read_write');
 	let addingMember = $state(false);
+	let removingMemberIds = $state<string[]>([]);
+	let updatingMemberIds = $state<string[]>([]);
 
 	let projectId = $derived(data.project.id);
 
@@ -104,24 +106,29 @@
 	}
 
 	async function removeMember(userId: string) {
-		if (!projectId) return;
+		if (!projectId || removingMemberIds.includes(userId)) return;
 		const idx = members.findIndex((m) => m.userId === userId);
 		if (idx === -1) return;
 		const removed = members[idx];
+		removingMemberIds = [...removingMemberIds, userId];
 		members = members.filter((m) => m.userId !== userId);
 		try {
 			await removeMemberRpc({ projectId, userId });
 		} catch (e) {
 			console.error('Failed to remove member:', e);
 			members = [...members.slice(0, idx), removed, ...members.slice(idx)];
+		} finally {
+			removingMemberIds = removingMemberIds.filter((id) => id !== userId);
 		}
 	}
 
 	async function updateMemberRole(userId: string, newRole: MemberRole) {
-		if (!projectId) return;
+		if (!projectId || updatingMemberIds.includes(userId)) return;
 		const idx = members.findIndex((m) => m.userId === userId);
 		if (idx === -1) return;
+		if (members[idx].permissions === newRole) return;
 		const oldRole = members[idx].permissions;
+		updatingMemberIds = [...updatingMemberIds, userId];
 		members = members.map((member) =>
 			member.userId === userId ? { ...member, permissions: newRole } : member
 		);
@@ -132,6 +139,8 @@
 			members = members.map((member) =>
 				member.userId === userId ? { ...member, permissions: oldRole } : member
 			);
+		} finally {
+			updatingMemberIds = updatingMemberIds.filter((id) => id !== userId);
 		}
 	}
 </script>
@@ -154,6 +163,7 @@
 						<Input bind:value={projectName} class="font-medium" />
 						<Button size="sm" onclick={saveName} disabled={saving} class="w-fit">
 							{#if saving}
+								<Loader2 class="h-3 w-3 animate-spin" />
 								Saving...
 							{:else if saved}
 								<Check class="h-3 w-3" /> Saved
@@ -207,16 +217,19 @@
 										<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
 											<DropdownMenu.Item
 												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+												disabled={updatingMemberIds.includes(member.userId)}
 												onclick={() => updateMemberRole(member.userId, 'admin')}
 												>Admin</DropdownMenu.Item
 											>
 											<DropdownMenu.Item
 												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+												disabled={updatingMemberIds.includes(member.userId)}
 												onclick={() => updateMemberRole(member.userId, 'read_write')}
 												>Read Write</DropdownMenu.Item
 											>
 											<DropdownMenu.Item
 												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+												disabled={updatingMemberIds.includes(member.userId)}
 												onclick={() => updateMemberRole(member.userId, 'read')}
 												>Read</DropdownMenu.Item
 											>
@@ -228,8 +241,14 @@
 									size="sm"
 									class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
 									onclick={() => removeMember(member.userId)}
+									disabled={removingMemberIds.includes(member.userId) ||
+										updatingMemberIds.includes(member.userId)}
 								>
-									<Trash2 class="h-3.5 w-3.5" />
+									{#if removingMemberIds.includes(member.userId)}
+										<Loader2 class="h-3.5 w-3.5 animate-spin" />
+									{:else}
+										<Trash2 class="h-3.5 w-3.5" />
+									{/if}
 								</Button>
 							</div>
 						{/each}
@@ -249,6 +268,7 @@
 										placeholder="member@example.com"
 										type="email"
 										class="h-8 text-xs"
+										disabled={addingMember}
 									/>
 									<Button
 										variant="outline"
@@ -257,7 +277,9 @@
 										onclick={addMember}
 										disabled={addingMember || !memberInviteEmail.trim()}
 									>
-										<Plus class="h-3 w-3" />
+										{#if addingMember}<Loader2 class="h-3 w-3 animate-spin" />{:else}<Plus
+												class="h-3 w-3"
+											/>{/if}
 										{addingMember ? 'Inviting...' : 'Invite'}
 									</Button>
 								</div>
@@ -321,6 +343,7 @@
 							class="w-fit"
 						>
 							{#if deleting}
+								<Loader2 class="h-3 w-3 animate-spin" />
 								Deleting...
 							{:else}
 								Delete Project

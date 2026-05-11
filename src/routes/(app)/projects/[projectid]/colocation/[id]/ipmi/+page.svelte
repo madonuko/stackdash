@@ -8,6 +8,7 @@
 	let ipmiPassword = $state('');
 	let showIpmi = $state(false);
 	let ipmiAction = $state('');
+	let generatingIpmiPassword = $state(false);
 
 	function copyText(text: string, label: string) {
 		navigator.clipboard.writeText(text);
@@ -16,6 +17,8 @@
 	}
 
 	function generateIpmiPassword() {
+		if (generatingIpmiPassword) return;
+		generatingIpmiPassword = true;
 		ipmiPassword = Array.from(
 			{ length: 16 },
 			() =>
@@ -24,9 +27,11 @@
 				]
 		).join('');
 		showIpmi = true;
+		generatingIpmiPassword = false;
 	}
 
 	function ipmiCommand(action: string) {
+		if (ipmiAction) return;
 		ipmiAction = action;
 		if (action === 'power-on') {
 			colo.updateSelectedUnit({
@@ -109,7 +114,9 @@
 							variant="outline"
 							size="sm"
 							class="w-fit gap-1.5 text-xs"
-							onclick={generateIpmiPassword}>Regenerate Password</Button
+							onclick={generateIpmiPassword}
+							disabled={generatingIpmiPassword}
+							>{generatingIpmiPassword ? 'Regenerating...' : 'Regenerate Password'}</Button
 						>
 					</div>
 				</div>
@@ -120,9 +127,10 @@
 						size="sm"
 						class="gap-1.5 text-xs"
 						onclick={generateIpmiPassword}
+						disabled={generatingIpmiPassword}
 					>
 						<Power class="h-3 w-3" />
-						Generate IPMI Credentials
+						{generatingIpmiPassword ? 'Generating...' : 'Generate IPMI Credentials'}
 					</Button>
 				</div>
 			{/if}
@@ -188,13 +196,21 @@
 						variant="outline"
 						size="sm"
 						class="w-fit gap-1.5 text-xs"
-						onclick={() => ipmiCommand('bios-setup')}>Enter BIOS Setup on Next Boot</Button
+						onclick={() => ipmiCommand('bios-setup')}
+						disabled={ipmiAction !== ''}
+						>{ipmiAction === 'bios-setup'
+							? 'Setting BIOS boot...'
+							: 'Enter BIOS Setup on Next Boot'}</Button
 					>
 					<Button
 						variant="outline"
 						size="sm"
 						class="w-fit gap-1.5 text-xs"
-						onclick={() => ipmiCommand('pxe-boot')}>PXE Boot on Next Restart</Button
+						onclick={() => ipmiCommand('pxe-boot')}
+						disabled={ipmiAction !== ''}
+						>{ipmiAction === 'pxe-boot'
+							? 'Setting PXE boot...'
+							: 'PXE Boot on Next Restart'}</Button
 					>
 				</div>
 			</div>

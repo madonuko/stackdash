@@ -12,6 +12,7 @@
 		BarChart3,
 		Disc,
 		Globe,
+		Loader2,
 		Plus,
 		Power,
 		Settings,
@@ -70,8 +71,10 @@
 	let newName = $state('');
 	let newRackSize = $state('1U');
 	let unitCounter = $state(3);
+	let addingUnit = $state(false);
 	let deleteOpen = $state(false);
 	let deleteConfirm = $state('');
+	let deletingUnit = $state(false);
 
 	const rackSizes = ['1U', '2U', '4U', '6U'];
 	const rackPrices: Record<string, string> = {
@@ -104,30 +107,35 @@
 		return tab === 'overview' ? base : `${base}/${tab}`;
 	}
 
-	function addUnit() {
-		if (!newName.trim()) return;
-		unitCounter += 1;
-		const unit: ColoUnit = {
-			id: `colo-${String(unitCounter).padStart(3, '0')}`,
-			name: newName.trim(),
-			rackSize: newRackSize,
-			location: `Rack B03, Slot ${unitCounter * 2}`,
-			powerDraw: '0W',
-			powerBudget: newRackSize === '1U' ? '350W' : newRackSize === '2U' ? '500W' : '700W',
-			ip: `23.193.50.${12 + unitCounter}`,
-			status: 'provisioning',
-			monthlyRate: rackPrices[newRackSize].replace('/mo', ''),
-			created: new Date().toISOString().slice(0, 10)
-		};
-		units.push(unit);
-		void goto(resolve(tabHref(activeTab, unit.id) as any));
-		setTimeout(() => {
-			const idx = units.findIndex((u) => u.id === unit.id);
-			if (idx !== -1) units[idx].status = 'online';
-		}, 3000);
-		newName = '';
-		newRackSize = '1U';
-		addOpen = false;
+	async function addUnit() {
+		if (!newName.trim() || addingUnit) return;
+		addingUnit = true;
+		try {
+			unitCounter += 1;
+			const unit: ColoUnit = {
+				id: `colo-${String(unitCounter).padStart(3, '0')}`,
+				name: newName.trim(),
+				rackSize: newRackSize,
+				location: `Rack B03, Slot ${unitCounter * 2}`,
+				powerDraw: '0W',
+				powerBudget: newRackSize === '1U' ? '350W' : newRackSize === '2U' ? '500W' : '700W',
+				ip: `23.193.50.${12 + unitCounter}`,
+				status: 'provisioning',
+				monthlyRate: rackPrices[newRackSize].replace('/mo', ''),
+				created: new Date().toISOString().slice(0, 10)
+			};
+			units.push(unit);
+			await goto(resolve(tabHref(activeTab, unit.id) as any));
+			setTimeout(() => {
+				const idx = units.findIndex((u) => u.id === unit.id);
+				if (idx !== -1) units[idx].status = 'online';
+			}, 3000);
+			newName = '';
+			newRackSize = '1U';
+			addOpen = false;
+		} finally {
+			addingUnit = false;
+		}
 	}
 
 	function updateSelectedUnit(changes: Partial<ColoUnit>) {
@@ -140,18 +148,23 @@
 		deleteOpen = true;
 	}
 
-	function deleteSelectedUnit() {
-		if (!selectedUnit || deleteConfirm !== selectedUnit.id) return;
-		units = units.filter((unit) => unit.id !== selectedUnit!.id);
-		void goto(
-			resolve(
-				(units[0]
-					? tabHref(activeTab, units[0].id)
-					: `/projects/${page.params.projectid}/colocation`) as any
-			)
-		);
-		deleteOpen = false;
-		deleteConfirm = '';
+	async function deleteSelectedUnit() {
+		if (!selectedUnit || deleteConfirm !== selectedUnit.id || deletingUnit) return;
+		deletingUnit = true;
+		try {
+			units = units.filter((unit) => unit.id !== selectedUnit!.id);
+			await goto(
+				resolve(
+					(units[0]
+						? tabHref(activeTab, units[0].id)
+						: `/projects/${page.params.projectid}/colocation`) as any
+				)
+			);
+			deleteOpen = false;
+			deleteConfirm = '';
+		} finally {
+			deletingUnit = false;
+		}
 	}
 
 	const context: ColocationContext = {
@@ -265,7 +278,7 @@
 		<div class="flex flex-col gap-4 py-4">
 			<div class="flex flex-col gap-2">
 				<Label>Equipment Name</Label>
-				<Input bind:value={newName} placeholder="my-server" />
+				<Input bind:value={newName} placeholder="my-server" disabled={addingUnit} />
 			</div>
 			<div class="flex flex-col gap-2">
 				<Label>Rack Size</Label>
@@ -285,8 +298,13 @@
 			</div>
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (addOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={addUnit} disabled={!newName.trim()}>Request Slot</Button>
+			<Button variant="outline" size="sm" onclick={() => (addOpen = false)} disabled={addingUnit}
+				>Cancel</Button
+			>
+			<Button size="sm" onclick={addUnit} disabled={!newName.trim() || addingUnit}>
+				{#if addingUnit}<Loader2 class="h-3 w-3 animate-spin" />{/if}
+				{addingUnit ? 'Requesting...' : 'Request Slot'}
+			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
@@ -303,18 +321,29 @@
 			</Dialog.Header>
 			<div class="flex flex-col gap-2 py-4">
 				<Label>Type unit ID to confirm</Label>
-				<Input bind:value={deleteConfirm} placeholder={selectedUnit.id} class="font-mono" />
+				<Input
+					bind:value={deleteConfirm}
+					placeholder={selectedUnit.id}
+					class="font-mono"
+					disabled={deletingUnit}
+				/>
 			</div>
 			<Dialog.Footer>
-				<Button variant="outline" size="sm" onclick={() => (deleteOpen = false)}>Cancel</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					onclick={() => (deleteOpen = false)}
+					disabled={deletingUnit}>Cancel</Button
+				>
 				<Button
 					variant="outline"
 					size="sm"
 					class="border-red-700 text-red-400 hover:bg-red-950"
-					disabled={deleteConfirm !== selectedUnit.id}
+					disabled={deleteConfirm !== selectedUnit.id || deletingUnit}
 					onclick={deleteSelectedUnit}
 				>
-					Remove Unit
+					{#if deletingUnit}<Loader2 class="h-3 w-3 animate-spin" />{/if}
+					{deletingUnit ? 'Removing...' : 'Remove Unit'}
 				</Button>
 			</Dialog.Footer>
 		</Dialog.Content>

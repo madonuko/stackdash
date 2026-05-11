@@ -52,6 +52,8 @@
 	let sheetOpen = $state(false);
 	let mountedImage = $state<string | null>(null);
 	let bootingFromImage = $state(false);
+	let uploadingImage = $state(false);
+	let deletingImageIds = $state<string[]>([]);
 	let uploadOpen = $state(false);
 	let uploadName = $state('');
 	let uploadFile = $state('');
@@ -99,7 +101,7 @@
 	}
 
 	function bootFromMountedImage() {
-		if (!mountedImage) return;
+		if (!mountedImage || bootingFromImage) return;
 		bootingFromImage = true;
 		colo.updateSelectedUnit({ status: 'provisioning' });
 		setTimeout(() => {
@@ -138,7 +140,8 @@
 	}
 
 	function startUpload() {
-		if (!uploadName.trim()) return;
+		if (!uploadName.trim() || uploadingImage) return;
+		uploadingImage = true;
 		imageCounter += 1;
 		const sizes = ['1.2 GB', '2.8 GB', '4.5 GB', '680 MB', '9.1 GB'];
 		const image: UserImage = {
@@ -152,6 +155,7 @@
 		};
 		userImages.push(image);
 		uploadOpen = false;
+		uploadingImage = false;
 		uploadName = '';
 		uploadFile = '';
 		uploadUrl = '';
@@ -175,7 +179,10 @@
 	}
 
 	function deleteImage(id: string) {
+		if (deletingImageIds.includes(id)) return;
+		deletingImageIds = [...deletingImageIds, id];
 		userImages = userImages.filter((image) => image.id !== id);
+		deletingImageIds = deletingImageIds.filter((item) => item !== id);
 	}
 </script>
 
@@ -204,6 +211,7 @@
 						variant="ghost"
 						size="sm"
 						class="h-7 px-2 text-xs"
+						disabled={bootingFromImage}
 						onclick={() => (mountedImage = null)}>Unmount</Button
 					>
 				</div>
@@ -334,6 +342,7 @@
 											variant="ghost"
 											size="sm"
 											class="h-6 px-2 text-[10px]"
+											disabled={bootingFromImage}
 											onclick={() => mountUserImage(image.name)}>Mount</Button
 										>
 									{/if}
@@ -356,7 +365,8 @@
 									size="sm"
 									class="h-5 w-5 p-0 text-gray-600 hover:text-red-400"
 									onclick={() => deleteImage(image.id)}
-									disabled={image.status !== 'ready'}><Trash2 class="h-2.5 w-2.5" /></Button
+									disabled={image.status !== 'ready' || deletingImageIds.includes(image.id)}
+									><Trash2 class="h-2.5 w-2.5" /></Button
 								>
 							</div>
 						</div>
@@ -426,6 +436,7 @@
 									variant="ghost"
 									size="sm"
 									class="h-7 gap-1.5 px-3 text-xs"
+									disabled={bootingFromImage}
 									onclick={() => mountOfficialVersion(selectedImage!.name, version.version)}
 									><Disc class="h-3 w-3" /> Mount via IPMI</Button
 								>
@@ -433,6 +444,7 @@
 									variant="outline"
 									size="sm"
 									class="h-7 gap-1.5 px-3 text-xs"
+									disabled={bootingFromImage}
 									onclick={() => {
 										mountOfficialVersion(selectedImage!.name, version.version);
 										sheetOpen = false;
@@ -509,12 +521,16 @@
 				{/if}
 			</div>
 			<Dialog.Footer
-				><Button variant="outline" size="sm" onclick={() => (uploadOpen = false)}>Cancel</Button
+				><Button
+					variant="outline"
+					size="sm"
+					onclick={() => (uploadOpen = false)}
+					disabled={uploadingImage}>Cancel</Button
 				><Button
 					size="sm"
 					onclick={startUpload}
-					disabled={!uploadName.trim() && !uploadFile && !uploadUrl}
-					><Upload class="h-3 w-3" /> Upload</Button
+					disabled={uploadingImage || (!uploadName.trim() && !uploadFile && !uploadUrl)}
+					><Upload class="h-3 w-3" /> {uploadingImage ? 'Uploading...' : 'Upload'}</Button
 				></Dialog.Footer
 			>
 		</Dialog.Content>

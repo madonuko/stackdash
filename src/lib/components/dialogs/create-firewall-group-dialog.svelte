@@ -7,10 +7,12 @@
 	let {
 		open = $bindable(false),
 		name = $bindable(''),
+		submitting = false,
 		onSubmit
 	}: {
 		open?: boolean;
 		name?: string;
+		submitting?: boolean;
 		onSubmit: () => void | Promise<void>;
 	} = $props();
 </script>
@@ -28,8 +30,12 @@
 			</div>
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (open = false)}>Cancel</Button>
-			<Button size="sm" onclick={onSubmit} disabled={!name.trim()}>Create</Button>
+			<Button variant="outline" size="sm" onclick={() => (open = false)} disabled={submitting}
+				>Cancel</Button
+			>
+			<Button size="sm" onclick={onSubmit} disabled={!name.trim() || submitting}
+				>{submitting ? 'Creating...' : 'Create'}</Button
+			>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

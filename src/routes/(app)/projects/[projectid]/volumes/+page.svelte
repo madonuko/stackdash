@@ -82,6 +82,10 @@
 	let attachTarget = $state<Volume | null>(null);
 	let attachServer = $state('');
 	let actionError = $state('');
+	let creatingVolume = $state(false);
+	let attachingVolume = $state(false);
+	let detachingVolumeIds = $state<string[]>([]);
+	let deletingVolumeIds = $state<string[]>([]);
 
 	function buildUsageHistory(size: number, used: number) {
 		const safeUsed = Math.max(0, Math.min(size, used));
@@ -118,8 +122,9 @@
 
 	async function createVolume() {
 		const projectId = page.params.projectid;
-		if (!projectId || !newName.trim()) return;
+		if (!projectId || !newName.trim() || creatingVolume) return;
 		actionError = '';
+		creatingVolume = true;
 		try {
 			const created = await createProjectVolume({
 				projectId,
@@ -144,13 +149,17 @@
 			createOpen = false;
 		} catch (err) {
 			actionError = err instanceof Error ? err.message : 'Failed to create volume.';
+		} finally {
+			creatingVolume = false;
 		}
 	}
 
 	async function deleteVolume(id: string) {
+		if (deletingVolumeIds.includes(id)) return;
 		const idx = volumes.findIndex((v) => v.id === id);
 		if (idx === -1) return;
 		actionError = '';
+		deletingVolumeIds = [...deletingVolumeIds, id];
 		volumes[idx].status = 'deleting';
 		try {
 			await deleteProjectVolume({ volumeId: id });
@@ -158,13 +167,17 @@
 		} catch (err) {
 			volumes[idx].status = volumes[idx].server ? 'attached' : 'available';
 			actionError = err instanceof Error ? err.message : 'Failed to delete volume.';
+		} finally {
+			deletingVolumeIds = deletingVolumeIds.filter((item) => item !== id);
 		}
 	}
 
 	async function detach(id: string) {
+		if (detachingVolumeIds.includes(id)) return;
 		const idx = volumes.findIndex((v) => v.id === id);
 		if (idx === -1) return;
 		actionError = '';
+		detachingVolumeIds = [...detachingVolumeIds, id];
 		try {
 			await detachProjectVolume({ volumeId: id });
 			volumes[idx].server = null;
@@ -173,6 +186,8 @@
 			volumes[idx].status = 'available';
 		} catch (err) {
 			actionError = err instanceof Error ? err.message : 'Failed to detach volume.';
+		} finally {
+			detachingVolumeIds = detachingVolumeIds.filter((item) => item !== id);
 		}
 	}
 
@@ -183,10 +198,11 @@
 	}
 
 	async function confirmAttach() {
-		if (!attachTarget || !attachServer) return;
+		if (!attachTarget || !attachServer || attachingVolume) return;
 		const idx = volumes.findIndex((v) => v.id === attachTarget!.id);
 		if (idx === -1) return;
 		actionError = '';
+		attachingVolume = true;
 		try {
 			await attachProjectVolume({ volumeId: attachTarget.id, vmId: attachServer });
 			volumes[idx].server = attachServer;
@@ -197,6 +213,8 @@
 			attachTarget = null;
 		} catch (err) {
 			actionError = err instanceof Error ? err.message : 'Failed to attach volume.';
+		} finally {
+			attachingVolume = false;
 		}
 	}
 </script>
@@ -345,9 +363,10 @@
 							size="sm"
 							class="h-7 gap-1.5 px-2 text-xs"
 							onclick={() => detach(vol.id)}
+							disabled={detachingVolumeIds.includes(vol.id)}
 						>
 							<Unlink class="h-3 w-3" />
-							Detach
+							{detachingVolumeIds.includes(vol.id) ? 'Detaching...' : 'Detach'}
 						</Button>
 					{:else if vol.status === 'available'}
 						<Button
@@ -364,7 +383,9 @@
 						variant="ghost"
 						size="sm"
 						class="h-7 px-2 text-xs text-red-400 hover:text-red-300"
-						disabled={vol.status === 'deleting' || vol.status === 'attached'}
+						disabled={vol.status === 'deleting' ||
+							vol.status === 'attached' ||
+							deletingVolumeIds.includes(vol.id)}
 						onclick={() => deleteVolume(vol.id)}
 					>
 						<Trash2 class="h-3 w-3" />
@@ -387,6 +408,7 @@
 	bind:open={createOpen}
 	bind:name={newName}
 	bind:size={newSize}
+	submitting={creatingVolume}
 	onSubmit={createVolume}
 />
 
@@ -396,5 +418,6 @@
 	volumeName={attachTarget?.name}
 	bind:server={attachServer}
 	{serverOptions}
+	submitting={attachingVolume}
 	onSubmit={confirmAttach}
 />

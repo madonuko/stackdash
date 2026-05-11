@@ -116,14 +116,17 @@
 	let newProtocol = $state('TCP');
 	let newPorts = $state('');
 	let newSource = $state('0.0.0.0/0');
+	let addingRule = $state(false);
 
 	// Create group dialog
 	let createGroupOpen = $state(false);
 	let newGroupName = $state('');
 	let groupCounter = $state(2);
+	let creatingGroup = $state(false);
 
 	function addRule() {
-		if (!newPorts.trim()) return;
+		if (!newPorts.trim() || addingRule) return;
+		addingRule = true;
 		ruleIdCounter++;
 		const groupIdx = groups.findIndex((g) => g.id === selectedGroup.id);
 		if (groupIdx === -1) return;
@@ -140,6 +143,7 @@
 		newPorts = '';
 		newSource = '0.0.0.0/0';
 		addRuleOpen = false;
+		addingRule = false;
 	}
 
 	function deleteRule(ruleId: number) {
@@ -149,7 +153,8 @@
 	}
 
 	function createGroup() {
-		if (!newGroupName.trim()) return;
+		if (!newGroupName.trim() || creatingGroup) return;
+		creatingGroup = true;
 		groupCounter++;
 		const newG: FirewallGroup = {
 			id: `fw-${groupCounter}`,
@@ -161,6 +166,7 @@
 		selectedGroupId = newG.id;
 		newGroupName = '';
 		createGroupOpen = false;
+		creatingGroup = false;
 	}
 
 	function deleteGroup(id: string) {
@@ -399,8 +405,15 @@
 			</div>
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (addRuleOpen = false)}>Cancel</Button>
-			<Button size="sm" onclick={addRule} disabled={!newPorts.trim()}>Add Rule</Button>
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => (addRuleOpen = false)}
+				disabled={addingRule}>Cancel</Button
+			>
+			<Button size="sm" onclick={addRule} disabled={!newPorts.trim() || addingRule}
+				>{addingRule ? 'Adding...' : 'Add Rule'}</Button
+			>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
@@ -409,5 +422,6 @@
 <CreateFirewallGroupDialog
 	bind:open={createGroupOpen}
 	bind:name={newGroupName}
+	submitting={creatingGroup}
 	onSubmit={createGroup}
 />

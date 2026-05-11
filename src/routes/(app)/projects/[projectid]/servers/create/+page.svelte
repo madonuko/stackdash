@@ -105,6 +105,7 @@
 	let showCreateVolume = $state(false);
 
 	let creating = $state(false);
+	let creatingVolume = $state(false);
 	let createError = $state('');
 	let billingSetupOpen = $state(false);
 
@@ -233,12 +234,13 @@
 	}
 
 	async function createVolume() {
-		if (!volumesEnabled) return;
+		if (!volumesEnabled || creatingVolume) return;
 
 		const name = newVolumeName.trim();
 		const size = parseInt(newVolumeSize, 10);
 		const projectId = page.params.projectid;
 		if (!name || !size || size < 1 || !projectId) return;
+		creatingVolume = true;
 		try {
 			const created = await createProjectVolume({ projectId, name, size });
 			createdVolumes = [...createdVolumes, { id: created.id, name, sizeGb: size }];
@@ -249,6 +251,8 @@
 		} catch (err) {
 			createError =
 				err instanceof Error ? err.message : 'Failed to create volume. Please try again.';
+		} finally {
+			creatingVolume = false;
 		}
 	}
 
@@ -606,10 +610,11 @@
 													class="h-7 px-3 text-xs"
 													disabled={!newVolumeName.trim() ||
 														!parseInt(newVolumeSize, 10) ||
-														parseInt(newVolumeSize, 10) < 1}
+														parseInt(newVolumeSize, 10) < 1 ||
+														creatingVolume}
 													onclick={createVolume}
 												>
-													Create
+													{creatingVolume ? 'Creating...' : 'Create'}
 												</Button>
 											</div>
 										</div>

@@ -14,6 +14,7 @@
 	let addIpOpen = $state(false);
 	let newIpAddr = $state('');
 	let newIpRdns = $state('');
+	let addingIp = $state(false);
 	let editingRdns = $state<number | null>(null);
 	let rdnsValue = $state('');
 	let ips = $state<Record<string, ColoIp[]>>({
@@ -40,7 +41,8 @@
 	}
 
 	function addIp() {
-		if (!newIpAddr.trim()) return;
+		if (!newIpAddr.trim() || addingIp) return;
+		addingIp = true;
 		if (!ips[colo.selectedUnitId]) ips[colo.selectedUnitId] = [];
 		ips[colo.selectedUnitId].push({
 			address: newIpAddr.trim(),
@@ -50,6 +52,7 @@
 		newIpAddr = '';
 		newIpRdns = '';
 		addIpOpen = false;
+		addingIp = false;
 	}
 
 	function saveRdns(idx: number) {
@@ -166,16 +169,25 @@
 			<div class="flex flex-col gap-4 py-4">
 				<div class="flex flex-col gap-2">
 					<Label>IP Address</Label>
-					<Input bind:value={newIpAddr} placeholder="23.193.50.x" class="font-mono" />
+					<Input
+						bind:value={newIpAddr}
+						placeholder="23.193.50.x"
+						class="font-mono"
+						disabled={addingIp}
+					/>
 				</div>
 				<div class="flex flex-col gap-2">
 					<Label>Reverse DNS (optional)</Label>
-					<Input bind:value={newIpRdns} placeholder="hostname.example.com" />
+					<Input bind:value={newIpRdns} placeholder="hostname.example.com" disabled={addingIp} />
 				</div>
 			</div>
 			<Dialog.Footer>
-				<Button variant="outline" size="sm" onclick={() => (addIpOpen = false)}>Cancel</Button>
-				<Button size="sm" onclick={addIp} disabled={!newIpAddr.trim()}>Add</Button>
+				<Button variant="outline" size="sm" onclick={() => (addIpOpen = false)} disabled={addingIp}
+					>Cancel</Button
+				>
+				<Button size="sm" onclick={addIp} disabled={!newIpAddr.trim() || addingIp}
+					>{addingIp ? 'Adding...' : 'Add'}</Button
+				>
 			</Dialog.Footer>
 		</Dialog.Content>
 	</Dialog.Root>

@@ -8,12 +8,14 @@
 		volumeName,
 		server = $bindable(''),
 		serverOptions,
+		submitting = false,
 		onSubmit
 	}: {
 		open?: boolean;
 		volumeName?: string | null;
 		server?: string;
 		serverOptions: string[];
+		submitting?: boolean;
 		onSubmit: () => void | Promise<void>;
 	} = $props();
 </script>
@@ -36,8 +38,12 @@
 			</select>
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" size="sm" onclick={() => (open = false)}>Cancel</Button>
-			<Button size="sm" onclick={onSubmit}>Attach</Button>
+			<Button variant="outline" size="sm" onclick={() => (open = false)} disabled={submitting}
+				>Cancel</Button
+			>
+			<Button size="sm" onclick={onSubmit} disabled={submitting || !server}
+				>{submitting ? 'Attaching...' : 'Attach'}</Button
+			>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
