@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { tick, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { HardDrive, Plus } from '@lucide/svelte';
-	import { listVms, listVmStatuses } from '$lib/remote/vms.remote';
+	import { listVmStatuses } from '$lib/remote/vms.remote';
 	import { serversState, sortServers } from '$lib/state/servers.svelte';
 
 	let { data, children } = $props();
@@ -16,11 +16,6 @@
 		const h = Math.floor((seconds % 86400) / 3600);
 		const m = Math.floor((seconds % 3600) / 60);
 		return `${d}d ${h}h ${m}m`;
-	}
-
-	function formatCapacity(mib: number): string {
-		if (!mib) return '0GB';
-		return mib >= 1024 ? `${mib / 1024}GB` : `${mib}MB`;
 	}
 
 	function getFirstIp(
@@ -53,43 +48,10 @@
 	}
 
 	$effect(() => {
-		serversState.servers = initialServers;
-		serversState.firstStatusRefreshComplete = false;
+		serversState.servers = sortServers(initialServers);
+		serversState.loading = false;
+		serversState.firstStatusRefreshComplete = initialServers.length === 0;
 	});
-
-	async function loadServers() {
-		if (!projectId) return;
-		serversState.loading = true;
-
-		try {
-			const vms = await listVms({ projectId }).run();
-			serversState.servers = sortServers(
-				vms
-					.filter((vm) => vm.active)
-					.map((vm) => ({
-						id: vm.id,
-						name: vm.name,
-						liveLoaded: false,
-						vcpu: vm.vmType?.cores ?? 0,
-						ram: formatCapacity(vm.vmType?.ramCapacity ?? 0),
-						disk: `${vm.vmType?.storageAmount ?? 0}GB`,
-						ip: '—',
-						ipv6: '—',
-						status: vm.status === 'provisioning' ? 'provisioning' : 'stopped',
-						agentConnected: false,
-						os: vm.vmType?.name ?? 'Unknown',
-						region: 'New York',
-						created: vm.creationDate,
-						uptime: '—',
-						plan: vm.vmType?.name ?? 'Custom',
-						backups: false,
-						metrics: vm.live?.metrics ?? null
-					}))
-			);
-		} finally {
-			serversState.loading = false;
-		}
-	}
 
 	async function refreshStatuses() {
 		if (!projectId) return;
@@ -138,7 +100,7 @@
 		if (!projectId) return;
 
 		untrack(() => {
-			tick().then(loadServers).then(refreshStatuses);
+			refreshStatuses();
 		});
 		const interval = window.setInterval(scheduleRefreshStatuses, 5000);
 
