@@ -173,7 +173,7 @@
 					class="flex-1 gap-1.5"
 					onclick={() => authClient.signIn.social({ provider: 'google', callbackURL: redirectTo })}
 				>
-				    <GoogleIcon class="h-3.5 w-3.5" />
+					<GoogleIcon class="h-3.5 w-3.5" />
 					Google
 				</Button>
 			</div>
