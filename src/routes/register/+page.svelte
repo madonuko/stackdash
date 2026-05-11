@@ -5,6 +5,7 @@
 	import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from '@lucide/svelte';
 	import { LogoGithub } from 'carbon-icons-svelte';
 	import type { PageData } from './$types';
+	import GoogleIcon from '$lib/components/google-icon.svelte';
 
 	let { data }: { data: PageData } = $props();
 	const redirectTo = $derived(data.redirectTo ?? '/');
@@ -152,7 +153,7 @@
 					class="flex-1 gap-1.5"
 					onclick={() => authClient.signIn.social({ provider: 'google', callbackURL: redirectTo })}
 				>
-					<LogoGithub class="h-3.5 w-3.5" />
+					<GoogleIcon class="h-3.5 w-3.5" />
 					Google
 				</Button>
 			</div>
