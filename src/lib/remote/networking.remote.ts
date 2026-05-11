@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
+import { setupVMIPAM } from '$lib/server/netbox';
 
 export const listIpBlocks = query(type({ projectId: 'string' }), async (params) => {
 	const event = getRequestEvent();
@@ -74,3 +75,9 @@ export const unassignIp = command(unassignParams, async (params) => {
 
 	await db.delete(ipAssignments).where(eq(ipAssignments.ip, params.ip));
 });
+
+const testParams = type({ ip: 'string' });
+
+export const testNetworking = command(testParams, async (params) => {
+  setupVMIPAM()
+})
