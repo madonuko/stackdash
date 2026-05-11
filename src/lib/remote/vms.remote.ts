@@ -258,28 +258,31 @@ export const createVm = command(createParams, async (params) => {
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'read_write');
 
-	const vmType = await db.query.vmTypes.findFirst({
-		where: eq(vmTypes.id, params.vmTypeId)
-	});
+	const [vmType, baseImage, keys] = await Promise.all([
+		db.query.vmTypes.findFirst({
+			where: eq(vmTypes.id, params.vmTypeId)
+		}),
+		params.imageId
+			? db.query.baseImages.findFirst({
+					where: eq(baseImages.id, params.imageId)
+				})
+			: null,
+		params.sshKeyIds?.length
+			? db.query.sshKeys.findMany({
+					where: eq(sshKeys.userId, event.locals.user.id)
+				})
+			: []
+	]);
 	if (!vmType) error(400, `VM type "${params.vmTypeId}" not found`);
 	if (!vmType.autumnFeatureId)
 		error(400, `VM type "${vmType.name}" is missing an Autumn feature ID`);
 	const featureId = vmType.autumnFeatureId;
 
-	const baseImage = params.imageId
-		? await db.query.baseImages.findFirst({
-				where: eq(baseImages.id, params.imageId)
-			})
-		: null;
 	if (params.imageId && !baseImage) error(400, `Image "${params.imageId}" not found`);
 
-	let publicKeys: string[] = [];
-	if (params.sshKeyIds?.length) {
-		const keys = await db.query.sshKeys.findMany({
-			where: eq(sshKeys.userId, event.locals.user.id)
-		});
-		publicKeys = keys.filter((k) => params.sshKeyIds!.includes(k.id)).map((k) => k.publicKey);
-	}
+	const publicKeys = params.sshKeyIds?.length
+		? keys.filter((key) => params.sshKeyIds!.includes(key.id)).map((key) => key.publicKey)
+		: [];
 
 	const now = Date.now();
 	const [inserted] = await db
