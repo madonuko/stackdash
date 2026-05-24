@@ -7,7 +7,7 @@ import {
 	listProxmoxImages,
 	updateImage
 } from '$lib/remote/images.remote';
-import { invalidate } from '$app/navigation';
+import { goto, invalidate } from '$app/navigation';
 import {
 	listAdminUsers,
 	setUserAdmin,
@@ -35,6 +35,7 @@ import {
 	type FeatureFlagKey,
 	type FeatureFlags
 } from '$lib/feature-flags';
+import { page } from '$app/state';
 
 export type VmIsa = 'x86';
 
@@ -221,6 +222,9 @@ export class AdminState {
 			this.adminUserError = getErrorMessage(err, 'Failed to update admin access');
 		} finally {
 			this.adminUserSaving[userId] = false;
+			if (userId === page.data.user.id && !isAdmin) {
+				await goto('/');
+			}
 		}
 	}
 
