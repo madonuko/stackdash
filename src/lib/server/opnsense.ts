@@ -4,7 +4,8 @@ type OpnsenseMethod = 'GET' | 'POST';
 
 type CreateVMIPMappingParams = {
 	macAddress: string;
-	ipAddress: string;
+  ipv4Addresses: string[];
+	ipv6Addresses: string[];
 };
 
 export class OpnsenseError extends Error {
@@ -70,18 +71,18 @@ async function opnsenseRequest<T>(route: string, method: OpnsenseMethod, data?: 
 	return body as T;
 }
 
-/*
-example call:
 
-createVMToIPMapping("AA:BB:CC:DD:EE:FF", "203.0.113.20")
-*/
 
-async function createVMToIPMapping({
-	macAddress,
-	ipAddress
-}: CreateVMIPMappingParams) {
-  // todo: determine way to automatically determine local IP assignment
-  let localIP = '192.168.0.51'
+async function getAvaliableLocalIP() {
+  // todo
+  return "192.168.1.50"
+}
+
+async function assignLocalIPToMacAddress(localIP: string, macAddress: string) {
+  // todo: subnet needs to be configurable
+  // kea has subnets that contain localIPs. We need to include the subnet for the specific localIP.
+  // you can get the subnets that exist by running
+  // await opnsenseRequest("/api/kea/dhcpv4/search_subnet", "POST", {"current":1,"rowCount":50,"sort":{}})
 
   await opnsenseRequest(
     "/api/kea/dhcpv4/add_reservation/",
@@ -97,14 +98,15 @@ async function createVMToIPMapping({
     }
   )
 
-  // this seems to be required to apply changes
   // the webui also runs /api/kea/dhcpv4/set, but I am not sure what that actually does.
   await opnsenseRequest(
     "/api/kea/service/reconfigure",
     "POST",
     {}
   )
+}
 
+async function createVirtualIP(ipAddress: string) {
   await opnsenseRequest(
     "/api/interfaces/vip_settings/add_item/",
     "POST",
@@ -122,7 +124,9 @@ async function createVMToIPMapping({
     "POST",
     {}
   )
+}
 
+async function createOneToOneNAT(externalIP: string, internalIP: string) {
   await opnsenseRequest(
     "/api/firewall/one_to_one/add_rule/",
     "POST",
@@ -135,9 +139,9 @@ async function createVMToIPMapping({
         "description": "",
         "interface": "wan",
         "type": "binat",
-        "external": ipAddress,
+        "external": externalIP,
         "source_not": "0",
-        "source_net": localIP,
+        "source_net": internalIP,
         "destination_not": "0",
         "destination_net": "any",
         "log": "0",
@@ -151,9 +155,9 @@ async function createVMToIPMapping({
     "POST",
     {}
   )
+}
 
-
-
+async function createAllowFirewallRule(ipAddress: string) {
   await opnsenseRequest(
     "/api/firewall/filter/add_rule/",
     "POST",
@@ -167,4 +171,32 @@ async function createVMToIPMapping({
     "POST",
     {}
   )
+}
+
+
+// todo: pretty much all of these requests can be done in parallel. swap them to use Promise.all()
+async function createVMToIPMapping({
+	macAddress,
+  ipv4Addresses,
+	ipv6Addresses
+}: CreateVMIPMappingParams) {
+  // todo: determine way to automatically determine local IP assignment
+  const localIP = await getAvaliableLocalIP()
+
+  const promises = []
+
+  promises.push(assignLocalIPToMacAddress(localIP, macAddress))
+
+
+  for (const ipv4Address of ipv4Addresses) {
+    promises.push(createVirtualIP(ipv4Address+"/32"))
+    promises.push(createOneToOneNAT(ipv4Address, localIP))
+    promises.push(createAllowFirewallRule(ipv4Address))
+  }
+
+  for (const ipv6Address of ipv4Addresses) {
+    // todo: i think this needs a different config then IPv4 does, but I don't understand the networking well enough.
+  }
+
+  await Promise.all(promises)
 }
