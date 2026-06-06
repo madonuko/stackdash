@@ -73,9 +73,14 @@ async function opnsenseRequest<T>(route: string, method: OpnsenseMethod, data?: 
 
 
 
-async function getAvaliableLocalIP() {
+async function getAvaliableLocalIPv4() {
   // todo
   return "192.168.1.50"
+}
+
+async function getAvaliableLocalIPv6() {
+  // todo
+  return ""
 }
 
 async function assignLocalIPToMacAddress(localIP: string, macAddress: string) {
@@ -174,29 +179,52 @@ async function createAllowFirewallRule(ipAddress: string) {
 }
 
 
-// todo: pretty much all of these requests can be done in parallel. swap them to use Promise.all()
 async function createVMToIPMapping({
 	macAddress,
   ipv4Addresses,
 	ipv6Addresses
 }: CreateVMIPMappingParams) {
   // todo: determine way to automatically determine local IP assignment
-  const localIP = await getAvaliableLocalIP()
+  const localIPv4 = await getAvaliableLocalIPv4()
+  const localIPv6 = await getAvaliableLocalIPv6() // todo: should this just use SLAAC?
 
   const promises = []
 
-  promises.push(assignLocalIPToMacAddress(localIP, macAddress))
+  promises.push(assignLocalIPToMacAddress(localIPv4, macAddress))
 
 
   for (const ipv4Address of ipv4Addresses) {
-    promises.push(createVirtualIP(ipv4Address+"/32"))
-    promises.push(createOneToOneNAT(ipv4Address, localIP))
-    promises.push(createAllowFirewallRule(ipv4Address))
+    promises.push(assignPublicIPv4ToLocalIPv4(ipv4Address, localIPv4))
   }
 
-  for (const ipv6Address of ipv4Addresses) {
-    // todo: i think this needs a different config then IPv4 does, but I don't understand the networking well enough.
+  for (const ipv6Address of ipv6Addresses) {
+    promises.push(assignPublicIPv6ToLocalIPv6(ipv6Address, localIPv6))
   }
 
   await Promise.all(promises)
+}
+
+async function assignPublicIPv4ToLocalIPv4(externalIPv4: string, localIPv4: string) {
+  await Promise.all([
+    createVirtualIP(externalIPv4 + "/32"),
+    createOneToOneNAT(externalIPv4, localIPv4),
+    createAllowFirewallRule(externalIPv4)
+  ])
+}
+
+async function removePublicIPv4Assignment(externalIPv4: string, localIPv4: string) {
+  // todo
+}
+
+async function removeLocalIPToMacAssignment(externalIPv4: string, localIPv4: string) {
+  // todo
+}
+
+
+async function assignPublicIPv6ToLocalIPv6(externalIPv6: string, localIPv6: string) {
+  // todo
+}
+
+async function removePublicIPv6Assignment(externalIPv4: string, localIPv4: string) {
+  // todo
 }
