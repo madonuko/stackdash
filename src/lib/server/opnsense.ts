@@ -73,29 +73,19 @@ async function opnsenseRequest<T>(route: string, method: OpnsenseMethod, data?: 
 
 
 
-async function getAvaliableLocalIPv4() {
-  // todo
-  return "192.168.1.50"
-}
-
-async function getAvaliableLocalIPv6() {
-  // todo
-  return ""
-}
-
-async function assignLocalIPToMacAddress(localIP: string, macAddress: string) {
+export async function createDHCPv4Reservation(address: string, macAddress: string) {
   // todo: subnet needs to be configurable
   // kea has subnets that contain localIPs. We need to include the subnet for the specific localIP.
   // you can get the subnets that exist by running
   // await opnsenseRequest("/api/kea/dhcpv4/search_subnet", "POST", {"current":1,"rowCount":50,"sort":{}})
 
-  await opnsenseRequest(
+  let data = await opnsenseRequest(
     "/api/kea/dhcpv4/add_reservation/",
     "POST",
     {
       reservation: {
-        subnet: 'a04e9b27-d84e-43c1-bfca-31a1268d1eb2',
-        ip_address: localIP,
+        subnet: '1ae80d5f-7cb9-4bea-852c-bc3ad1fcd0df',
+        ip_address: address,
         hw_address: macAddress,
         hostname: '',
         description: ''
@@ -109,122 +99,47 @@ async function assignLocalIPToMacAddress(localIP: string, macAddress: string) {
     "POST",
     {}
   )
+
+  return data
 }
 
-async function createVirtualIP(ipAddress: string) {
+
+
+export async function deleteDHCPv4Reservation(uuid: string) {
+  console.log("deleting "+uuid)
   await opnsenseRequest(
-    "/api/interfaces/vip_settings/add_item/",
+    "/api/kea/dhcpv4/del_reservation/"+uuid,
+    "POST",
+    {}
+  )
+
+  await opnsenseRequest(
+    "/api/kea/service/reconfigure",
+    "POST",
+    {}
+  )
+  console.log("finished "+uuid)
+}
+
+
+
+export async function getDHCPv4Reservations() {
+  let data = await opnsenseRequest(
+    "/api/kea/dhcpv4/search_reservation",
     "POST",
     {
-      "vip": {
-        "mode": "ipalias",
-        "interface": "wan",
-        "network": ipAddress+"/32",
-      }
+      "current": 1,
+      "rowCount": 50,
+      "sort": {}
     }
   )
 
-  await opnsenseRequest(
-    "/api/interfaces/vip_settings/reconfigure",
-    "POST",
-    {}
-  )
-}
-
-async function createOneToOneNAT(externalIP: string, internalIP: string) {
-  await opnsenseRequest(
-    "/api/firewall/one_to_one/add_rule/",
-    "POST",
-    {
-      "rule":
-      {
-        "enabled": "1",
-        "sequence": "100",
-        "categories": "",
-        "description": "",
-        "interface": "wan",
-        "type": "binat",
-        "external": externalIP,
-        "source_not": "0",
-        "source_net": internalIP,
-        "destination_not": "0",
-        "destination_net": "any",
-        "log": "0",
-        "natreflection": ""
-      }
-    }
-  )
-
-  await opnsenseRequest(
-    "/api/firewall/one_to_one/apply",
-    "POST",
-    {}
-  )
-}
-
-async function createAllowFirewallRule(ipAddress: string) {
-  await opnsenseRequest(
-    "/api/firewall/filter/add_rule/",
-    "POST",
-    {"rule":{"enabled":"1","sequence":"100","categories":"","nosync":"0","description":"","interfacenot":"0","interface":"","quick":"1","action":"pass","allowopts":"0","direction":"in","ipprotocol":"inet","protocol":"any","icmptype":"","icmp6type":"","source_not":"0","source_net":"any","source_port":"","destination_not":"0","destination_net":ipAddress,"destination_port":"","log":"0","tcpflags1":"","tcpflags2":"","tcpflags_any":"0","sched":"","divert-to":"","statetype":"keep","state-policy":"","nopfsync":"0","statetimeout":"","udp-first":"","udp-single":"","udp-multiple":"","adaptivestart":"","adaptiveend":"","max":"","max-src-nodes":"","max-src-states":"","max-src-conn":"","max-src-conn-rate":"","max-src-conn-rates":"","overload":"","shaper1":"","shaper2":"","gateway":"","disablereplyto":"0","replyto":"","prio":"","set-prio":"","set-prio-low":"","tos":"","tag":"","tagged":""}}
-  )
-
-
-
-  await opnsenseRequest(
-    "/api/firewall/filter/apply",
-    "POST",
-    {}
-  )
+  return data
 }
 
 
-async function createVMToIPMapping({
-	macAddress,
-  ipv4Addresses,
-	ipv6Addresses
-}: CreateVMIPMappingParams) {
-  // todo: determine way to automatically determine local IP assignment
-  const localIPv4 = await getAvaliableLocalIPv4()
-  const localIPv6 = await getAvaliableLocalIPv6() // todo: should this just use SLAAC?
-
-  const promises = []
-
-  promises.push(assignLocalIPToMacAddress(localIPv4, macAddress))
-
-
-  for (const ipv4Address of ipv4Addresses) {
-    promises.push(assignPublicIPv4ToLocalIPv4(ipv4Address, localIPv4))
-  }
-
-  for (const ipv6Address of ipv6Addresses) {
-    promises.push(assignPublicIPv6ToLocalIPv6(ipv6Address, localIPv6))
-  }
-
-  await Promise.all(promises)
-}
-
-async function assignPublicIPv4ToLocalIPv4(externalIPv4: string, localIPv4: string) {
-  await Promise.all([
-    createVirtualIP(externalIPv4 + "/32"),
-    createOneToOneNAT(externalIPv4, localIPv4),
-    createAllowFirewallRule(externalIPv4)
-  ])
-}
-
-async function removePublicIPv4Assignment(externalIPv4: string, localIPv4: string) {
-  // todo
-}
-
-async function removeLocalIPToMacAssignment(externalIPv4: string, localIPv4: string) {
-  // todo
-}
-
-
-async function assignPublicIPv6ToLocalIPv6(externalIPv6: string, localIPv6: string) {
-  // todo
-}
-
-async function removePublicIPv6Assignment(externalIPv4: string, localIPv4: string) {
-  // todo
+export async function testFunction() {
+  //console.log(await getDHCPv4Reservations())
+  //console.log(deleteDHCPv4Reservation("1938f4d4-f623-4837-8241-211bd9065fa9"))
+  //console.log(await createDHCPv4Reservation("192.168.10.2", "AB:CD:EF:AB:CD:E2"))
 }
