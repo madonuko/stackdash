@@ -33,9 +33,6 @@
 
 `bun run dev`
 
-
-
-
 ## dev instance setup
 
 To test external connections you need to setup several other services.

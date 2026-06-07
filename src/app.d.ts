@@ -24,10 +24,10 @@ declare global {
 				NETBOX_CLUSTER_ID?: string;
 				NETBOX_IPV4_PREFIX_ID?: string;
 				NETBOX_IPV6_PREFIX_ID?: string;
-        NETBOX_IPV6_PREFIX_LENGTH?: string;
-        OPNSENSE_API_KEY?: string;
-        OPNSENSE_API_SECRET?: string;
-        OPNSENSE_API_URL?: string;
+				NETBOX_IPV6_PREFIX_LENGTH?: string;
+				OPNSENSE_API_KEY?: string;
+				OPNSENSE_API_SECRET?: string;
+				OPNSENSE_API_URL?: string;
 				EMAIL?: SendEmail;
 				EMAIL_FROM_ADDRESS: string;
 				EMAIL_FROM_NAME: string;
