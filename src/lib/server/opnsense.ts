@@ -108,15 +108,10 @@ async function opnsenseRequest<T>(
 	return body as T;
 }
 
-export async function createDHCPv4Reservation(address: string, macAddress: string) {
-	// todo: subnet needs to be configurable
-	// kea has subnets that contain localIPs. We need to include the subnet for the specific localIP.
-	// you can get the subnets that exist by running
-	// await opnsenseRequest("/api/kea/dhcpv4/search_subnet", "POST", {"current":1,"rowCount":50,"sort":{}})
-
+export async function createDHCPv4Reservation(subnet_uuid: string, address: string, macAddress: string) {
 	let data = await opnsenseRequest('/api/kea/dhcpv4/add_reservation/', 'POST', {
 		reservation: {
-			subnet: '1ae80d5f-7cb9-4bea-852c-bc3ad1fcd0df',
+			subnet: subnet_uuid,
 			ip_address: address,
 			hw_address: macAddress,
 			hostname: '',
@@ -131,13 +126,13 @@ export async function createDHCPv4Reservation(address: string, macAddress: strin
 }
 
 export async function deleteDHCPv4Reservation(uuid: string) {
-	console.log('deleting ' + uuid);
 	await opnsenseRequest('/api/kea/dhcpv4/del_reservation/' + uuid, 'POST', {});
 
 	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-	console.log('finished ' + uuid);
 }
 
+
+// todo: fix pagination stuff
 export async function getDHCPv4Reservations(): Promise<DHCPv4SearchResponse> {
 	let data = await opnsenseRequest('/api/kea/dhcpv4/search_reservation', 'POST', {
 		current: 1,
@@ -161,7 +156,20 @@ export async function getDHCPv4ReservationsByAddress(
 	return data as DHCPv4SearchResponse;
 }
 
+export async function createDHCPv4Subnet() {
+  // todo
+}
+
+export async function getDHCPv4Subnets() {
+  return await opnsenseRequest("/api/kea/dhcpv4/search_subnet", "POST", {"current":1,"rowCount":50,"sort":{}})
+}
+
+export async function deleteDHCPv4Subnet(uuid: string) {
+  // todo
+}
+
 export async function testFunction() {
+  /*
 	let reservations = await getDHCPv4ReservationsByAddress('192.168.10.127');
 
 	if (reservations['rows'].length < 1) {
@@ -170,9 +178,12 @@ export async function testFunction() {
 
 	let reservation_uuid = reservations['rows'][0]['uuid'];
 
-	await deleteDHCPv4Reservation(reservation_uuid);
+  await deleteDHCPv4Reservation(reservation_uuid);
+*/
+  const subnets = await getDHCPv4Subnets()
+
 
 	//console.log(await getDHCPv4Reservations())
 	//console.log(deleteDHCPv4Reservation("1938f4d4-f623-4837-8241-211bd9065fa9"))
-	//console.log(await createDHCPv4Reservation("192.168.10.2", "AB:CD:EF:AB:CD:E2"))
+	console.log(await createDHCPv4Reservation(subnets['rows'][0]['uuid'], "192.168.10.2", "AB:CD:EF:AB:CD:E2"))
 }
