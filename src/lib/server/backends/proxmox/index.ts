@@ -270,8 +270,8 @@ export class ProxmoxBackend implements VmBackend {
 						ipconfig0: 'ip=dhcp'
 					}
 				: {};
-    const bootDisk = 'virtio0';
-    const pvePool = 'stack-volumes';
+		const bootDisk = 'virtio0';
+		const pvePool = 'stack-volumes';
 		const macAddress = generateMacAddress();
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
