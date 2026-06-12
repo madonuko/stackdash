@@ -106,7 +106,7 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async listImages(): Promise<BackendImage[]> {
-		const nodes = await this.client.listNodes();
+		const nodes = (await this.client.listNodes()).filter((node) => node.status == 'online');
 		const nodeImages = await Promise.all(
 			nodes.map(async (node) => {
 				const storages = await this.client.listStorage(node.node);
@@ -288,7 +288,7 @@ export class ProxmoxBackend implements VmBackend {
 			efidisk0: `${pvePool}:0,efitype=4m,pre-enrolled-keys=1`,
 			scsihw: 'virtio-scsi-single',
 			...(params.imageSource ? {} : { virtio0: `${pvePool}:${params.diskGb}` }),
-			net0: `virtio=${macAddress},bridge=vmbr0`,
+			net0: `virtio=${macAddress},bridge=vmbr0,tag=1040`,
 			boot: `order=${bootDisk}`,
 			serial0: 'socket',
 			agent: '1'
