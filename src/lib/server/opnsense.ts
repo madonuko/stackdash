@@ -216,7 +216,11 @@ export async function createDHCPv4Reservation(
 				description: ''
 			}
 		}
-	);
+  );
+
+ if (data?.result == "failed") {
+    throw new OpnsenseError("Kea add_reservation request failed.", 500, data.validations)
+ }
 
 	// the webui also runs /api/kea/dhcpv4/set, but I am not sure what that actually does.
 	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
@@ -303,7 +307,11 @@ export async function createDHCPv6Reservation(
 				// there is also a duid option. I think in our case we likely just wanna use MAC, but we might need to add it.
 			}
 		}
-	);
+  );
+
+  if (data?.result == "failed") {
+    throw new OpnsenseError("Kea add_reservation request failed.", 500, data.validations)
+	}
 
 	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
 
