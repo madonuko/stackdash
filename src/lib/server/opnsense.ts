@@ -108,6 +108,27 @@ type DHCPv4SearchResponse = {
 	current: number;
 };
 
+type DHCPv6Reservation = {
+	uuid: string;
+	subnet: string;
+	// Note: Keys with special characters (dots, spaces, percent) must be quoted
+	'%subnet': string;
+	ip_address: string;
+	duid: string;
+	hw_address: string;
+	hostname: string;
+	domain_search: string;
+	option: string;
+	description: string;
+};
+
+type DHCPv6ReservationResponse = {
+	rows: DHCPv6Reservation[];
+	rowCount: number;
+	total: number;
+	current: number;
+};
+
 export class OpnsenseError extends Error {
 	constructor(
 		message: string,
@@ -209,7 +230,7 @@ export async function deleteDHCPv4Reservation(uuid: string) {
 	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
 }
 
-export async function getDHCPv4Reservations(page: number): Promise<DHCPv4SearchResponse> {
+export async function getDHCPv4Reservations(page: number): Promise<DHCPv4SearchResponse | null> {
 	let data = await opnsenseRequest('/api/kea/dhcpv4/search_reservation', 'POST', {
 		current: page,
 		rowCount: 50,
@@ -223,7 +244,7 @@ export async function getDHCPv4Reservations(page: number): Promise<DHCPv4SearchR
 export async function getDHCPv4ReservationsByAddress(
 	page: number,
 	address: string
-): Promise<DHCPv4SearchResponse> {
+): Promise<DHCPv4SearchResponse | null> {
 	let data = await opnsenseRequest('/api/kea/dhcpv4/search_reservation', 'POST', {
 		current: page,
 		rowCount: 50,
@@ -295,21 +316,21 @@ export async function deleteDHCPv6Reservation(uuid: string) {
 	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
 }
 
-export async function getDHCPv6Reservations(page: number): Promise<DHCPv4SearchResponse> {
+export async function getDHCPv6Reservations(page: number): Promise<DHCPv6ReservationResponse | null> {
 	let data = await opnsenseRequest('/api/kea/dhcpv6/search_reservation', 'POST', {
 		current: page,
 		rowCount: 50,
 		sort: {}
 	});
 
-	return data as DHCPv4SearchResponse;
+	return data as DHCPv6ReservationResponse;
 }
 
 // this works via MAC or assigned address.
 export async function getDHCPv6ReservationsByAddress(
 	page: number,
 	address: string
-): Promise<DHCPv4SearchResponse> {
+): Promise<DHCPv6ReservationResponse | null> {
 	let data = await opnsenseRequest('/api/kea/dhcpv6/search_reservation', 'POST', {
 		current: page,
 		rowCount: 50,
@@ -317,7 +338,7 @@ export async function getDHCPv6ReservationsByAddress(
 		sort: {}
 	});
 
-	return data as DHCPv4SearchResponse;
+	return data as DHCPv6ReservationResponse;
 }
 
 export async function createDHCPv6Subnet(
