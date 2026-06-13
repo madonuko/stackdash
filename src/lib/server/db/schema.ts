@@ -62,12 +62,6 @@ export const vms = pgTable(
 		lastKnownStatus: text('last_known_status'),
 		lastKnownUptime: integer('last_known_uptime').notNull().default(0),
 		lastKnownAt: bigint('last_known_at', { mode: 'number' }),
-		netboxVmId: integer('netbox_vm_id'),
-		netboxVmInterfaceId: integer('netbox_vm_interface_id'),
-		netboxMacAddressId: integer('netbox_mac_address_id'),
-		netboxPrimaryIpv4Id: integer('netbox_primary_ipv4_id'),
-		netboxPrimaryIpv6Id: integer('netbox_primary_ipv6_id'),
-		netboxIpv6PrefixId: integer('netbox_ipv6_prefix_id'),
 		active: boolean('active').notNull().default(true),
 		ownerProjectId: ulidFk('owner_project_id').references(() => organization.id),
 		vmTypeId: ulidFk('vm_type_id')
@@ -84,13 +78,7 @@ export const vms = pgTable(
 	(table) => [
 		index('vms_owner_project_id_index').on(table.ownerProjectId),
 		index('vms_owner_project_active_index').on(table.ownerProjectId, table.active),
-		index('vms_proxmox_id_index').on(table.proxmoxId),
-		uniqueIndex('vms_netbox_vm_id_index').on(table.netboxVmId),
-		uniqueIndex('vms_netbox_vm_interface_id_index').on(table.netboxVmInterfaceId),
-		uniqueIndex('vms_netbox_mac_address_id_index').on(table.netboxMacAddressId),
-		uniqueIndex('vms_netbox_primary_ipv4_id_index').on(table.netboxPrimaryIpv4Id),
-		uniqueIndex('vms_netbox_primary_ipv6_id_index').on(table.netboxPrimaryIpv6Id),
-		uniqueIndex('vms_netbox_ipv6_prefix_id_index').on(table.netboxIpv6PrefixId)
+		index('vms_proxmox_id_index').on(table.proxmoxId)
 	]
 );
 
@@ -254,13 +242,11 @@ export const ipAssignments = pgTable(
 		ipBlockId: ulidFk('ip_block_id')
 			.notNull()
 			.references(() => ipBlocks.id),
-		associatedVmId: ulidFk('associated_vm_id').references(() => vms.id),
-		netboxIpAddressId: integer('netbox_ip_address_id')
+		associatedVmId: ulidFk('associated_vm_id').references(() => vms.id)
 	},
 	(table) => [
 		index('ip_assignments_ip_block_id_index').on(table.ipBlockId),
-		index('ip_assignments_associated_vm_id_index').on(table.associatedVmId),
-		uniqueIndex('ip_assignments_netbox_ip_address_id_index').on(table.netboxIpAddressId)
+		index('ip_assignments_associated_vm_id_index').on(table.associatedVmId)
 	]
 );
 

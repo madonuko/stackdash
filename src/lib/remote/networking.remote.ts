@@ -5,7 +5,6 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipBlocks, ipAssignments, vms } from '$lib/server/db/schema';
 import { requireProjectAccess } from '$lib/server/auth-context';
-import { assignIPToVM, deleteIP, isNetboxConfigured } from '$lib/server/netbox';
 
 export const listIpBlocks = query(type({ projectId: 'string' }), async (params) => {
 	const event = getRequestEvent();
@@ -50,32 +49,11 @@ export const assignIp = command(assignParams, async (params) => {
 		await requireProjectAccess(db, event.locals.user.id, vm.ownerProjectId, 'admin');
 	}
 
-	let netboxIpAddressId: number | null = null;
-	if (isNetboxConfigured()) {
-		if (vm.netboxVmInterfaceId == null) {
-			error(502, `VM "${vm.name}" is missing NetBox interface metadata`);
-		}
-
-		const netboxAssignment = await assignIPToVM(vm.netboxVmInterfaceId, params.ip);
-		if (!netboxAssignment) error(502, 'NetBox is configured but IP assignment was skipped');
-		netboxIpAddressId = netboxAssignment.id;
-	}
-
-	try {
-		await db.insert(ipAssignments).values({
-			ip: params.ip,
-			ipBlockId: params.blockId,
-			associatedVmId: params.vmId,
-			netboxIpAddressId
-		});
-	} catch (err) {
-		if (netboxIpAddressId != null) {
-			await deleteIP(netboxIpAddressId).catch((deleteErr) => {
-				console.warn(`Failed to roll back NetBox IP assignment ${netboxIpAddressId}`, deleteErr);
-			});
-		}
-		throw err;
-	}
+	await db.insert(ipAssignments).values({
+		ip: params.ip,
+		ipBlockId: params.blockId,
+		associatedVmId: params.vmId
+	});
 });
 
 const unassignParams = type({ ip: 'string' });
@@ -95,13 +73,5 @@ export const unassignIp = command(unassignParams, async (params) => {
 	if (vm.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, vm.ownerProjectId, 'admin');
 	}
-	if (isNetboxConfigured()) {
-		if (assignment.netboxIpAddressId == null) {
-			error(502, `IP assignment "${params.ip}" is missing NetBox metadata`);
-		}
-
-		await deleteIP(assignment.netboxIpAddressId);
-	}
-
 	await db.delete(ipAssignments).where(eq(ipAssignments.ip, params.ip));
 });

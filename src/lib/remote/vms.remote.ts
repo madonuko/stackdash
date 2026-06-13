@@ -3,7 +3,7 @@ import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
 import { and, eq, sql } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
-import { vms, vmTypes, sshKeys, baseImages, ipAssignments } from '$lib/server/db/schema';
+import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
 import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
 import {
@@ -13,14 +13,7 @@ import {
 } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
 import { getCachedProxmoxVms, refreshProxmoxVmCache } from '$lib/server/vm-live-cache';
-import {
-	createVMandAssignIPs,
-	clearVMPrimaryIPs,
-	deleteIP,
-	deleteVM,
-	isNetboxConfigured
-} from '$lib/server/netbox';
-import { OpnsenseClient } from '$lib/server/opnsense';
+import { createDHCPv4Reservation, testFunction } from '$lib/server/opnsense';
 
 type VmRow = {
 	id: string;
@@ -337,7 +330,6 @@ export const createVm = command(createParams, async (params) => {
 
 	const vmId = inserted.id;
 	let result;
-	let netboxResult;
 	try {
 		await ensureProjectServerEntity({
 			projectId: params.projectId,
@@ -368,28 +360,11 @@ export const createVm = command(createParams, async (params) => {
 
 		if (!result.macAddress) error(502, 'Proxmox did not return a MAC address');
 
-		const opnsenseClient = new OpnsenseClient();
-
-		opnsenseClient.createDHCPv4Reservation(
+		createDHCPv4Reservation(
 			'bc3f001e-6844-4176-be28-d03f4044175e',
 			'144.225.80.14',
 			result.macAddress
 		);
-
-		if (isNetboxConfigured()) {
-			if (!result.macAddress) error(502, 'Proxmox did not return a MAC address for NetBox');
-
-			netboxResult = await createVMandAssignIPs({
-				name: vmId,
-				macAddress: result.macAddress,
-				ipAddresses: [],
-				vcpus: vmType.cores,
-				memoryMb: vmType.ramCapacity,
-				diskGb: vmType.storageAmount,
-				description: params.name
-			});
-			if (!netboxResult) error(502, 'NetBox is configured but VM sync was skipped');
-		}
 	} catch (err) {
 		if (result?.proxmoxId != null) {
 			await getBackend('proxmox')
@@ -406,14 +381,7 @@ export const createVm = command(createParams, async (params) => {
 	await db
 		.update(vms)
 		.set({
-			proxmoxId: result.proxmoxId ?? null,
-			lastKnownIpv4: netboxResult?.primary_ipv4 ?? null,
-			lastKnownIpv6: netboxResult?.primary_ipv6 ?? null,
-			netboxVmId: netboxResult?.netbox_vm_id ?? null,
-			netboxVmInterfaceId: netboxResult?.netbox_vm_interface_id ?? null,
-			netboxMacAddressId: netboxResult?.netbox_mac_address_id ?? null,
-			netboxPrimaryIpv4Id: netboxResult?.netbox_primary_ipv4_id ?? null,
-			netboxPrimaryIpv6Id: netboxResult?.netbox_primary_ipv6_id ?? null
+			proxmoxId: result.proxmoxId ?? null
 		})
 		.where(eq(vms.id, vmId));
 	await createBillingMeter({
@@ -441,41 +409,11 @@ export const deleteVm = command(deleteParams, async (params) => {
 	if (row.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, row.ownerProjectId, 'admin');
 	}
-	const netboxVmIds = [row.netboxVmId, row.netboxVmInterfaceId, row.netboxMacAddressId];
-	const hasNetboxVm = netboxVmIds.every((id) => id != null);
-	if (netboxVmIds.some((id) => id != null) && !hasNetboxVm) {
-		error(502, `VM "${row.name}" has incomplete NetBox metadata`);
-	}
-
 	try {
 		await getBackend(row.backend).deleteVm(row.id, row.proxmoxId ?? undefined);
 	} catch (err) {
 		console.warn(`Failed to delete backend VM ${row.id}`, err);
 		error(502, `Failed to deprovision VM "${row.name}" in Proxmox`);
-	}
-
-	if (isNetboxConfigured() && hasNetboxVm) {
-		try {
-			await clearVMPrimaryIPs(row.netboxVmId!);
-			const netboxIpAssignments = await db.query.ipAssignments.findMany({
-				where: eq(ipAssignments.associatedVmId, row.id),
-				columns: { netboxIpAddressId: true }
-			});
-			const netboxIpAddressIds = new Set(
-				[
-					row.netboxPrimaryIpv4Id,
-					row.netboxPrimaryIpv6Id,
-					...netboxIpAssignments.map((assignment) => assignment.netboxIpAddressId)
-				].filter((id): id is number => id != null)
-			);
-			await Promise.all(
-				Array.from(netboxIpAddressIds, (netboxIpAddressId) => deleteIP(netboxIpAddressId))
-			);
-			await deleteVM(row.netboxVmId!, row.netboxVmInterfaceId!, row.netboxMacAddressId!);
-		} catch (err) {
-			console.warn(`Failed to delete NetBox VM ${row.id}`, err);
-			error(502, `Failed to remove VM "${row.name}" from NetBox`);
-		}
 	}
 
 	const metered = await meterResourceThrough('vm', row.id);
@@ -509,3 +447,4 @@ export const startVm = command(powerParams, async (p) => powerAction(p.vmId, 'st
 export const stopVm = command(powerParams, async (p) => powerAction(p.vmId, 'stopVm'));
 export const killVm = command(powerParams, async (p) => powerAction(p.vmId, 'killVm'));
 export const rebootVm = command(powerParams, async (p) => powerAction(p.vmId, 'rebootVm'));
+export const testCommand = command(type({}), async (p) => testFunction());
