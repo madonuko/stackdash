@@ -106,7 +106,7 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async listImages(): Promise<BackendImage[]> {
-		const nodes = await this.client.listNodes();
+		const nodes = (await this.client.listNodes()).filter((node) => node.status == 'online');
 		const nodeImages = await Promise.all(
 			nodes.map(async (node) => {
 				const storages = await this.client.listStorage(node.node);
@@ -271,6 +271,7 @@ export class ProxmoxBackend implements VmBackend {
 					}
 				: {};
 		const bootDisk = 'virtio0';
+		const pvePool = 'stack-volumes';
 		const macAddress = generateMacAddress();
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
@@ -284,10 +285,10 @@ export class ProxmoxBackend implements VmBackend {
 			ostype: 'l26',
 			bios: 'ovmf',
 			machine: 'q35',
-			efidisk0: 'local-lvm:0,efitype=4m,pre-enrolled-keys=1',
+			efidisk0: `${pvePool}:0,efitype=4m,pre-enrolled-keys=1`,
 			scsihw: 'virtio-scsi-single',
-			...(params.imageSource ? {} : { virtio0: `local-lvm:${params.diskGb}` }),
-			net0: `virtio=${macAddress},bridge=vmbr0`,
+			...(params.imageSource ? {} : { virtio0: `${pvePool}:${params.diskGb}` }),
+			net0: `virtio=${macAddress},bridge=vmbr0,tag=1040`,
 			boot: `order=${bootDisk}`,
 			serial0: 'socket',
 			agent: '1'
@@ -296,14 +297,14 @@ export class ProxmoxBackend implements VmBackend {
 		// Phase 2 — import cloud image as boot disk (runs in background)
 		if (params.imageSource) {
 			const importUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
-				virtio0: `local-lvm:0,import-from=${params.imageSource}`
+				virtio0: `${pvePool}:0,import-from=${params.imageSource}`
 			});
 
 			this.client
 				.waitForTask(node.node, importUpid)
 				.then(async () => {
 					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
-						ide2: 'local-lvm:cloudinit',
+						ide2: `${pvePool}:cloudinit`,
 						boot: `order=${bootDisk}`,
 						...cloudInitAuth
 					});

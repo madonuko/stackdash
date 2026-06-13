@@ -167,7 +167,7 @@ export class AdminState {
 	importDialogOpen = $state(false);
 	importUrl = $state('');
 	importFilename = $state('');
-	importStorage = $state('local');
+	importStorage = $state('cephfs');
 	importChecksumAlgorithm = $state<ImportChecksumAlgorithm>('');
 	importChecksum = $state('');
 	importVerifyCertificates = $state(true);
@@ -504,7 +504,7 @@ export class AdminState {
 		this.importVerifyCertificates = true;
 		this.importSaving = false;
 		this.importError = '';
-		this.importStorage = 'local';
+		this.importStorage = 'cephfs';
 		this.importTasks = [];
 		this.importDialogOpen = true;
 		this.loadPveImages();
@@ -543,8 +543,8 @@ export class AdminState {
 				storage: this.importStorage,
 				url: this.importUrl.trim(),
 				filename: this.importFilename.trim(),
-				checksumAlgorithm: this.importChecksumAlgorithm || undefined,
-				checksum: this.importChecksum.trim() || undefined,
+				...(this.importChecksumAlgorithm && { checksumAlgorithm: this.importChecksumAlgorithm }),
+				...(this.importChecksum.trim() && { checksum: this.importChecksum.trim() }),
 				verifyCertificates: this.importVerifyCertificates
 			});
 			this.importStorage = result.storage;
