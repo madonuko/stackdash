@@ -291,7 +291,7 @@ export class OpnsenseClient {
 
 	async createDHCPv6Reservation(
 		subnet_uuid: string,
-    address: string,
+		address: string,
 		prefix: string,
 		macAddress: string
 	): Promise<OpnsenseCreateObjectResponse | null> {
@@ -301,8 +301,8 @@ export class OpnsenseClient {
 					reservation: {
 						subnet: subnet_uuid,
 						ip_address: address,
-            hw_address: macAddress,
-            prefix
+						hw_address: macAddress,
+						prefix
 						// there is also a duid option. I think in our case we likely just wanna use MAC, but we might need to add it.
 					}
 				}
@@ -409,7 +409,7 @@ async function testFunction() {
 
 	let dhcpv6_reservation_res = await opnsenseClient.createDHCPv6Reservation(
 		ipv6_subnet_uuid,
-        '2001:db8:2231:aaed::1',
+		'2001:db8:2231:aaed::1',
 		'2001:db8:2231:aaed::/64',
 		'AB:CD:EF:AB:CD:E4'
 	);

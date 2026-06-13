@@ -360,7 +360,7 @@ export const createVm = command(createParams, async (params) => {
 
 		if (!result.macAddress) error(502, 'Proxmox did not return a MAC address');
 
-		const opnsenseClient = new OpnsenseClient()
+		const opnsenseClient = new OpnsenseClient();
 
 		opnsenseClient.createDHCPv4Reservation(
 			'bc3f001e-6844-4176-be28-d03f4044175e',
