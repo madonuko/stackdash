@@ -20,7 +20,7 @@ import {
 	deleteVM,
 	isNetboxConfigured
 } from '$lib/server/netbox';
-import { createDHCPv4Reservation, testFunction } from '$lib/server/opnsense';
+import { OpnsenseClient } from '$lib/server/opnsense';
 
 type VmRow = {
 	id: string;
@@ -368,7 +368,9 @@ export const createVm = command(createParams, async (params) => {
 
 		if (!result.macAddress) error(502, 'Proxmox did not return a MAC address');
 
-		createDHCPv4Reservation(
+		const opnsenseClient = new OpnsenseClient();
+
+		opnsenseClient.createDHCPv4Reservation(
 			'bc3f001e-6844-4176-be28-d03f4044175e',
 			'144.225.80.14',
 			result.macAddress
@@ -507,4 +509,3 @@ export const startVm = command(powerParams, async (p) => powerAction(p.vmId, 'st
 export const stopVm = command(powerParams, async (p) => powerAction(p.vmId, 'stopVm'));
 export const killVm = command(powerParams, async (p) => powerAction(p.vmId, 'killVm'));
 export const rebootVm = command(powerParams, async (p) => powerAction(p.vmId, 'rebootVm'));
-export const testCommand = command(type({}), async (p) => testFunction());

@@ -1,5 +1,4 @@
 import { getRuntimeEnv } from '$lib/server/env';
-import { createDHCPv4Reservation } from './opnsense';
 
 type NetboxMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST';
 
@@ -297,7 +296,6 @@ export async function createVMandAssignIPs({
 
 		const ipv4 = await assignAvailableIPv4(vm_interface_create.id);
 		if (!ipv4) throw new NetboxError('NetBox did not allocate IPv4 networking', 502, null);
-		createDHCPv4Reservation(opnsense_subnet, ipv4.address, macAddress);
 		netbox_ip_address_ids.push(ipv4.id);
 		const ipv6 = await assignAvailableIPv6(vm_interface_create.id);
 		if (!ipv6) throw new NetboxError('NetBox did not allocate IPv6 networking', 502, null);

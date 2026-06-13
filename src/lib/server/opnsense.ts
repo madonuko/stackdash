@@ -1,10 +1,10 @@
 import { getRuntimeEnv } from '$lib/server/env';
+import ky, { type KyInstance } from 'ky';
+import { Agent } from 'undici';
 
 /*
 search queries seem to be using jquery-bootgrid if you want more details on them.
 */
-
-type OpnsenseMethod = 'GET' | 'POST';
 
 type OpnsenseCreateObjectResponse =
 	| { result: 'saved'; uuid: string }
@@ -158,276 +158,312 @@ function getOpnsenseConfig() {
 	};
 }
 
-async function parseResponse(response: Response) {
-	const text = await response.text();
-	if (!text) return null;
+export class OpnsenseClient {
+	private api: KyInstance;
 
-	try {
-		return JSON.parse(text) as unknown;
-	} catch {
-		return text;
+	constructor() {
+		const config = getOpnsenseConfig();
+		if (!config) throw new OpnsenseError("Couldn't get Opnsense Config", 500, '');
+
+		// Build a custom fetch that skips TLS verification for self-signed certs
+		const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
+		const insecureFetch = (input: RequestInfo | URL, init?: RequestInit) =>
+			fetch(input, {
+				...init,
+				// @ts-expect-error -- Node/undici dispatcher extension
+				dispatcher: insecureAgent
+			});
+
+		this.api = ky.create({
+			prefix: `${config.apiUrl}`,
+			headers: {
+				Authorization:
+					'Basic ' + Buffer.from(config.apiKey + ':' + config.apiSecret).toString('base64'),
+				Accept: 'application/json'
+			},
+			timeout: 30_000,
+			fetch: insecureFetch
+		});
+	}
+
+	private async applyKeaChanges() {
+		await this.api.post('/api/kea/service/reconfigure', { json: {} });
+	}
+
+	/// DHCPv4
+
+	async createDHCPv4Reservation(
+		subnet_uuid: string,
+		address: string,
+		macAddress: string
+	): Promise<OpnsenseCreateObjectResponse | null> {
+		let data = await this.api
+			.post<OpnsenseCreateObjectResponse>('/api/kea/dhcpv4/add_reservation/', {
+				json: {
+					reservation: {
+						subnet: subnet_uuid,
+						ip_address: address,
+						hw_address: macAddress,
+						hostname: '',
+						description: ''
+					}
+				}
+			})
+			.json();
+
+		if (data?.result == 'failed') {
+			throw new OpnsenseError('Kea add_reservation request failed.', 500, data.validations);
+		}
+
+		await this.applyKeaChanges();
+
+		return data;
+	}
+
+	async deleteDHCPv4Reservation(uuid: string) {
+		await this.api.post('/api/kea/dhcpv4/del_reservation/' + uuid, { json: {} });
+
+		await this.applyKeaChanges();
+	}
+
+	async getDHCPv4Reservations(page: number): Promise<DHCPv4SearchResponse | null> {
+		return await this.api
+			.post<DHCPv4SearchResponse>('/api/kea/dhcpv4/search_reservation', {
+				json: {
+					current: page,
+					rowCount: 50,
+					sort: {}
+				}
+			})
+			.json();
+	}
+
+	// this works via MAC or assigned address.
+	async getDHCPv4ReservationsByAddress(
+		page: number,
+		address: string
+	): Promise<DHCPv4SearchResponse | null> {
+		return await this.api
+			.post<DHCPv4SearchResponse>('/api/kea/dhcpv4/search_reservation', {
+				json: {
+					current: page,
+					rowCount: 50,
+					searchPhrase: address,
+					sort: {}
+				}
+			})
+			.json();
+	}
+
+	async createDHCPv4Subnet(subnet: string): Promise<OpnsenseCreateObjectResponse | null> {
+		let body = await this.api
+			.post<OpnsenseCreateObjectResponse>('/api/kea/dhcpv4/add_subnet/', {
+				json: {
+					subnet4: { subnet }
+				}
+			})
+			.json();
+
+		await this.applyKeaChanges();
+
+		return body;
+	}
+
+	async getDHCPv4Subnets(page: number): Promise<DHCPv4SubnetResponse | null> {
+		return await this.api
+			.post<DHCPv4SubnetResponse>('/api/kea/dhcpv4/search_subnet', {
+				json: {
+					current: page,
+					rowCount: 50,
+					sort: {}
+				}
+			})
+			.json();
+	}
+
+	async deleteDHCPv4Subnet(uuid: string) {
+		await this.api.post('/api/kea/dhcpv4/del_subnet/' + uuid);
+
+		await this.applyKeaChanges();
+	}
+
+	// DHCPv6
+
+	async createDHCPv6Reservation(
+		subnet_uuid: string,
+		address: string,
+		macAddress: string
+	): Promise<OpnsenseCreateObjectResponse | null> {
+		let data = await this.api
+			.post<OpnsenseCreateObjectResponse>('/api/kea/dhcpv6/add_reservation/', {
+				json: {
+					reservation: {
+						subnet: subnet_uuid,
+						ip_address: address,
+						hw_address: macAddress
+						// there is also a duid option. I think in our case we likely just wanna use MAC, but we might need to add it.
+					}
+				}
+			})
+			.json();
+
+		if (data?.result == 'failed') {
+			throw new OpnsenseError('Kea add_reservation request failed.', 500, data.validations);
+		}
+
+		await this.applyKeaChanges();
+
+		return data;
+	}
+
+	async deleteDHCPv6Reservation(uuid: string) {
+		await this.api.post('/api/kea/dhcpv6/del_reservation/' + uuid, { json: {} });
+
+		await this.applyKeaChanges();
+	}
+
+	async getDHCPv6Reservations(page: number): Promise<DHCPv6ReservationResponse | null> {
+		return await this.api
+			.post<DHCPv6ReservationResponse>('/api/kea/dhcpv6/search_reservation', {
+				json: {
+					current: page,
+					rowCount: 50,
+					sort: {}
+				}
+			})
+			.json();
+	}
+
+	// this works via MAC or assigned address.
+	async getDHCPv6ReservationsByAddress(
+		page: number,
+		address: string
+	): Promise<DHCPv6ReservationResponse | null> {
+		return await this.api
+			.post<DHCPv6ReservationResponse>('/api/kea/dhcpv6/search_reservation', {
+				json: {
+					current: page,
+					rowCount: 50,
+					searchPhrase: address,
+					sort: {}
+				}
+			})
+			.json();
+	}
+
+	async createDHCPv6Subnet(
+		subnet: string,
+		networkInterface: string
+	): Promise<OpnsenseCreateObjectResponse | null> {
+		let body = await this.api
+			.post<OpnsenseCreateObjectResponse>('/api/kea/dhcpv6/add_subnet/', {
+				json: {
+					subnet6: { subnet, interface: networkInterface }
+				}
+			})
+			.json();
+
+		await this.applyKeaChanges();
+
+		return body;
+	}
+
+	async getDHCPv6Subnets(page: number): Promise<DHCPv6SubnetResponse | null> {
+		return await this.api
+			.post<DHCPv6SubnetResponse>('/api/kea/dhcpv6/search_subnet', {
+				json: {
+					current: page,
+					rowCount: 50,
+					sort: {}
+				}
+			})
+			.json();
+	}
+
+	async deleteDHCPv6Subnet(uuid: string) {
+		await this.api.post('/api/kea/dhcpv6/del_subnet/' + uuid);
+
+		await this.applyKeaChanges();
 	}
 }
 
-async function opnsenseRequest<T>(
-	route: string,
-	method: OpnsenseMethod,
-	data?: unknown
-): Promise<T | null> {
-	const config = getOpnsenseConfig();
-	if (!config) return null;
+// this code is intentionally dead. it should be turned into proper test cases, but caleb needed it to verify the implementation worked.
+async function testFunction() {
+	console.log('running test function');
+	const opnsenseClient = new OpnsenseClient();
 
-	const response = await fetch(`${config.apiUrl}${route}`, {
-		headers: {
-			Authorization:
-				'Basic ' + Buffer.from(config.apiKey + ':' + config.apiSecret).toString('base64'),
-			'Content-Type': 'application/json',
-			Accept: 'application/json, text/javascript'
-		},
-		method,
-		...(data === undefined ? {} : { body: JSON.stringify(data) })
-	});
-
-	const body = await parseResponse(response);
-	if (!response.ok) {
-		console.error(data);
-		throw new OpnsenseError(`Opnsense ${method} ${route} failed`, response.status, body);
-	}
-
-	return body as T;
-}
-
-/// DHCPv4
-
-export async function createDHCPv4Reservation(
-	subnet_uuid: string,
-	address: string,
-	macAddress: string
-): Promise<OpnsenseCreateObjectResponse | null> {
-	let data = await opnsenseRequest<OpnsenseCreateObjectResponse>(
-		'/api/kea/dhcpv4/add_reservation/',
-		'POST',
-		{
-			reservation: {
-				subnet: subnet_uuid,
-				ip_address: address,
-				hw_address: macAddress,
-				hostname: '',
-				description: ''
-			}
-		}
-  );
-
- if (data?.result == "failed") {
-    throw new OpnsenseError("Kea add_reservation request failed.", 500, data.validations)
- }
-
-	// the webui also runs /api/kea/dhcpv4/set, but I am not sure what that actually does.
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-
-	return data;
-}
-
-export async function deleteDHCPv4Reservation(uuid: string) {
-	await opnsenseRequest('/api/kea/dhcpv4/del_reservation/' + uuid, 'POST', {});
-
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-}
-
-export async function getDHCPv4Reservations(page: number): Promise<DHCPv4SearchResponse | null> {
-	let data = await opnsenseRequest('/api/kea/dhcpv4/search_reservation', 'POST', {
-		current: page,
-		rowCount: 50,
-		sort: {}
-	});
-
-	return data as DHCPv4SearchResponse;
-}
-
-// this works via MAC or assigned address.
-export async function getDHCPv4ReservationsByAddress(
-	page: number,
-	address: string
-): Promise<DHCPv4SearchResponse | null> {
-	let data = await opnsenseRequest('/api/kea/dhcpv4/search_reservation', 'POST', {
-		current: page,
-		rowCount: 50,
-		searchPhrase: address,
-		sort: {}
-	});
-
-	return data as DHCPv4SearchResponse;
-}
-
-export async function createDHCPv4Subnet(
-	subnet: string
-): Promise<OpnsenseCreateObjectResponse | null> {
-	let body = await opnsenseRequest<OpnsenseCreateObjectResponse>(
-		'/api/kea/dhcpv4/add_subnet/',
-		'POST',
-		{
-			subnet4: { subnet }
-		}
+	const dhcpv6_subnet_res = await opnsenseClient.createDHCPv6Subnet(
+		'2001:db8:2231:aaed::/64',
+		'lan'
 	);
 
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
+	console.log(dhcpv6_subnet_res);
 
-	return body;
-}
-
-export async function getDHCPv4Subnets(page: number): Promise<DHCPv4SubnetResponse | null> {
-	return await opnsenseRequest<DHCPv4SubnetResponse>('/api/kea/dhcpv4/search_subnet', 'POST', {
-		current: page,
-		rowCount: 50,
-		sort: {}
-	});
-}
-
-export async function deleteDHCPv4Subnet(uuid: string) {
-	await opnsenseRequest('/api/kea/dhcpv4/del_subnet/' + uuid, 'POST');
-
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-}
-
-// DHCPv6
-
-export async function createDHCPv6Reservation(
-	subnet_uuid: string,
-	address: string,
-	macAddress: string
-): Promise<OpnsenseCreateObjectResponse | null> {
-	let data = await opnsenseRequest<OpnsenseCreateObjectResponse>(
-		'/api/kea/dhcpv6/add_reservation/',
-		'POST',
-		{
-			reservation: {
-				subnet: subnet_uuid,
-				ip_address: address,
-				hw_address: macAddress
-				// there is also a duid option. I think in our case we likely just wanna use MAC, but we might need to add it.
-			}
-		}
-  );
-
-  if (data?.result == "failed") {
-    throw new OpnsenseError("Kea add_reservation request failed.", 500, data.validations)
-	}
-
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-
-	return data;
-}
-
-export async function deleteDHCPv6Reservation(uuid: string) {
-	await opnsenseRequest('/api/kea/dhcpv6/del_reservation/' + uuid, 'POST', {});
-
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-}
-
-export async function getDHCPv6Reservations(page: number): Promise<DHCPv6ReservationResponse | null> {
-	let data = await opnsenseRequest('/api/kea/dhcpv6/search_reservation', 'POST', {
-		current: page,
-		rowCount: 50,
-		sort: {}
-	});
-
-	return data as DHCPv6ReservationResponse;
-}
-
-// this works via MAC or assigned address.
-export async function getDHCPv6ReservationsByAddress(
-	page: number,
-	address: string
-): Promise<DHCPv6ReservationResponse | null> {
-	let data = await opnsenseRequest('/api/kea/dhcpv6/search_reservation', 'POST', {
-		current: page,
-		rowCount: 50,
-		searchPhrase: address,
-		sort: {}
-	});
-
-	return data as DHCPv6ReservationResponse;
-}
-
-export async function createDHCPv6Subnet(
-	subnet: string,
-	networkInterface: string
-): Promise<OpnsenseCreateObjectResponse | null> {
-	let body = await opnsenseRequest<OpnsenseCreateObjectResponse>(
-		'/api/kea/dhcpv6/add_subnet/',
-		'POST',
-		{
-			subnet6: { subnet, interface: networkInterface }
-		}
-	);
-
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-
-	return body;
-}
-
-export async function getDHCPv6Subnets(page: number): Promise<DHCPv6SubnetResponse | null> {
-	return await opnsenseRequest<DHCPv6SubnetResponse>('/api/kea/dhcpv6/search_subnet', 'POST', {
-		current: page,
-		rowCount: 50,
-		sort: {}
-	});
-}
-
-export async function deleteDHCPv6Subnet(uuid: string) {
-	await opnsenseRequest('/api/kea/dhcpv6/del_subnet/' + uuid, 'POST');
-
-	await opnsenseRequest('/api/kea/service/reconfigure', 'POST', {});
-}
-
-export async function testFunction() {
-	//console.log(await createDHCPv6Subnet("2001:db8:2231:aaed::/64", "lan"))
-	//console.log(await createDHCPv4Subnet("192.168.128.0/24"))
-
-	//console.log(await getDHCPv6Subnets(1))
-	//console.log(await getDHCPv4Subnets(1))
-
-	let dhcpv6_subnets = await getDHCPv6Subnets(1);
-
-	if (!dhcpv6_subnets) {
+	if (dhcpv6_subnet_res?.result != 'saved') {
 		return;
 	}
 
-	console.log(
-		await createDHCPv6Reservation(
-			dhcpv6_subnets.rows[0].uuid,
-			'2001:db8:2231:aaed::2',
-			'AB:CD:EF:AB:CD:EF'
-		)
+	const ipv6_subnet_uuid = dhcpv6_subnet_res.uuid;
+
+	let dhcpv6_reservation_res = await opnsenseClient.createDHCPv6Reservation(
+		ipv6_subnet_uuid,
+		'2001:db8:2231:aaed::3',
+		'AB:CD:EF:AB:CD:E4'
 	);
 
-	let dhcpv4_subnets = await getDHCPv4Subnets(1);
+	console.log(dhcpv6_reservation_res);
 
-	if (!dhcpv4_subnets) {
+	if (dhcpv6_reservation_res?.result != 'saved') {
 		return;
 	}
 
-	console.log(
-		await createDHCPv4Reservation(
-			dhcpv4_subnets.rows[0].uuid,
-			'192.168.128.120',
-			'AB:CD:EF:AB:CD:EF'
-		)
+	const ipv6_reservation_uuid = dhcpv6_reservation_res.uuid;
+
+	console.log(ipv6_reservation_uuid);
+
+	console.log(await opnsenseClient.getDHCPv6Reservations(1));
+
+	console.log(await opnsenseClient.getDHCPv6ReservationsByAddress(1, 'AB:CD:EF'));
+
+	console.log(await opnsenseClient.getDHCPv6Subnets(1));
+
+	//opnsenseClient.deleteDHCPv6Reservation(ipv6_reservation_uuid)
+
+	//opnsenseClient.deleteDHCPv6Subnet(ipv6_subnet_uuid)
+
+	const dhcpv4_subnet_res = await opnsenseClient.createDHCPv4Subnet('192.168.128.0/24');
+
+	console.log(dhcpv4_subnet_res);
+
+	if (dhcpv4_subnet_res?.result != 'saved') {
+		return;
+	}
+
+	const ipv4_subnet_uuid = dhcpv4_subnet_res.uuid;
+
+	const dhcpv4_reservation_res = await opnsenseClient.createDHCPv4Reservation(
+		ipv4_subnet_uuid,
+		'192.168.128.120',
+		'AB:CD:EF:AB:CD:E2'
 	);
 
-	//let reservations = await getDHCPv4ReservationsByAddress('192.168.10.127');
+	console.log(dhcpv4_reservation_res);
 
-	//if (reservations['rows'].length < 1) {
-	//	return;
-	//}
+	if (dhcpv4_reservation_res?.result != 'saved') {
+		return;
+	}
 
-	//let reservation_uuid = reservations['rows'][0]['uuid'];
+	const ipv4_reservation_uuid = dhcpv4_reservation_res.uuid;
 
-	//await deleteDHCPv4Reservation(reservation_uuid);
+	console.log(ipv4_reservation_uuid);
 
-	//const subnets = await getDHCPv4Subnets()
+	console.log(await opnsenseClient.getDHCPv4Reservations(1));
 
-	//console.log(await getDHCPv4Reservations())
-	//console.log(deleteDHCPv4Reservation("1938f4d4-f623-4837-8241-211bd9065fa9"))
-	//console.log(await createDHCPv4Reservation((subnets as any)['rows'][0]['uuid'], "192.168.10.2", "AB:CD:EF:AB:CD:E2"))
+	console.log(await opnsenseClient.getDHCPv4ReservationsByAddress(1, 'AB:CD:EF'));
+
+	console.log(await opnsenseClient.getDHCPv4Subnets(1));
+
+	//opnsenseClient.deleteDHCPv4Reservation(ipv4_reservation_uuid);
+
+	//opnsenseClient.deleteDHCPv4Subnet(ipv4_subnet_uuid);
 }
