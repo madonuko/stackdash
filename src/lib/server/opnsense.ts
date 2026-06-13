@@ -409,7 +409,8 @@ async function testFunction() {
 
 	let dhcpv6_reservation_res = await opnsenseClient.createDHCPv6Reservation(
 		ipv6_subnet_uuid,
-		'2001:db8:2231:aaed::3',
+        '2001:db8:2231:aaed::1',
+		'2001:db8:2231:aaed::/64',
 		'AB:CD:EF:AB:CD:E4'
 	);
 
