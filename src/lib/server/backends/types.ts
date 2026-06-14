@@ -67,6 +67,7 @@ export interface VmCreateParams {
 	diskGb: number;
 	imageId?: string;
 	imageSource?: string;
+	macAddress?: string;
 	sshKeys?: string[];
 	password?: string;
 	/** Called when async provisioning (e.g. image import) finishes or fails. */

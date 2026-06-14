@@ -46,7 +46,8 @@ export class ProxmoxClient {
 			prefix: `${baseUrl.replace(/\/+$/, '')}/api2/json`,
 			headers: {
 				Authorization: `PVEAPIToken=${tokenId}=${tokenSecret}`,
-				Accept: 'application/json'
+				Accept: 'application/json',
+				...(insecureFetch ? { 'Accept-Encoding': 'identity' } : {})
 			},
 			timeout: 30_000,
 			...(insecureFetch ? { fetch: insecureFetch } : {})

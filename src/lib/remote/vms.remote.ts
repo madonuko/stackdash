@@ -13,7 +13,7 @@ import {
 } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
 import { getCachedProxmoxVms, refreshProxmoxVmCache } from '$lib/server/vm-live-cache';
-import { OpnsenseClient } from '$lib/server/opnsense';
+import { allocateVmNetworking, generateMacAddress, releaseVmNetworking } from '$lib/server/ipam';
 
 type VmRow = {
 	id: string;
@@ -197,11 +197,16 @@ export const getVmMetricsHistory = query(metricsHistoryParams, async (params) =>
 		await requireProjectAccess(db, event.locals.user.id, row.ownerProjectId);
 	}
 
-	return getBackend(row.backend).getVmMetricsHistory(
-		row.id,
-		row.proxmoxId ?? undefined,
-		(params.timeframe ?? 'hour') as VmMetricsTimeframe
-	);
+	try {
+		return await getBackend(row.backend).getVmMetricsHistory(
+			row.id,
+			row.proxmoxId ?? undefined,
+			(params.timeframe ?? 'hour') as VmMetricsTimeframe
+		);
+	} catch (err) {
+		console.warn(`Failed to load VM metrics history for ${row.id}`, err);
+		return [];
+	}
 });
 
 const statusParams = type({ projectId: 'string' });
@@ -274,6 +279,7 @@ const createParams = type({
 	projectId: 'string',
 	vmTypeId: 'string',
 	name: 'string',
+	networkingMode: "'both' | 'ipv6'?",
 	imageId: 'string?',
 	sshKeyIds: 'string[]?',
 	password: 'string?'
@@ -329,6 +335,8 @@ export const createVm = command(createParams, async (params) => {
 		.returning();
 
 	const vmId = inserted.id;
+	const macAddress = generateMacAddress();
+	let networkingAllocations: Awaited<ReturnType<typeof allocateVmNetworking>> = [];
 	let result;
 	try {
 		await ensureProjectServerEntity({
@@ -336,11 +344,17 @@ export const createVm = command(createParams, async (params) => {
 			serverId: vmId,
 			name: params.name
 		});
+		networkingAllocations = await allocateVmNetworking(db, {
+			vmId,
+			macAddress,
+			mode: params.networkingMode ?? 'both'
+		});
 		const backend = getBackend('proxmox');
 		result = await backend.createVm({
 			id: vmId,
 			name: params.name,
 			proxmoxId: inserted.proxmoxId ?? undefined,
+			macAddress,
 			cores: vmType.cores,
 			memoryMb: vmType.ramCapacity,
 			diskGb: vmType.storageAmount,
@@ -359,14 +373,6 @@ export const createVm = command(createParams, async (params) => {
 		});
 
 		if (!result.macAddress) error(502, 'Proxmox did not return a MAC address');
-
-		const opnsenseClient = new OpnsenseClient();
-
-		opnsenseClient.createDHCPv4Reservation(
-			'bc3f001e-6844-4176-be28-d03f4044175e',
-			'144.225.80.14',
-			result.macAddress
-		);
 	} catch (err) {
 		if (result?.proxmoxId != null) {
 			await getBackend('proxmox')
@@ -375,15 +381,21 @@ export const createVm = command(createParams, async (params) => {
 					console.warn(`Failed to clean up Proxmox VM ${vmId} after provisioning error`, deleteErr);
 				});
 		}
+		await releaseVmNetworking(db, vmId, true).catch(() => {});
 		await deleteProjectServerEntity(params.projectId, vmId).catch(() => {});
 		await db.delete(vms).where(eq(vms.id, inserted.id));
 		throw err;
 	}
 
+	const ipv4Allocation = networkingAllocations.find((allocation) => allocation.family === 'ipv4');
+	const ipv6Allocation = networkingAllocations.find((allocation) => allocation.family === 'ipv6');
+
 	await db
 		.update(vms)
 		.set({
-			proxmoxId: result.proxmoxId ?? null
+			proxmoxId: result.proxmoxId ?? null,
+			lastKnownIpv4: ipv4Allocation?.address ?? null,
+			lastKnownIpv6: ipv6Allocation?.address ?? null
 		})
 		.where(eq(vms.id, vmId));
 	await createBillingMeter({
@@ -424,6 +436,7 @@ export const deleteVm = command(deleteParams, async (params) => {
 			console.warn(`Failed to delete Autumn entity for VM ${row.id}`, err);
 		});
 	}
+	await releaseVmNetworking(db, row.id, true);
 	await db.update(vms).set({ active: false }).where(eq(vms.id, params.vmId));
 	refreshProxmoxVmCache().catch(() => {});
 });

@@ -60,6 +60,32 @@ type DHCPv6Subnet = {
 	description: string;
 };
 
+type OpnsenseInterfaceRow = {
+	identifier?: string;
+	description?: string;
+	device?: string;
+	addr4?: string;
+	addr6?: string;
+	routes?: string[];
+	gateways?: string[];
+	ipv4?: { ipaddr?: string; subnetbits?: number }[];
+	ipv6?: { ipaddr?: string; subnetbits?: number }[];
+	config?: {
+		identifier?: string;
+		ipaddr?: string;
+		subnet?: string;
+		ipaddrv6?: string;
+		subnetv6?: string;
+	};
+};
+
+type InterfacesInfoResponse = {
+	rows: OpnsenseInterfaceRow[];
+	rowCount: number;
+	total: number;
+	current: number;
+};
+
 type DHCPSubnetResponse<T> = {
 	rows: T[];
 	rowCount: number;
@@ -156,6 +182,10 @@ function getOpnsenseConfig() {
 		apiSecret: env.OPNSENSE_API_SECRET,
 		apiUrl: env.OPNSENSE_API_URL.replace(/\/+$/, '')
 	};
+}
+
+export function isOpnsenseConfigured() {
+	return getOpnsenseConfig() !== null;
 }
 
 export class OpnsenseClient {
@@ -255,14 +285,25 @@ export class OpnsenseClient {
 			.json();
 	}
 
-	async createDHCPv4Subnet(subnet: string): Promise<OpnsenseCreateObjectResponse | null> {
+	async createDHCPv4Subnet(
+		subnet: string,
+		options: { gateway?: string | null; description?: string | null } = {}
+	): Promise<OpnsenseCreateObjectResponse | null> {
 		let body = await this.api
 			.post<OpnsenseCreateObjectResponse>('/api/kea/dhcpv4/add_subnet/', {
 				json: {
-					subnet4: { subnet }
+					subnet4: {
+						subnet,
+						...(options.gateway ? { option_data: { routers: options.gateway } } : {}),
+						...(options.description ? { description: options.description } : {})
+					}
 				}
 			})
 			.json();
+
+		if (body?.result == 'failed') {
+			throw new OpnsenseError('Kea add_subnet request failed.', 500, body.validations);
+		}
 
 		await this.applyKeaChanges();
 
@@ -279,6 +320,20 @@ export class OpnsenseClient {
 				}
 			})
 			.json();
+	}
+
+	async listDHCPv4Subnets(): Promise<DHCPv4Subnet[]> {
+		const firstPage = await this.api
+			.post<DHCPv4SubnetResponse>('/api/kea/dhcpv4/search_subnet', {
+				json: {
+					current: 1,
+					rowCount: 200,
+					sort: {}
+				}
+			})
+			.json();
+
+		return firstPage.rows ?? [];
 	}
 
 	async deleteDHCPv4Subnet(uuid: string) {
@@ -382,10 +437,32 @@ export class OpnsenseClient {
 			.json();
 	}
 
+	async listDHCPv6Subnets(): Promise<DHCPv6Subnet[]> {
+		const firstPage = await this.api
+			.post<DHCPv6SubnetResponse>('/api/kea/dhcpv6/search_subnet', {
+				json: {
+					current: 1,
+					rowCount: 200,
+					sort: {}
+				}
+			})
+			.json();
+
+		return firstPage.rows ?? [];
+	}
+
 	async deleteDHCPv6Subnet(uuid: string) {
 		await this.api.post('/api/kea/dhcpv6/del_subnet/' + uuid);
 
 		await this.applyKeaChanges();
+	}
+
+	async listInterfaces(): Promise<OpnsenseInterfaceRow[]> {
+		const response = await this.api
+			.get<InterfacesInfoResponse>('/api/interfaces/overview/interfaces_info?details=1')
+			.json();
+
+		return response.rows ?? [];
 	}
 }
 

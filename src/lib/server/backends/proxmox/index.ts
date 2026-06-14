@@ -272,7 +272,7 @@ export class ProxmoxBackend implements VmBackend {
 				: {};
 		const bootDisk = 'virtio0';
 		const pvePool = 'stack-volumes';
-		const macAddress = generateMacAddress();
+		const macAddress = params.macAddress ?? generateMacAddress();
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
