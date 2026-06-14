@@ -281,7 +281,7 @@ export class ProxmoxBackend implements VmBackend {
 			cores: params.cores,
 			sockets: 1,
 			memory: params.memoryMb,
-			cpu: 'x86-64-v3',
+			cpu: 'x86-64-v4',
 			ostype: 'l26',
 			bios: 'ovmf',
 			machine: 'q35',
