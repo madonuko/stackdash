@@ -29,7 +29,8 @@ export const listIpamPrefixes = query(async () => {
 const prefixParams = type({
 	name: 'string',
 	cidr: 'string',
-	gateway: 'string?',
+	whitelistStart: 'string?',
+	whitelistEnd: 'string?',
 	disabled: 'boolean?',
 	createMissingOpnsenseDhcpv4Subnet: 'boolean?'
 });
@@ -50,7 +51,8 @@ const updatePrefixParams = type({
 	prefixId: 'string',
 	name: 'string',
 	cidr: 'string',
-	gateway: 'string?',
+	whitelistStart: 'string?',
+	whitelistEnd: 'string?',
 	disabled: 'boolean?',
 	createMissingOpnsenseDhcpv4Subnet: 'boolean?'
 });

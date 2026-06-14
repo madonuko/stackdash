@@ -272,7 +272,8 @@ export const ipamPrefixes = pgTable(
 		cidr: cidr('cidr').notNull(),
 		family: ipFamilyEnum('family').notNull(),
 		disabled: boolean('disabled').notNull().default(false),
-		gateway: inet('gateway'),
+		whitelistStart: inet('whitelist_start'),
+		whitelistEnd: inet('whitelist_end'),
 		opnsenseSubnetUuid: text('opnsense_subnet_uuid'),
 		opnsenseInterface: text('opnsense_interface'),
 		createdAt: bigint('created_at', { mode: 'number' })

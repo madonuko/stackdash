@@ -87,7 +87,8 @@ export type IpamPrefix = {
 	cidr: string;
 	family: 'ipv4' | 'ipv6';
 	disabled: boolean;
-	gateway: string | null;
+	whitelistStart: string | null;
+	whitelistEnd: string | null;
 	opnsenseSubnetUuid: string | null;
 	opnsenseInterface: string | null;
 	allocated: number;

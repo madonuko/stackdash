@@ -46,7 +46,8 @@
 	let formError = $state('');
 	let name = $state('');
 	let cidr = $state('');
-	let gateway = $state('');
+	let whitelistStart = $state('');
+	let whitelistEnd = $state('');
 	let disabled = $state(false);
 	let createMissingOpnsenseDhcpv4Subnet = $state(false);
 
@@ -87,7 +88,8 @@
 		editing = null;
 		name = '';
 		cidr = '';
-		gateway = '';
+		whitelistStart = '';
+		whitelistEnd = '';
 		disabled = false;
 		createMissingOpnsenseDhcpv4Subnet = false;
 		formError = '';
@@ -98,7 +100,8 @@
 		editing = prefix;
 		name = prefix.name;
 		cidr = prefix.cidr;
-		gateway = prefix.gateway ?? '';
+		whitelistStart = prefix.whitelistStart ?? '';
+		whitelistEnd = prefix.whitelistEnd ?? '';
 		disabled = prefix.disabled;
 		createMissingOpnsenseDhcpv4Subnet = false;
 		formError = '';
@@ -119,7 +122,8 @@
 		const payload = {
 			name: name.trim(),
 			cidr: cidr.trim(),
-			gateway: gateway.trim(),
+			whitelistStart: whitelistStart.trim(),
+			whitelistEnd: whitelistEnd.trim(),
 			disabled,
 			createMissingOpnsenseDhcpv4Subnet:
 				showCreateMissingOpnsenseDhcpv4Subnet && createMissingOpnsenseDhcpv4Subnet
@@ -351,9 +355,15 @@
 				<Label for="ipam-cidr">Prefix</Label>
 				<Input id="ipam-cidr" bind:value={cidr} placeholder="203.0.113.0/24" />
 			</div>
-			<div class="grid gap-2">
-				<Label for="ipam-gateway">Gateway</Label>
-				<Input id="ipam-gateway" bind:value={gateway} placeholder="optional" />
+			<div class="grid grid-cols-2 gap-4">
+				<div class="grid gap-2">
+					<Label for="ipam-whitelist-start">Whitelist Start</Label>
+					<Input id="ipam-whitelist-start" bind:value={whitelistStart} placeholder="optional" />
+				</div>
+				<div class="grid gap-2">
+					<Label for="ipam-whitelist-end">Whitelist End</Label>
+					<Input id="ipam-whitelist-end" bind:value={whitelistEnd} placeholder="optional" />
+				</div>
 			</div>
 			{#if showCreateMissingOpnsenseDhcpv4Subnet}
 				<label class="flex items-center gap-2 text-sm text-gray-300">

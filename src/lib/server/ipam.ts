@@ -18,8 +18,10 @@ type IpamAllocation = typeof ipamAllocations.$inferSelect;
 export type IpamPrefixInput = {
 	name: string;
 	cidr: string;
-	gateway?: string | null;
+	whitelistStart?: string | null;
+	whitelistEnd?: string | null;
 	disabled?: boolean;
+	createMissingOpnsenseDhcpv4Subnet?: boolean;
 };
 
 type ResolveOpnsensePrefixOptions = {
@@ -153,12 +155,23 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		error(400, `${normalized.family} prefix is too small for VM allocations`);
 	}
 
-	const gateway = input.gateway?.trim() || null;
-	if (gateway) {
-		const gatewayValue = parseAddress(normalized.family, gateway);
+	const whitelistStart = input.whitelistStart?.trim() || null;
+	const whitelistEnd = input.whitelistEnd?.trim() || null;
+	if (whitelistStart || whitelistEnd) {
+		if (!whitelistStart || !whitelistEnd) {
+			error(400, 'Both whitelist start and end must be specified');
+		}
+		const startValue = parseAddress(normalized.family, whitelistStart);
+		const endValue = parseAddress(normalized.family, whitelistEnd);
 		const range = parseCidr(normalized.cidr);
-		if (gatewayValue < range.start || gatewayValue > range.end) {
-			error(400, 'Gateway must be inside the prefix');
+		if (startValue < range.start || startValue > range.end) {
+			error(400, 'Whitelist start must be inside the prefix');
+		}
+		if (endValue < range.start || endValue > range.end) {
+			error(400, 'Whitelist end must be inside the prefix');
+		}
+		if (startValue > endValue) {
+			error(400, 'Whitelist start must be <= whitelist end');
 		}
 	}
 
@@ -166,7 +179,8 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		name: input.name.trim(),
 		cidr: normalized.cidr,
 		family: normalized.family,
-		gateway,
+		whitelistStart,
+		whitelistEnd,
 		disabled: input.disabled ?? false
 	};
 }
@@ -235,7 +249,6 @@ export async function resolveOpnsensePrefixFields(
 
 		if (!opnsenseSubnetUuid && options.createMissingDhcpv4Subnet) {
 			const created = await client.createDHCPv4Subnet(prefix.cidr, {
-				gateway: prefix.gateway,
 				description: prefix.name
 			});
 			if (created?.result !== 'saved') error(502, 'Failed to create OPNsense DHCPv4 subnet');
@@ -244,7 +257,6 @@ export async function resolveOpnsensePrefixFields(
 
 		return {
 			...prefix,
-			gateway: prefix.gateway ?? subnet?.['option_data.routers']?.split(',')[0]?.trim() ?? null,
 			opnsenseSubnetUuid,
 			opnsenseInterface: null
 		};
@@ -312,9 +324,21 @@ function prefixCapacity(prefix: IpamPrefix) {
 	if (prefix.family === 'ipv4') {
 		const usable = ipv4UsableRange(prefix);
 		if (!usable) return 0n;
-		const gateway = prefix.gateway ? parseAddress('ipv4', prefix.gateway) : usable.first;
-		const gatewayIsUsable = gateway >= usable.first && gateway <= usable.last;
-		return usable.last - usable.first + 1n - (gatewayIsUsable ? 1n : 0n);
+
+		let capacity: bigint;
+		if (prefix.whitelistStart && prefix.whitelistEnd) {
+			// Whitelist set: only count IPs within the whitelist range
+			const start = parseAddress('ipv4', prefix.whitelistStart);
+			const end = parseAddress('ipv4', prefix.whitelistEnd);
+			const overlapStart = start > usable.first ? start : usable.first;
+			const overlapEnd = end < usable.last ? end : usable.last;
+			capacity = overlapStart <= overlapEnd ? overlapEnd - overlapStart + 1n : 0n;
+		} else {
+			// No whitelist: entire usable range
+			capacity = usable.last - usable.first + 1n;
+		}
+
+		return capacity > 0n ? capacity : 0n;
 	}
 
 	const childBits = BigInt(vmIpv6PrefixLength - range.prefixLength);
@@ -383,10 +407,13 @@ function nextIpv4Address(prefix: IpamPrefix, allocations: Pick<IpamAllocation, '
 			allocation.address ? [parseAddress('ipv4', allocation.address).toString()] : []
 		)
 	);
-	const gateway = prefix.gateway ? parseAddress('ipv4', prefix.gateway) : usable.first;
 
-	for (let value = usable.first; value <= usable.last; value++) {
-		if (value === gateway || used.has(value.toString())) continue;
+	// Determine the allocatable range
+	const allocStart = prefix.whitelistStart ? parseAddress('ipv4', prefix.whitelistStart) : usable.first;
+	const allocEnd = prefix.whitelistEnd ? parseAddress('ipv4', prefix.whitelistEnd) : usable.last;
+
+	for (let value = allocStart; value <= allocEnd; value++) {
+		if (used.has(value.toString())) continue;
 		return formatAddress('ipv4', value);
 	}
 
