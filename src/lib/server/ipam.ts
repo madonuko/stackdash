@@ -504,37 +504,30 @@ async function syncOpnsenseAllocation(db: QueryableDb, allocation: PendingAlloca
 			.where(eq(ipamAllocations.id, allocation.id));
 
 		return allocation;
+  }
+
+	if (!allocation.sourcePrefix.opnsenseSubnetUuid) {
+		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense DHCPv6 subnet UUID`);
 	}
 
 	if (!allocation.sourcePrefix.opnsenseInterface) {
 		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense IPv6 interface`);
 	}
 
-	const subnet = await client.createDHCPv6Subnet(
+	const reservation = await client.createDHCPv6Reservation(
+		allocation.sourcePrefix.opnsenseSubnetUuid,
+		allocation.address!,
 		allocation.prefix!,
-		allocation.sourcePrefix.opnsenseInterface
+		allocation.macAddress
 	);
-	if (subnet?.result !== 'saved') error(502, 'Failed to create OPNsense DHCPv6 subnet');
 
-	try {
-		const reservation = await client.createDHCPv6Reservation(
-			subnet.uuid,
-			allocation.address!,
-			allocation.prefix!,
-			allocation.macAddress
-		);
-
-		await db
-			.update(ipamAllocations)
-			.set({
-				opnsenseSubnetUuid: subnet.uuid,
-				opnsenseReservationUuid: reservation?.result === 'saved' ? reservation.uuid : null
-			})
-			.where(eq(ipamAllocations.id, allocation.id));
-	} catch (err) {
-		await client.deleteDHCPv6Subnet(subnet.uuid).catch(() => {});
-		throw err;
-	}
+	await db
+		.update(ipamAllocations)
+		.set({
+			opnsenseSubnetUuid: allocation.sourcePrefix.opnsenseSubnetUuid,
+			opnsenseReservationUuid: reservation?.result === 'saved' ? reservation.uuid : null
+		})
+		.where(eq(ipamAllocations.id, allocation.id));
 
 	return allocation;
 }
@@ -580,13 +573,8 @@ export async function releaseVmNetworking(db: QueryableDb, vmId: string, bestEff
 					await client.deleteDHCPv4Reservation(allocation.opnsenseReservationUuid);
 				}
 
-				if (allocation.family === 'ipv6') {
-					if (allocation.opnsenseReservationUuid) {
-						await client.deleteDHCPv6Reservation(allocation.opnsenseReservationUuid);
-					}
-					if (allocation.opnsenseSubnetUuid) {
-						await client.deleteDHCPv6Subnet(allocation.opnsenseSubnetUuid);
-					}
+				if (allocation.family === 'ipv6' && allocation.opnsenseReservationUuid) {
+					await client.deleteDHCPv6Reservation(allocation.opnsenseReservationUuid);
 				}
 			} catch (err) {
 				if (!bestEffort) throw err;
