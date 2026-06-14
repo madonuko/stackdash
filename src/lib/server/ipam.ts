@@ -258,7 +258,7 @@ export async function resolveOpnsensePrefixFields(
 	if (matchingSubnet?.interface) {
 		return {
 			...prefix,
-			opnsenseSubnetUuid: null,
+			opnsenseSubnetUuid: matchingSubnet.uuid,
 			opnsenseInterface: matchingSubnet.interface
 		};
 	}
@@ -285,7 +285,7 @@ export async function resolveOpnsensePrefixFields(
 
 	return {
 		...prefix,
-		opnsenseSubnetUuid: null,
+		opnsenseSubnetUuid: matchingSubnet?.uuid ?? null,
 		opnsenseInterface: matches[0].identifier ?? matches[0].config?.identifier ?? null
 	};
 }

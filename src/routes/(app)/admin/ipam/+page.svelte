@@ -68,17 +68,19 @@
 	}
 
 	function opnsenseStatus(prefix: IpamPrefix) {
-		if (prefix.family === 'ipv4') {
-			return prefix.opnsenseSubnetUuid ? 'DHCP ready' : 'No DHCP subnet';
+	    if (!prefix.opnsenseSubnetUuid) {
+			return 'No Opnsense Subnet'
 		}
 
-		return prefix.opnsenseInterface ? 'DHCPv6 ready' : 'No IPv6 interface';
+		if (prefix.family == 'ipv6' && !prefix.opnsenseInterface) {
+		  return 'No IPv6 Interface'
+		}
+
+		return 'DHCP ready'
 	}
 
 	function opnsenseReady(prefix: IpamPrefix) {
-		return prefix.family === 'ipv4'
-			? Boolean(prefix.opnsenseSubnetUuid)
-			: Boolean(prefix.opnsenseInterface);
+		return Boolean(prefix.opnsenseSubnetUuid) && (prefix.family === 'ipv4' || Boolean(prefix.opnsenseInterface));
 	}
 
 	function openCreate() {
