@@ -409,7 +409,9 @@ function nextIpv4Address(prefix: IpamPrefix, allocations: Pick<IpamAllocation, '
 	);
 
 	// Determine the allocatable range
-	const allocStart = prefix.whitelistStart ? parseAddress('ipv4', prefix.whitelistStart) : usable.first;
+	const allocStart = prefix.whitelistStart
+		? parseAddress('ipv4', prefix.whitelistStart)
+		: usable.first;
 	const allocEnd = prefix.whitelistEnd ? parseAddress('ipv4', prefix.whitelistEnd) : usable.last;
 
 	for (let value = allocStart; value <= allocEnd; value++) {
@@ -531,7 +533,7 @@ async function syncOpnsenseAllocation(db: QueryableDb, allocation: PendingAlloca
 			.where(eq(ipamAllocations.id, allocation.id));
 
 		return allocation;
-  }
+	}
 
 	if (!allocation.sourcePrefix.opnsenseSubnetUuid) {
 		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense DHCPv6 subnet UUID`);

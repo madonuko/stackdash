@@ -96,6 +96,60 @@ type DHCPSubnetResponse<T> = {
 type DHCPv4SubnetResponse = DHCPSubnetResponse<DHCPv4Subnet>;
 type DHCPv6SubnetResponse = DHCPSubnetResponse<DHCPv6Subnet>;
 
+type DHCPv4Lease = {
+	address: string;
+	prefix_len: number;
+	type: string;
+	hwaddr: string;
+	duid: string;
+	client_id: string;
+	iaid: string;
+	valid_lifetime: number;
+	expire: number;
+	hostname: string;
+	state: number;
+	if: string;
+	if_descr: string;
+	is_reserved: string[];
+	if_name: string;
+	mac_info: string;
+};
+
+type DHCPv4LeaseSearchResponse = {
+	rows: DHCPv4Lease[];
+	rowCount: number;
+	total: number;
+	current: number;
+	interfaces: Record<string, string>;
+};
+
+type DHCPv6Lease = {
+	address: string;
+	prefix_len: number;
+	type: string;
+	hwaddr: string;
+	client_id: string;
+	duid: string;
+	iaid: number;
+	valid_lifetime: number;
+	expire: number;
+	hostname: string;
+	state: number;
+	if: string | null;
+	if_descr: string;
+	is_reserved: string[];
+	if_name: string;
+	mac_info: string;
+};
+
+type DHCPv6LeaseSearchResponse = {
+	rows: DHCPv6Lease[];
+	rowCount: number;
+	total: number;
+	current: number;
+	interfaces: Record<string, string>;
+};
+
 type CreateVMIPMappingParams = {
 	macAddress: string;
 	ipv4Addresses: string[];
@@ -342,6 +396,21 @@ export class OpnsenseClient {
 		await this.applyKeaChanges();
 	}
 
+	async listDHCPv4Leases(): Promise<DHCPv4Lease[]> {
+		const firstPage = await this.api
+			.post<DHCPv4LeaseSearchResponse>('/api/kea/leases4/search/', {
+				json: {
+					current: 1,
+					rowCount: 200,
+					sort: {},
+					selected_interfaces: []
+				}
+			})
+			.json();
+
+		return firstPage.rows ?? [];
+	}
+
 	// DHCPv6
 
 	async createDHCPv6Reservation(
@@ -464,6 +533,21 @@ export class OpnsenseClient {
 
 		return response.rows ?? [];
 	}
+
+	async listDHCPv6Leases(): Promise<DHCPv6Lease[]> {
+		const firstPage = await this.api
+			.post<DHCPv6LeaseSearchResponse>('/api/kea/leases6/search/', {
+				json: {
+					current: 1,
+					rowCount: 200,
+					sort: {},
+					selected_interfaces: []
+				}
+			})
+			.json();
+
+		return firstPage.rows ?? [];
+	}
 }
 
 // this code is intentionally dead. it should be turned into proper test cases, but caleb needed it to verify the implementation worked.
@@ -546,4 +630,7 @@ async function testFunction() {
 	//opnsenseClient.deleteDHCPv4Reservation(ipv4_reservation_uuid);
 
 	//opnsenseClient.deleteDHCPv4Subnet(ipv4_subnet_uuid);
+
+	console.log(await opnsenseClient.listDHCPv4Leases());
+	console.log(await opnsenseClient.listDHCPv6Leases());
 }
