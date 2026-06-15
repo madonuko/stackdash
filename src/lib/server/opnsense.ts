@@ -10,6 +10,11 @@ type OpnsenseCreateObjectResponse =
 	| { result: 'saved'; uuid: string }
 	| { result: 'failed'; validations: Record<string, string> };
 
+type OpnsenseCommandResponse = {
+	result?: string;
+	status?: string;
+};
+
 type DHCPv4Subnet = {
 	uuid: string;
 	subnet: string;
@@ -272,6 +277,26 @@ export class OpnsenseClient {
 
 	private async applyKeaChanges() {
 		await this.api.post('/api/kea/service/reconfigure', { json: {} });
+	}
+
+	async deleteDHCPv4Lease(address: string): Promise<OpnsenseCommandResponse | null> {
+		if (!address) return null;
+
+		return await this.api
+			.post<OpnsenseCommandResponse>(`/api/kea/leases4/del_lease/${encodeURIComponent(address)}`, {
+				json: {}
+			})
+			.json();
+	}
+
+	async deleteDHCPv6Lease(address: string): Promise<OpnsenseCommandResponse | null> {
+		if (!address) return null;
+
+		return await this.api
+			.post<OpnsenseCommandResponse>(`/api/kea/leases6/del_lease/${encodeURIComponent(address)}`, {
+				json: {}
+			})
+			.json();
 	}
 
 	/// DHCPv4

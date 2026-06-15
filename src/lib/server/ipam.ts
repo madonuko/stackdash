@@ -51,6 +51,11 @@ type PendingAllocation = IpamAllocation & {
 	sourcePrefix: IpamPrefix;
 };
 
+type DhcpLeaseUsage = {
+	ipv4Addresses: Set<string>;
+	ipv6PrefixStarts: Set<string>;
+};
+
 const v6Bits = 128;
 const vmIpv4PrefixLength = 32;
 const vmIpv6PrefixLength = 64;
@@ -318,6 +323,26 @@ function ipv4UsableRange(prefix: IpamPrefix) {
 	return first <= last ? { first, last } : null;
 }
 
+function isIpv4ValueAllocatable(prefix: IpamPrefix, value: bigint) {
+	if (prefix.family !== 'ipv4') return false;
+
+	const usable = ipv4UsableRange(prefix);
+	if (!usable) return false;
+	if (value < usable.first || value > usable.last) return false;
+	if (prefix.whitelistStart && value < parseAddress('ipv4', prefix.whitelistStart)) return false;
+	if (prefix.whitelistEnd && value > parseAddress('ipv4', prefix.whitelistEnd)) return false;
+
+	return true;
+}
+
+function isIpv6PrefixStartAllocatable(prefix: IpamPrefix, value: bigint) {
+	if (prefix.family !== 'ipv6') return false;
+
+	const range = parseCidr(prefix.cidr);
+	const prefixSize = 1n << BigInt(v6Bits - vmIpv6PrefixLength);
+	return value >= range.start && value + prefixSize - 1n <= range.end;
+}
+
 function prefixCapacity(prefix: IpamPrefix) {
 	const range = parseCidr(prefix.cidr);
 
@@ -347,22 +372,76 @@ function prefixCapacity(prefix: IpamPrefix) {
 
 function allocatedCount(
 	prefix: IpamPrefix,
-	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[]
+	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[],
+	dhcpLeases: DhcpLeaseUsage
 ) {
 	if (prefix.family === 'ipv4') {
-		return BigInt(allocations.filter((allocation) => allocation.address).length);
+		const used = new Set(
+			allocations.flatMap((allocation) =>
+				allocation.address ? [parseAddress('ipv4', allocation.address).toString()] : []
+			)
+		);
+
+		for (const lease of dhcpLeases.ipv4Addresses) {
+			const value = BigInt(lease);
+			if (isIpv4ValueAllocatable(prefix, value)) used.add(lease);
+		}
+
+		return BigInt(used.size);
 	}
 
-	return BigInt(allocations.filter((allocation) => allocation.prefix).length);
+	const used = new Set(
+		allocations.flatMap((allocation) =>
+			allocation.prefix ? [new Address6(allocation.prefix).startAddress().bigInt().toString()] : []
+		)
+	);
+
+	for (const lease of dhcpLeases.ipv6PrefixStarts) {
+		const value = BigInt(lease);
+		if (isIpv6PrefixStartAllocatable(prefix, value)) used.add(lease);
+	}
+
+	return BigInt(used.size);
 }
 
-async function prefixStats(db: QueryableDb, prefix: IpamPrefix): Promise<IpamPrefixWithStats> {
+async function getDhcpLeaseUsage(): Promise<DhcpLeaseUsage> {
+	const empty = { ipv4Addresses: new Set<string>(), ipv6PrefixStarts: new Set<string>() };
+	if (!isOpnsenseConfigured()) return empty;
+
+	const client = new OpnsenseClient();
+	const [ipv4Leases, ipv6Leases] = await Promise.all([
+		client.listDHCPv4Leases(),
+		client.listDHCPv6Leases()
+	]);
+
+	const ipv4Addresses = new Set<string>();
+	for (const lease of ipv4Leases) {
+		if (!Address4.isValid(lease.address)) continue;
+		ipv4Addresses.add(new Address4(lease.address).bigInt().toString());
+	}
+
+	const ipv6PrefixStarts = new Set<string>();
+	const vmPrefixSize = 1n << BigInt(v6Bits - vmIpv6PrefixLength);
+	for (const lease of ipv6Leases) {
+		if (!Address6.isValid(lease.address)) continue;
+		const value = new Address6(lease.address).bigInt();
+		ipv6PrefixStarts.add((value - (value % vmPrefixSize)).toString());
+	}
+
+	return { ipv4Addresses, ipv6PrefixStarts };
+}
+
+async function prefixStats(
+	db: QueryableDb,
+	prefix: IpamPrefix,
+	dhcpLeases: DhcpLeaseUsage
+): Promise<IpamPrefixWithStats> {
 	const allocations = await db.query.ipamAllocations.findMany({
 		where: eq(ipamAllocations.ipamPrefixId, prefix.id),
 		columns: { address: true, prefix: true }
 	});
 	const capacity = prefixCanAllocate(prefix) ? prefixCapacity(prefix) : 0n;
-	const allocated = allocatedCount(prefix, allocations);
+	const allocated = allocatedCount(prefix, allocations, dhcpLeases);
 	const available = capacity > allocated ? capacity - allocated : 0n;
 
 	return {
@@ -379,8 +458,9 @@ export async function listIpamPrefixesWithStats(db: QueryableDb) {
 		.select()
 		.from(ipamPrefixes)
 		.orderBy(asc(ipamPrefixes.family), asc(ipamPrefixes.cidr));
+	const dhcpLeases = await getDhcpLeaseUsage();
 
-	return Promise.all(prefixes.map((prefix) => prefixStats(db, prefix)));
+	return Promise.all(prefixes.map((prefix) => prefixStats(db, prefix, dhcpLeases)));
 }
 
 export async function getIpamAvailability(db: QueryableDb): Promise<IpamAvailability> {
@@ -398,7 +478,11 @@ export async function getIpamAvailability(db: QueryableDb): Promise<IpamAvailabi
 	};
 }
 
-function nextIpv4Address(prefix: IpamPrefix, allocations: Pick<IpamAllocation, 'address'>[]) {
+function nextIpv4Address(
+	prefix: IpamPrefix,
+	allocations: Pick<IpamAllocation, 'address'>[],
+	dhcpLeases: DhcpLeaseUsage
+) {
 	const usable = ipv4UsableRange(prefix);
 	if (!usable) return null;
 
@@ -408,7 +492,11 @@ function nextIpv4Address(prefix: IpamPrefix, allocations: Pick<IpamAllocation, '
 		)
 	);
 
-	// Determine the allocatable range
+	for (const lease of dhcpLeases.ipv4Addresses) {
+		const value = BigInt(lease);
+		if (isIpv4ValueAllocatable(prefix, value)) used.add(lease);
+	}
+
 	const allocStart = prefix.whitelistStart
 		? parseAddress('ipv4', prefix.whitelistStart)
 		: usable.first;
@@ -422,7 +510,11 @@ function nextIpv4Address(prefix: IpamPrefix, allocations: Pick<IpamAllocation, '
 	return null;
 }
 
-function nextIpv6Prefix(prefix: IpamPrefix, allocations: Pick<IpamAllocation, 'prefix'>[]) {
+function nextIpv6Prefix(
+	prefix: IpamPrefix,
+	allocations: Pick<IpamAllocation, 'prefix'>[],
+	dhcpLeases: DhcpLeaseUsage
+) {
 	const range = parseCidr(prefix.cidr);
 	const prefixSize = 1n << BigInt(v6Bits - vmIpv6PrefixLength);
 	const used = new Set(
@@ -430,6 +522,11 @@ function nextIpv6Prefix(prefix: IpamPrefix, allocations: Pick<IpamAllocation, 'p
 			allocation.prefix ? [new Address6(allocation.prefix).startAddress().bigInt().toString()] : []
 		)
 	);
+
+	for (const lease of dhcpLeases.ipv6PrefixStarts) {
+		const value = BigInt(lease);
+		if (isIpv6PrefixStartAllocatable(prefix, value)) used.add(lease);
+	}
 
 	for (let value = range.start; value <= range.end; value += prefixSize) {
 		if (value + prefixSize - 1n > range.end) return null;
@@ -448,7 +545,8 @@ async function createFamilyAllocation(
 	db: QueryableDb,
 	family: IpFamily,
 	vmId: string,
-	macAddress: string
+	macAddress: string,
+	dhcpLeases: DhcpLeaseUsage
 ): Promise<PendingAllocation> {
 	const prefixes = await db
 		.select()
@@ -466,8 +564,8 @@ async function createFamilyAllocation(
 
 		const next =
 			family === 'ipv4'
-				? { address: nextIpv4Address(prefix, allocations), prefix: null }
-				: nextIpv6Prefix(prefix, allocations);
+				? { address: nextIpv4Address(prefix, allocations, dhcpLeases), prefix: null }
+				: nextIpv6Prefix(prefix, allocations, dhcpLeases);
 
 		if (!next?.address) continue;
 
@@ -494,11 +592,12 @@ async function createLocalAllocation(
 	db: QueryableDb,
 	family: IpFamily,
 	vmId: string,
-	macAddress: string
+	macAddress: string,
+	dhcpLeases: DhcpLeaseUsage
 ) {
 	for (let attempt = 0; attempt < 5; attempt++) {
 		try {
-			return await createFamilyAllocation(db, family, vmId, macAddress);
+			return await createFamilyAllocation(db, family, vmId, macAddress, dhcpLeases);
 		} catch (err) {
 			if (uniqueViolation(err)) continue;
 			throw err;
@@ -569,10 +668,12 @@ export async function allocateVmNetworking(
 	const allocations: PendingAllocation[] = [];
 
 	try {
+		const dhcpLeases = await getDhcpLeaseUsage();
+
 		for (const family of families) {
 			allocations.push(
 				await db.transaction((tx) =>
-					createLocalAllocation(tx, family, params.vmId, params.macAddress)
+					createLocalAllocation(tx, family, params.vmId, params.macAddress, dhcpLeases)
 				)
 			);
 		}
@@ -588,7 +689,12 @@ export async function allocateVmNetworking(
 	}
 }
 
-export async function releaseVmNetworking(db: QueryableDb, vmId: string, bestEffort = false) {
+export async function releaseVmNetworking(
+	db: QueryableDb,
+	vmId: string,
+	bestEffort = false,
+	knownAddresses: { ipv4?: string | null; ipv6?: string | null } = {}
+) {
 	const allocations = await db.query.ipamAllocations.findMany({
 		where: eq(ipamAllocations.associatedVmId, vmId)
 	});
@@ -607,7 +713,39 @@ export async function releaseVmNetworking(db: QueryableDb, vmId: string, bestEff
 				}
 			} catch (err) {
 				if (!bestEffort) throw err;
-				console.warn(`Failed to release ${allocation.family} allocation ${allocation.id}`, err);
+				console.warn(`Failed to release ${allocation.family} reservation ${allocation.id}`, err);
+			}
+		}
+
+		const ipv4Leases = new Set(
+			allocations.flatMap((allocation) =>
+				allocation.family === 'ipv4' && allocation.address ? [allocation.address] : []
+			)
+		);
+		if (knownAddresses.ipv4) ipv4Leases.add(knownAddresses.ipv4);
+
+		const ipv6Leases = new Set(
+			allocations.flatMap((allocation) =>
+				allocation.family === 'ipv6' && allocation.address ? [allocation.address] : []
+			)
+		);
+		if (knownAddresses.ipv6) ipv6Leases.add(knownAddresses.ipv6);
+
+		for (const address of ipv4Leases) {
+			try {
+				await client.deleteDHCPv4Lease(address);
+			} catch (err) {
+				if (!bestEffort) throw err;
+				console.warn(`Failed to delete DHCPv4 lease ${address} for VM ${vmId}`, err);
+			}
+		}
+
+		for (const address of ipv6Leases) {
+			try {
+				await client.deleteDHCPv6Lease(address);
+			} catch (err) {
+				if (!bestEffort) throw err;
+				console.warn(`Failed to delete DHCPv6 lease ${address} for VM ${vmId}`, err);
 			}
 		}
 	}

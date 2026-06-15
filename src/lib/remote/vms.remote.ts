@@ -436,7 +436,10 @@ export const deleteVm = command(deleteParams, async (params) => {
 			console.warn(`Failed to delete Autumn entity for VM ${row.id}`, err);
 		});
 	}
-	await releaseVmNetworking(db, row.id, true);
+	await releaseVmNetworking(db, row.id, true, {
+		ipv4: row.lastKnownIpv4,
+		ipv6: row.lastKnownIpv6
+	});
 	await db.update(vms).set({ active: false }).where(eq(vms.id, params.vmId));
 	refreshProxmoxVmCache().catch(() => {});
 });
