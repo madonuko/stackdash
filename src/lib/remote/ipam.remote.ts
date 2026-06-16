@@ -5,11 +5,7 @@ import { eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipamAllocations, ipamPrefixes } from '$lib/server/db/schema';
 import { requireAdmin } from '$lib/server/auth-context';
-import {
-	listIpamPrefixesWithStats,
-	normalizeIpamPrefixInput,
-	resolveIpamPrefixFields
-} from '$lib/server/ipam';
+import { listIpamPrefixesWithStats, normalizeIpamPrefixInput } from '$lib/server/ipam';
 
 async function requireCurrentAdmin() {
 	const event = getRequestEvent();
@@ -37,7 +33,7 @@ const prefixParams = type({
 
 export const createIpamPrefix = command(prefixParams, async (params) => {
 	const db = await requireCurrentAdmin();
-	const normalized = await resolveIpamPrefixFields(normalizeIpamPrefixInput(params));
+	const normalized = normalizeIpamPrefixInput(params);
 
 	if (!normalized.name) error(400, 'Name is required');
 
@@ -62,7 +58,7 @@ export const updateIpamPrefix = command(updatePrefixParams, async (params) => {
 	});
 	if (!existing) error(404, 'IPAM prefix not found');
 
-	const normalized = await resolveIpamPrefixFields(normalizeIpamPrefixInput(params));
+	const normalized = normalizeIpamPrefixInput(params);
 	if (!normalized.name) error(400, 'Name is required');
 
 	if (existing.ipv6UseTransitAddress !== normalized.ipv6UseTransitAddress) {

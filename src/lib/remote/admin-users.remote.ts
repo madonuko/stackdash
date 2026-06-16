@@ -287,10 +287,7 @@ async function deleteOrganizationResources(
 
 	await db.delete(volumes).where(eq(volumes.ownerProjectId, organizationId));
 	for (const vm of projectVms) {
-		await releaseVmNetworking(db, vm.id, true, {
-			ipv4: vm.lastKnownIpv4,
-			ipv6: vm.lastKnownIpv6
-		});
+		await releaseVmNetworking(db, vm.id);
 	}
 	if (vmIds.length > 0) {
 		await db.delete(ipAssignments).where(inArray(ipAssignments.associatedVmId, vmIds));

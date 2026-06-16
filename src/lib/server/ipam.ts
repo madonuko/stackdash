@@ -124,17 +124,6 @@ function parseAddress(family: IpFamily, value: string) {
 	return new Address6(value).bigInt();
 }
 
-function isCidrInside(parent: string, child: string) {
-	const parentRange = parseCidr(parent);
-	const childRange = parseCidr(child);
-
-	return (
-		parentRange.family === childRange.family &&
-		childRange.start >= parentRange.start &&
-		childRange.end <= parentRange.end
-	);
-}
-
 function formatAddress(family: IpFamily, value: bigint) {
 	return family === 'ipv4'
 		? Address4.fromBigInt(value).correctForm()
@@ -207,10 +196,6 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 	};
 }
 
-export async function resolveIpamPrefixFields(prefix: ReturnType<typeof normalizeIpamPrefixInput>) {
-	return prefix;
-}
-
 function prefixCanAllocate(prefix: IpamPrefix) {
 	return !prefix.disabled;
 }
@@ -244,12 +229,6 @@ function ipv6AllocationSize(prefix: IpamPrefix) {
 	return 1n << BigInt(v6Bits - ipv6AllocationPrefixLength(prefix));
 }
 
-function ipv6AllocationStart(prefix: IpamPrefix, value: bigint) {
-	const range = parseCidr(prefix.cidr);
-	const allocationSize = ipv6AllocationSize(prefix);
-	return range.start + ((value - range.start) / allocationSize) * allocationSize;
-}
-
 function ceilToMultiple(value: bigint, base: bigint, size: bigint) {
 	if (value <= base) return base;
 	const offset = value - base;
@@ -266,21 +245,6 @@ function ipv6WhitelistBounds(prefix: IpamPrefix) {
 	const last = whitelistEnd < range.end ? whitelistEnd : range.end;
 
 	return first <= last ? { first, last } : null;
-}
-
-function isIpv6ValueAllocatable(prefix: IpamPrefix, value: bigint) {
-	if (prefix.family !== 'ipv6') return false;
-
-	const range = parseCidr(prefix.cidr);
-	const bounds = ipv6WhitelistBounds(prefix);
-	if (!bounds) return false;
-	if (value < bounds.first || value > bounds.last) return false;
-	if (prefix.ipv6UseTransitAddress && value === range.start && range.start < range.end)
-		return false;
-
-	const allocationStart = ipv6AllocationStart(prefix, value);
-	const allocationSize = ipv6AllocationSize(prefix);
-	return allocationStart >= bounds.first && allocationStart + allocationSize - 1n <= bounds.last;
 }
 
 function prefixCapacity(prefix: IpamPrefix) {
@@ -602,16 +566,11 @@ export async function allocateVmNetworking(
 
 		return allocations;
 	} catch (err) {
-		await releaseVmNetworking(db, params.vmId, true).catch(() => {});
+		await releaseVmNetworking(db, params.vmId).catch(() => {});
 		throw err;
 	}
 }
 
-export async function releaseVmNetworking(
-	db: QueryableDb,
-	vmId: string,
-	bestEffort = false,
-	knownAddresses: { ipv4?: string | null; ipv6?: string | null } = {}
-) {
+export async function releaseVmNetworking(db: QueryableDb, vmId: string) {
 	await db.delete(ipamAllocations).where(eq(ipamAllocations.associatedVmId, vmId));
 }

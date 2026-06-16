@@ -411,7 +411,7 @@ export const createVm = command(createParams, async (params) => {
 					console.warn(`Failed to clean up Proxmox VM ${vmId} after provisioning error`, deleteErr);
 				});
 		}
-		await releaseVmNetworking(db, vmId, true).catch(() => {});
+		await releaseVmNetworking(db, vmId).catch(() => {});
 		await deleteProjectServerEntity(params.projectId, vmId).catch(() => {});
 		await db.delete(vms).where(eq(vms.id, inserted.id));
 		throw err;
@@ -468,10 +468,7 @@ export const deleteVm = command(deleteParams, async (params) => {
 			console.warn(`Failed to delete Autumn entity for VM ${row.id}`, err);
 		});
 	}
-	await releaseVmNetworking(db, row.id, true, {
-		ipv4: row.lastKnownIpv4,
-		ipv6: row.lastKnownIpv6
-	});
+	await releaseVmNetworking(db, row.id);
 	await db.update(vms).set({ active: false }).where(eq(vms.id, params.vmId));
 	refreshProxmoxVmCache().catch(() => {});
 });
