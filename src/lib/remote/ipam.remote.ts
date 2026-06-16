@@ -32,6 +32,7 @@ const prefixParams = type({
 	whitelistStart: 'string?',
 	whitelistEnd: 'string?',
 	disabled: 'boolean?',
+	ipv6UseTransitAddress: 'boolean?',
 	createMissingOpnsenseDhcpv4Subnet: 'boolean?'
 });
 
@@ -54,6 +55,7 @@ const updatePrefixParams = type({
 	whitelistStart: 'string?',
 	whitelistEnd: 'string?',
 	disabled: 'boolean?',
+	ipv6UseTransitAddress: 'boolean?',
 	createMissingOpnsenseDhcpv4Subnet: 'boolean?'
 });
 
@@ -68,6 +70,13 @@ export const updateIpamPrefix = command(updatePrefixParams, async (params) => {
 		createMissingDhcpv4Subnet: params.createMissingOpnsenseDhcpv4Subnet
 	});
 	if (!normalized.name) error(400, 'Name is required');
+
+	if (existing.ipv6UseTransitAddress !== normalized.ipv6UseTransitAddress) {
+		const allocation = await db.query.ipamAllocations.findFirst({
+			where: eq(ipamAllocations.ipamPrefixId, params.prefixId)
+		});
+		if (allocation) error(400, 'IPv6 allocation mode cannot be changed with active allocations');
+	}
 
 	const [updated] = await db
 		.update(ipamPrefixes)

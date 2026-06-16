@@ -388,7 +388,9 @@ export const createVm = command(createParams, async (params) => {
 	}
 
 	const ipv4Allocation = networkingAllocations.find((allocation) => allocation.family === 'ipv4');
-	const ipv6Allocation = networkingAllocations.find((allocation) => allocation.family === 'ipv6');
+	const ipv6Allocation = networkingAllocations.find(
+		(allocation) => allocation.family === 'ipv6' && allocation.address
+	);
 
 	await db
 		.update(vms)

@@ -441,20 +441,24 @@ export class OpnsenseClient {
 	async createDHCPv6Reservation(
 		subnet_uuid: string,
 		address: string,
-		prefix: string,
+		prefix: string | null,
 		macAddress: string
 	): Promise<OpnsenseCreateObjectResponse | null> {
+		const json_data = {
+			reservation: {
+				subnet: subnet_uuid,
+				ip_address: address,
+				hw_address: macAddress,
+				...(prefix ? { prefix } : {})
+				// there is also a duid option. In our case we should just use MAC, but it is an option if needed.
+			}
+		};
+
+		console.log('createDHCPv6Reservation JSON_DATA');
+		console.log(json_data);
 		let data = await this.api
 			.post<OpnsenseCreateObjectResponse>('/api/kea/dhcpv6/add_reservation/', {
-				json: {
-					reservation: {
-						subnet: subnet_uuid,
-						ip_address: address,
-						hw_address: macAddress,
-						prefix
-						// there is also a duid option. I think in our case we likely just wanna use MAC, but we might need to add it.
-					}
-				}
+				json: json_data
 			})
 			.json();
 

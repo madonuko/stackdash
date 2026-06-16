@@ -272,6 +272,7 @@ export const ipamPrefixes = pgTable(
 		cidr: cidr('cidr').notNull(),
 		family: ipFamilyEnum('family').notNull(),
 		disabled: boolean('disabled').notNull().default(false),
+		ipv6UseTransitAddress: boolean('ipv6_use_transit_address').notNull().default(false),
 		whitelistStart: inet('whitelist_start'),
 		whitelistEnd: inet('whitelist_end'),
 		opnsenseSubnetUuid: text('opnsense_subnet_uuid'),
@@ -314,7 +315,7 @@ export const ipamAllocations = pgTable(
 	(table) => [
 		index('ipam_allocations_ipam_prefix_id_index').on(table.ipamPrefixId),
 		index('ipam_allocations_associated_vm_id_index').on(table.associatedVmId),
-		uniqueIndex('ipam_allocations_vm_family_index').on(table.associatedVmId, table.family),
+		index('ipam_allocations_vm_family_index').on(table.associatedVmId, table.family),
 		uniqueIndex('ipam_allocations_address_index').on(table.address),
 		uniqueIndex('ipam_allocations_prefix_index').on(table.prefix)
 	]

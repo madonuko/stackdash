@@ -49,6 +49,7 @@
 	let whitelistStart = $state('');
 	let whitelistEnd = $state('');
 	let disabled = $state(false);
+	let ipv6UseTransitAddress = $state(false);
 	let createMissingOpnsenseDhcpv4Subnet = $state(false);
 
 	const userCount = $derived(admin.adminUsers.length);
@@ -59,7 +60,8 @@
 	const ipv6Count = $derived(
 		admin.ipamPrefixes.filter((prefix) => prefix.family === 'ipv6').length
 	);
-	const showCreateMissingOpnsenseDhcpv4Subnet = $derived(!cidr.trim().includes(':'));
+	const isIpv6Prefix = $derived(cidr.trim().includes(':'));
+	const showCreateMissingOpnsenseDhcpv4Subnet = $derived(!isIpv6Prefix);
 
 	function formatCount(value: string) {
 		const parsed = BigInt(value);
@@ -69,18 +71,24 @@
 	}
 
 	function opnsenseStatus(prefix: IpamPrefix) {
-		if (!prefix.opnsenseSubnetUuid) {
-			return 'No Opnsense Subnet';
+		if (prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress) {
+			return 'Not required';
 		}
 
-		if (prefix.family == 'ipv6' && !prefix.opnsenseInterface) {
+		if (!prefix.opnsenseSubnetUuid) {
+			return 'No OPNsense Subnet';
+		}
+
+		if (prefix.family === 'ipv6' && !prefix.opnsenseInterface) {
 			return 'No IPv6 Interface';
 		}
 
-		return 'DHCP ready';
+		return 'Ready';
 	}
 
 	function opnsenseReady(prefix: IpamPrefix) {
+		if (prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress) return true;
+
 		return (
 			Boolean(prefix.opnsenseSubnetUuid) &&
 			(prefix.family === 'ipv4' || Boolean(prefix.opnsenseInterface))
@@ -94,6 +102,7 @@
 		whitelistStart = '';
 		whitelistEnd = '';
 		disabled = false;
+		ipv6UseTransitAddress = false;
 		createMissingOpnsenseDhcpv4Subnet = false;
 		formError = '';
 		dialogOpen = true;
@@ -106,6 +115,7 @@
 		whitelistStart = prefix.whitelistStart ?? '';
 		whitelistEnd = prefix.whitelistEnd ?? '';
 		disabled = prefix.disabled;
+		ipv6UseTransitAddress = prefix.ipv6UseTransitAddress;
 		createMissingOpnsenseDhcpv4Subnet = false;
 		formError = '';
 		dialogOpen = true;
@@ -128,6 +138,7 @@
 			whitelistStart: whitelistStart.trim(),
 			whitelistEnd: whitelistEnd.trim(),
 			disabled,
+			ipv6UseTransitAddress: isIpv6Prefix && ipv6UseTransitAddress,
 			createMissingOpnsenseDhcpv4Subnet:
 				showCreateMissingOpnsenseDhcpv4Subnet && createMissingOpnsenseDhcpv4Subnet
 		};
@@ -265,8 +276,9 @@
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Name</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Prefix</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Family</th>
+						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Mode</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Available</th>
-						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">OPNsense</th>
+						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">OPNsense Status</th>
 						<th class="px-5 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
 					</tr>
 				</thead>
@@ -284,6 +296,15 @@
 							<td class="px-5 py-3 font-mono text-xs text-gray-300">{prefix.cidr}</td>
 							<td class="px-5 py-3">
 								<Badge variant="secondary" class="text-[10px]">{prefix.family}</Badge>
+							</td>
+							<td class="px-5 py-3">
+								<Badge variant="outline" class="text-[10px]">
+									{prefix.family === 'ipv6'
+										? prefix.ipv6UseTransitAddress
+											? '/128 transit'
+											: '/64 prefixes'
+										: '/32 addresses'}
+								</Badge>
 							</td>
 							<td class="px-5 py-3 text-sm text-gray-300">
 								<span class="tabular-nums">{formatCount(prefix.available)}</span>
@@ -368,6 +389,21 @@
 					<Input id="ipam-whitelist-end" bind:value={whitelistEnd} placeholder="optional" />
 				</div>
 			</div>
+			{#if isIpv6Prefix}
+				<label class="flex items-start gap-2 text-sm text-gray-300">
+					<input
+						type="checkbox"
+						bind:checked={ipv6UseTransitAddress}
+						class="mt-0.5 accent-red-500"
+					/>
+					<span>
+						Use this IPv6 block for /128 transit addresses
+						<span class="block text-xs text-gray-500"
+							>Leave unchecked to allocate /64 prefixes.</span
+						>
+					</span>
+				</label>
+			{/if}
 			{#if showCreateMissingOpnsenseDhcpv4Subnet}
 				<label class="flex items-center gap-2 text-sm text-gray-300">
 					<input

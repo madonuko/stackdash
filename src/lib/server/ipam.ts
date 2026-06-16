@@ -21,6 +21,7 @@ export type IpamPrefixInput = {
 	whitelistStart?: string | null;
 	whitelistEnd?: string | null;
 	disabled?: boolean;
+	ipv6UseTransitAddress?: boolean;
 	createMissingOpnsenseDhcpv4Subnet?: boolean;
 };
 
@@ -51,9 +52,11 @@ type PendingAllocation = IpamAllocation & {
 	sourcePrefix: IpamPrefix;
 };
 
+type AllocationKind = 'ipv4' | 'ipv6-transit' | 'ipv6-prefix';
+
 type DhcpLeaseUsage = {
 	ipv4Addresses: Set<string>;
-	ipv6PrefixStarts: Set<string>;
+	ipv6Addresses: Set<string>;
 };
 
 const v6Bits = 128;
@@ -155,7 +158,14 @@ function formatPrefix(family: IpFamily, value: bigint, prefixLength: number) {
 
 export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 	const normalized = normalizeCidr(input.cidr.trim());
-	const vmPrefixLength = normalized.family === 'ipv4' ? vmIpv4PrefixLength : vmIpv6PrefixLength;
+	const ipv6UseTransitAddress =
+		normalized.family === 'ipv6' && (input.ipv6UseTransitAddress ?? false);
+	const vmPrefixLength =
+		normalized.family === 'ipv4'
+			? vmIpv4PrefixLength
+			: ipv6UseTransitAddress
+				? v6Bits
+				: vmIpv6PrefixLength;
 	if (normalized.prefixLength > vmPrefixLength) {
 		error(400, `${normalized.family} prefix is too small for VM allocations`);
 	}
@@ -184,6 +194,7 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		name: input.name.trim(),
 		cidr: normalized.cidr,
 		family: normalized.family,
+		ipv6UseTransitAddress,
 		whitelistStart,
 		whitelistEnd,
 		disabled: input.disabled ?? false
@@ -267,6 +278,14 @@ export async function resolveOpnsensePrefixFields(
 		};
 	}
 
+	if (!prefix.ipv6UseTransitAddress) {
+		return {
+			...prefix,
+			opnsenseSubnetUuid: null,
+			opnsenseInterface: null
+		};
+	}
+
 	const dhcpv6Subnets = await client.listDHCPv6Subnets();
 	const matchingSubnet = dhcpv6Subnets.find((item) => {
 		const cidr = normalizeCidr(item.subnet).cidr;
@@ -311,7 +330,8 @@ function prefixCanAllocate(prefix: IpamPrefix) {
 	if (prefix.disabled) return false;
 	if (!isOpnsenseConfigured()) return true;
 	if (prefix.family === 'ipv4') return Boolean(prefix.opnsenseSubnetUuid);
-	return Boolean(prefix.opnsenseInterface);
+	if (!prefix.ipv6UseTransitAddress) return true;
+	return Boolean(prefix.opnsenseSubnetUuid && prefix.opnsenseInterface);
 }
 
 function ipv4UsableRange(prefix: IpamPrefix) {
@@ -335,12 +355,51 @@ function isIpv4ValueAllocatable(prefix: IpamPrefix, value: bigint) {
 	return true;
 }
 
-function isIpv6PrefixStartAllocatable(prefix: IpamPrefix, value: bigint) {
+function ipv6AllocationPrefixLength(prefix: IpamPrefix) {
+	return prefix.ipv6UseTransitAddress ? v6Bits : vmIpv6PrefixLength;
+}
+
+function ipv6AllocationSize(prefix: IpamPrefix) {
+	return 1n << BigInt(v6Bits - ipv6AllocationPrefixLength(prefix));
+}
+
+function ipv6AllocationStart(prefix: IpamPrefix, value: bigint) {
+	const range = parseCidr(prefix.cidr);
+	const allocationSize = ipv6AllocationSize(prefix);
+	return range.start + ((value - range.start) / allocationSize) * allocationSize;
+}
+
+function ceilToMultiple(value: bigint, base: bigint, size: bigint) {
+	if (value <= base) return base;
+	const offset = value - base;
+	return base + ((offset + size - 1n) / size) * size;
+}
+
+function ipv6WhitelistBounds(prefix: IpamPrefix) {
+	const range = parseCidr(prefix.cidr);
+	const whitelistStart = prefix.whitelistStart
+		? parseAddress('ipv6', prefix.whitelistStart)
+		: range.start;
+	const whitelistEnd = prefix.whitelistEnd ? parseAddress('ipv6', prefix.whitelistEnd) : range.end;
+	const first = whitelistStart > range.start ? whitelistStart : range.start;
+	const last = whitelistEnd < range.end ? whitelistEnd : range.end;
+
+	return first <= last ? { first, last } : null;
+}
+
+function isIpv6ValueAllocatable(prefix: IpamPrefix, value: bigint) {
 	if (prefix.family !== 'ipv6') return false;
 
 	const range = parseCidr(prefix.cidr);
-	const prefixSize = 1n << BigInt(v6Bits - vmIpv6PrefixLength);
-	return value >= range.start && value + prefixSize - 1n <= range.end;
+	const bounds = ipv6WhitelistBounds(prefix);
+	if (!bounds) return false;
+	if (value < bounds.first || value > bounds.last) return false;
+	if (prefix.ipv6UseTransitAddress && value === range.start && range.start < range.end)
+		return false;
+
+	const allocationStart = ipv6AllocationStart(prefix, value);
+	const allocationSize = ipv6AllocationSize(prefix);
+	return allocationStart >= bounds.first && allocationStart + allocationSize - 1n <= bounds.last;
 }
 
 function prefixCapacity(prefix: IpamPrefix) {
@@ -366,8 +425,17 @@ function prefixCapacity(prefix: IpamPrefix) {
 		return capacity > 0n ? capacity : 0n;
 	}
 
-	const childBits = BigInt(vmIpv6PrefixLength - range.prefixLength);
-	return childBits >= 0n ? 1n << childBits : 0n;
+	const bounds = ipv6WhitelistBounds(prefix);
+	if (!bounds) return 0n;
+
+	const allocationSize = ipv6AllocationSize(prefix);
+	let first = ceilToMultiple(bounds.first, range.start, allocationSize);
+	if (prefix.ipv6UseTransitAddress && first === range.start && range.start < range.end)
+		first += allocationSize;
+	const last = bounds.last - allocationSize + 1n;
+	if (first > last) return 0n;
+
+	return (last - first) / allocationSize + 1n;
 }
 
 function allocatedCount(
@@ -391,21 +459,25 @@ function allocatedCount(
 	}
 
 	const used = new Set(
-		allocations.flatMap((allocation) =>
-			allocation.prefix ? [new Address6(allocation.prefix).startAddress().bigInt().toString()] : []
-		)
+		allocations.flatMap((allocation) => {
+			if (allocation.prefix)
+				return [new Address6(allocation.prefix).startAddress().bigInt().toString()];
+			if (allocation.address) return [parseAddress('ipv6', allocation.address).toString()];
+			return [];
+		})
 	);
 
-	for (const lease of dhcpLeases.ipv6PrefixStarts) {
+	for (const lease of dhcpLeases.ipv6Addresses) {
 		const value = BigInt(lease);
-		if (isIpv6PrefixStartAllocatable(prefix, value)) used.add(lease);
+		if (!isIpv6ValueAllocatable(prefix, value)) continue;
+		used.add(prefix.ipv6UseTransitAddress ? lease : ipv6AllocationStart(prefix, value).toString());
 	}
 
 	return BigInt(used.size);
 }
 
 async function getDhcpLeaseUsage(): Promise<DhcpLeaseUsage> {
-	const empty = { ipv4Addresses: new Set<string>(), ipv6PrefixStarts: new Set<string>() };
+	const empty = { ipv4Addresses: new Set<string>(), ipv6Addresses: new Set<string>() };
 	if (!isOpnsenseConfigured()) return empty;
 
 	const client = new OpnsenseClient();
@@ -420,15 +492,13 @@ async function getDhcpLeaseUsage(): Promise<DhcpLeaseUsage> {
 		ipv4Addresses.add(new Address4(lease.address).bigInt().toString());
 	}
 
-	const ipv6PrefixStarts = new Set<string>();
-	const vmPrefixSize = 1n << BigInt(v6Bits - vmIpv6PrefixLength);
+	const ipv6Addresses = new Set<string>();
 	for (const lease of ipv6Leases) {
 		if (!Address6.isValid(lease.address)) continue;
-		const value = new Address6(lease.address).bigInt();
-		ipv6PrefixStarts.add((value - (value % vmPrefixSize)).toString());
+		ipv6Addresses.add(new Address6(lease.address).bigInt().toString());
 	}
 
-	return { ipv4Addresses, ipv6PrefixStarts };
+	return { ipv4Addresses, ipv6Addresses };
 }
 
 async function prefixStats(
@@ -465,12 +535,16 @@ export async function listIpamPrefixesWithStats(db: QueryableDb) {
 
 export async function getIpamAvailability(db: QueryableDb): Promise<IpamAvailability> {
 	const prefixes = await listIpamPrefixesWithStats(db);
-	const availableCount = (family: IpFamily) =>
-		prefixes
-			.filter((prefix) => prefix.family === family)
-			.reduce((total, prefix) => total + BigInt(prefix.available), 0n);
-	const ipv4 = availableCount('ipv4');
-	const ipv6 = availableCount('ipv6');
+	const ipv4 = prefixes
+		.filter((prefix) => prefix.family === 'ipv4')
+		.reduce((total, prefix) => total + BigInt(prefix.available), 0n);
+	const ipv6Transit = prefixes
+		.filter((prefix) => prefix.family === 'ipv6' && prefix.ipv6UseTransitAddress)
+		.reduce((total, prefix) => total + BigInt(prefix.available), 0n);
+	const ipv6Prefixes = prefixes
+		.filter((prefix) => prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress)
+		.reduce((total, prefix) => total + BigInt(prefix.available), 0n);
+	const ipv6 = ipv6Transit < ipv6Prefixes ? ipv6Transit : ipv6Prefixes;
 
 	return {
 		ipv4: { available: ipv4 > 0n, availableCount: ipv4.toString() },
@@ -510,44 +584,65 @@ function nextIpv4Address(
 	return null;
 }
 
-function nextIpv6Prefix(
+function nextIpv6Allocation(
 	prefix: IpamPrefix,
-	allocations: Pick<IpamAllocation, 'prefix'>[],
+	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[],
 	dhcpLeases: DhcpLeaseUsage
 ) {
 	const range = parseCidr(prefix.cidr);
-	const prefixSize = 1n << BigInt(v6Bits - vmIpv6PrefixLength);
+	const bounds = ipv6WhitelistBounds(prefix);
+	if (!bounds) return null;
+
+	const allocationPrefixLength = ipv6AllocationPrefixLength(prefix);
+	const allocationSize = ipv6AllocationSize(prefix);
 	const used = new Set(
-		allocations.flatMap((allocation) =>
-			allocation.prefix ? [new Address6(allocation.prefix).startAddress().bigInt().toString()] : []
-		)
+		allocations.flatMap((allocation) => {
+			if (allocation.prefix)
+				return [new Address6(allocation.prefix).startAddress().bigInt().toString()];
+			if (allocation.address) return [parseAddress('ipv6', allocation.address).toString()];
+			return [];
+		})
 	);
 
-	for (const lease of dhcpLeases.ipv6PrefixStarts) {
+	for (const lease of dhcpLeases.ipv6Addresses) {
 		const value = BigInt(lease);
-		if (isIpv6PrefixStartAllocatable(prefix, value)) used.add(lease);
+		if (!isIpv6ValueAllocatable(prefix, value)) continue;
+		used.add(prefix.ipv6UseTransitAddress ? lease : ipv6AllocationStart(prefix, value).toString());
 	}
 
-	for (let value = range.start; value <= range.end; value += prefixSize) {
-		if (value + prefixSize - 1n > range.end) return null;
-		if (used.has(value.toString())) continue;
+	let value = ceilToMultiple(bounds.first, range.start, allocationSize);
+	if (prefix.ipv6UseTransitAddress && value === range.start && range.start < range.end) {
+		value += allocationSize;
+	}
 
-		return {
-			prefix: formatPrefix('ipv6', value, vmIpv6PrefixLength),
-			address: formatAddress('ipv6', value + 1n)
-		};
+	while (value <= bounds.last) {
+		if (value + allocationSize - 1n > bounds.last) return null;
+
+		if (!used.has(value.toString())) {
+			if (prefix.ipv6UseTransitAddress) {
+				return { prefix: null, address: formatAddress('ipv6', value) };
+			}
+
+			return {
+				prefix: formatPrefix('ipv6', value, allocationPrefixLength),
+				address: null
+			};
+		}
+
+		value += allocationSize;
 	}
 
 	return null;
 }
 
-async function createFamilyAllocation(
+async function createKindAllocation(
 	db: QueryableDb,
-	family: IpFamily,
+	kind: AllocationKind,
 	vmId: string,
 	macAddress: string,
 	dhcpLeases: DhcpLeaseUsage
 ): Promise<PendingAllocation> {
+	const family: IpFamily = kind === 'ipv4' ? 'ipv4' : 'ipv6';
 	const prefixes = await db
 		.select()
 		.from(ipamPrefixes)
@@ -556,6 +651,8 @@ async function createFamilyAllocation(
 
 	for (const prefix of prefixes) {
 		if (!prefixCanAllocate(prefix)) continue;
+		if (kind === 'ipv6-transit' && !prefix.ipv6UseTransitAddress) continue;
+		if (kind === 'ipv6-prefix' && prefix.ipv6UseTransitAddress) continue;
 
 		const allocations = await db.query.ipamAllocations.findMany({
 			where: eq(ipamAllocations.ipamPrefixId, prefix.id),
@@ -563,11 +660,11 @@ async function createFamilyAllocation(
 		});
 
 		const next =
-			family === 'ipv4'
+			kind === 'ipv4'
 				? { address: nextIpv4Address(prefix, allocations, dhcpLeases), prefix: null }
-				: nextIpv6Prefix(prefix, allocations, dhcpLeases);
+				: nextIpv6Allocation(prefix, allocations, dhcpLeases);
 
-		if (!next?.address) continue;
+		if (!next?.address && !next?.prefix) continue;
 
 		const [inserted] = await db
 			.insert(ipamAllocations)
@@ -577,7 +674,7 @@ async function createFamilyAllocation(
 				family,
 				address: next.address,
 				prefix: next.prefix,
-				prefixLength: family === 'ipv4' ? vmIpv4PrefixLength : vmIpv6PrefixLength,
+				prefixLength: family === 'ipv4' ? vmIpv4PrefixLength : ipv6AllocationPrefixLength(prefix),
 				macAddress
 			})
 			.returning();
@@ -585,67 +682,60 @@ async function createFamilyAllocation(
 		return { ...inserted, sourcePrefix: prefix };
 	}
 
-	error(409, `No available ${family === 'ipv4' ? 'IPv4 addresses' : 'IPv6 prefixes'}`);
+	const label =
+		kind === 'ipv4'
+			? 'IPv4 addresses'
+			: kind === 'ipv6-transit'
+				? 'IPv6 transit addresses'
+				: 'IPv6 prefixes';
+	error(409, `No available ${label}`);
 }
 
 async function createLocalAllocation(
 	db: QueryableDb,
-	family: IpFamily,
+	kind: AllocationKind,
 	vmId: string,
 	macAddress: string,
 	dhcpLeases: DhcpLeaseUsage
 ) {
 	for (let attempt = 0; attempt < 5; attempt++) {
 		try {
-			return await createFamilyAllocation(db, family, vmId, macAddress, dhcpLeases);
+			return await createKindAllocation(db, kind, vmId, macAddress, dhcpLeases);
 		} catch (err) {
 			if (uniqueViolation(err)) continue;
 			throw err;
 		}
 	}
 
-	error(409, `No available ${family === 'ipv4' ? 'IPv4 addresses' : 'IPv6 prefixes'}`);
+	const label =
+		kind === 'ipv4'
+			? 'IPv4 addresses'
+			: kind === 'ipv6-transit'
+				? 'IPv6 transit addresses'
+				: 'IPv6 prefixes';
+	error(409, `No available ${label}`);
 }
 
-async function syncOpnsenseAllocation(db: QueryableDb, allocation: PendingAllocation) {
+async function syncOpnsenseIpv4Allocation(db: QueryableDb, allocation: PendingAllocation) {
+	if (allocation.family !== 'ipv4') {
+		error(500, `Expected IPv4 allocation, received ${allocation.family}`);
+	}
+
+	if (!allocation.address) {
+		error(500, `IPv4 allocation ${allocation.id} is missing an address`);
+	}
+
 	if (!isOpnsenseConfigured()) return allocation;
 
 	const client = new OpnsenseClient();
 
-	if (allocation.family === 'ipv4') {
-		if (!allocation.sourcePrefix.opnsenseSubnetUuid) {
-			error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense DHCPv4 subnet UUID`);
-		}
-
-		const reservation = await client.createDHCPv4Reservation(
-			allocation.sourcePrefix.opnsenseSubnetUuid,
-			allocation.address!,
-			allocation.macAddress
-		);
-
-		await db
-			.update(ipamAllocations)
-			.set({
-				opnsenseSubnetUuid: allocation.sourcePrefix.opnsenseSubnetUuid,
-				opnsenseReservationUuid: reservation?.result === 'saved' ? reservation.uuid : null
-			})
-			.where(eq(ipamAllocations.id, allocation.id));
-
-		return allocation;
-	}
-
 	if (!allocation.sourcePrefix.opnsenseSubnetUuid) {
-		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense DHCPv6 subnet UUID`);
+		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense DHCPv4 subnet UUID`);
 	}
 
-	if (!allocation.sourcePrefix.opnsenseInterface) {
-		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense IPv6 interface`);
-	}
-
-	const reservation = await client.createDHCPv6Reservation(
+	const reservation = await client.createDHCPv4Reservation(
 		allocation.sourcePrefix.opnsenseSubnetUuid,
-		allocation.address!,
-		allocation.prefix!,
+		allocation.address,
 		allocation.macAddress
 	);
 
@@ -660,27 +750,100 @@ async function syncOpnsenseAllocation(db: QueryableDb, allocation: PendingAlloca
 	return allocation;
 }
 
+async function syncOpnsenseIpv6Allocation(
+	db: QueryableDb,
+	transitAllocation: PendingAllocation,
+	prefixAllocation: PendingAllocation
+) {
+	if (transitAllocation.family !== 'ipv6') {
+		error(500, `Expected IPv6 transit allocation, received ${transitAllocation.family}`);
+	}
+	if (prefixAllocation.family !== 'ipv6') {
+		error(500, `Expected IPv6 prefix allocation, received ${prefixAllocation.family}`);
+	}
+	if (!transitAllocation.sourcePrefix.ipv6UseTransitAddress) {
+		error(
+			500,
+			`Expected ${transitAllocation.sourcePrefix.cidr} to be an IPv6 transit address block`
+		);
+	}
+	if (prefixAllocation.sourcePrefix.ipv6UseTransitAddress) {
+		error(
+			500,
+			`Expected ${prefixAllocation.sourcePrefix.cidr} to be an IPv6 delegated prefix block`
+		);
+	}
+	if (!transitAllocation.address) {
+		error(500, `IPv6 transit allocation ${transitAllocation.id} is missing an address`);
+	}
+	if (transitAllocation.prefix) {
+		error(500, `IPv6 transit allocation ${transitAllocation.id} unexpectedly has a prefix`);
+	}
+	if (prefixAllocation.address) {
+		error(500, `IPv6 prefix allocation ${prefixAllocation.id} unexpectedly has an address`);
+	}
+	if (!prefixAllocation.prefix) {
+		error(500, `IPv6 prefix allocation ${prefixAllocation.id} is missing a prefix`);
+	}
+
+	if (!isOpnsenseConfigured()) return;
+
+	if (!transitAllocation.sourcePrefix.opnsenseSubnetUuid) {
+		error(400, `${transitAllocation.sourcePrefix.cidr} is missing an OPNsense DHCPv6 subnet UUID`);
+	}
+
+	if (!transitAllocation.sourcePrefix.opnsenseInterface) {
+		error(400, `${transitAllocation.sourcePrefix.cidr} is missing an OPNsense IPv6 interface`);
+	}
+
+	const client = new OpnsenseClient();
+	const reservation = await client.createDHCPv6Reservation(
+		transitAllocation.sourcePrefix.opnsenseSubnetUuid,
+		transitAllocation.address,
+		prefixAllocation.prefix,
+		transitAllocation.macAddress
+	);
+
+	await db
+		.update(ipamAllocations)
+		.set({
+			opnsenseSubnetUuid: transitAllocation.sourcePrefix.opnsenseSubnetUuid,
+			opnsenseReservationUuid: reservation?.result === 'saved' ? reservation.uuid : null
+		})
+		.where(eq(ipamAllocations.id, transitAllocation.id));
+}
+
 export async function allocateVmNetworking(
 	db: Db,
 	params: { vmId: string; macAddress: string; mode: VmNetworkingMode }
 ) {
-	const families: IpFamily[] = params.mode === 'both' ? ['ipv4', 'ipv6'] : ['ipv6'];
 	const allocations: PendingAllocation[] = [];
 
 	try {
 		const dhcpLeases = await getDhcpLeaseUsage();
 
-		for (const family of families) {
+		if (params.mode === 'both') {
 			allocations.push(
 				await db.transaction((tx) =>
-					createLocalAllocation(tx, family, params.vmId, params.macAddress, dhcpLeases)
+					createLocalAllocation(tx, 'ipv4', params.vmId, params.macAddress, dhcpLeases)
 				)
 			);
 		}
 
-		for (const allocation of allocations) {
-			await syncOpnsenseAllocation(db, allocation);
+		const ipv6TransitAllocation = await db.transaction((tx) =>
+			createLocalAllocation(tx, 'ipv6-transit', params.vmId, params.macAddress, dhcpLeases)
+		);
+		allocations.push(ipv6TransitAllocation);
+
+		const ipv6PrefixAllocation = await db.transaction((tx) =>
+			createLocalAllocation(tx, 'ipv6-prefix', params.vmId, params.macAddress, dhcpLeases)
+		);
+		allocations.push(ipv6PrefixAllocation);
+
+		for (const allocation of allocations.filter((allocation) => allocation.family === 'ipv4')) {
+			await syncOpnsenseIpv4Allocation(db, allocation);
 		}
+		await syncOpnsenseIpv6Allocation(db, ipv6TransitAllocation, ipv6PrefixAllocation);
 
 		return allocations;
 	} catch (err) {
