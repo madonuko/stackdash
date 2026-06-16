@@ -1,4 +1,5 @@
 import { HTTPError } from 'ky';
+import { duidLlFromMacAddress } from '$lib/server/network-identifiers';
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
 import type {
@@ -24,6 +25,28 @@ function generateMacAddress() {
 	bytes[0] = (bytes[0] & 0xfe) | 0x02;
 
 	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(':');
+}
+
+function cloudInitVendorDataForDuid(duid: string) {
+	return `#cloud-config
+write_files:
+  - path: /etc/dhcp/dhclient6.conf
+    permissions: '0644'
+    content: |
+      interface "eth0" {
+        send dhcp6.client-id ${duid};
+      }
+  - path: /etc/NetworkManager/conf.d/99-stack-dhcp-duid.conf
+    permissions: '0644'
+    content: |
+      [connection]
+      ipv6.dhcp-duid=${duid}
+  - path: /etc/systemd/network/99-stack-dhcp-duid.network.d/duid.conf
+    permissions: '0644'
+    content: |
+      [DHCPv6]
+      DUIDRawData=${duid}
+`;
 }
 
 export class ProxmoxBackend implements VmBackend {
@@ -98,6 +121,22 @@ export class ProxmoxBackend implements VmBackend {
 			storage.active !== 0 &&
 			storage.enabled !== 0
 		);
+	}
+
+	private async findSnippetStorage(node: string) {
+		const storages = await this.client.listStorage(node);
+		const storage = storages.find(
+			(storage) =>
+				this.storageSupportsContent(storage.content, 'snippets') &&
+				storage.active !== 0 &&
+				storage.enabled !== 0
+		);
+
+		if (!storage) {
+			throw new Error(`No active Proxmox storage on node "${node}" supports snippets`);
+		}
+
+		return storage.storage;
 	}
 
 	async listVms(): Promise<VmInfo[]> {
@@ -273,6 +312,16 @@ export class ProxmoxBackend implements VmBackend {
 		const bootDisk = 'virtio0';
 		const pvePool = 'stack-volumes';
 		const macAddress = params.macAddress ?? generateMacAddress();
+		const duid = duidLlFromMacAddress(macAddress);
+		const cloudInitVendorDataFilename = `stack-${vmid}-vendor.yaml`;
+		const cloudInitSnippetStorage = await this.findSnippetStorage(node.node);
+		const cloudInitVendorDataVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitVendorDataFilename}`;
+		await this.client.uploadSnippet(
+			node.node,
+			cloudInitSnippetStorage,
+			cloudInitVendorDataFilename,
+			cloudInitVendorDataForDuid(duid)
+		);
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
@@ -306,6 +355,7 @@ export class ProxmoxBackend implements VmBackend {
 					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
 						ide2: `${pvePool}:cloudinit`,
 						boot: `order=${bootDisk}`,
+						cicustom: `vendor=${cloudInitVendorDataVolid}`,
 						...cloudInitAuth
 					});
 					await this.client.waitForTask(node.node, cloudInitUpid);

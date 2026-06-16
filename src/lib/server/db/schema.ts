@@ -275,8 +275,8 @@ export const ipamPrefixes = pgTable(
 		ipv6UseTransitAddress: boolean('ipv6_use_transit_address').notNull().default(false),
 		whitelistStart: inet('whitelist_start'),
 		whitelistEnd: inet('whitelist_end'),
-		opnsenseSubnetUuid: text('opnsense_subnet_uuid'),
-		opnsenseInterface: text('opnsense_interface'),
+		keaSubnetId: text('kea_subnet_id'),
+		keaInterface: text('kea_interface'),
 		createdAt: bigint('created_at', { mode: 'number' })
 			.notNull()
 			.default(sql`(extract(epoch from now()) * 1000)::bigint`)
@@ -306,8 +306,8 @@ export const ipamAllocations = pgTable(
 		prefix: cidr('prefix'),
 		prefixLength: integer('prefix_length').notNull(),
 		macAddress: text('mac_address').notNull(),
-		opnsenseSubnetUuid: text('opnsense_subnet_uuid'),
-		opnsenseReservationUuid: text('opnsense_reservation_uuid'),
+		keaSubnetId: text('kea_subnet_id'),
+		keaReservationAddress: text('kea_reservation_address'),
 		createdAt: bigint('created_at', { mode: 'number' })
 			.notNull()
 			.default(sql`(extract(epoch from now()) * 1000)::bigint`)

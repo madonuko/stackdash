@@ -127,6 +127,13 @@
       "when": 1781570546218,
       "tag": "0017_first_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781589676376,
+      "tag": "0018_tiresome_quicksilver",
+      "breakpoints": true
     }
   ]
 }

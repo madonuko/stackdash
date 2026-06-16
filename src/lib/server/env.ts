@@ -9,6 +9,7 @@ export type RuntimeEnv = {
 	OPNSENSE_API_KEY?: string;
 	OPNSENSE_API_SECRET?: string;
 	OPNSENSE_API_URL?: string;
+	KEA_CONTROL_AGENT_URL?: string;
 	EMAIL?: SendEmail;
 	EMAIL_FROM_ADDRESS: string;
 	EMAIL_FROM_NAME: string;
@@ -49,6 +50,7 @@ export function getRuntimeEnv(): RuntimeEnv {
 			OPNSENSE_API_KEY: platformEnv.OPNSENSE_API_KEY,
 			OPNSENSE_API_SECRET: platformEnv.OPNSENSE_API_SECRET,
 			OPNSENSE_API_URL: platformEnv.OPNSENSE_API_URL,
+			KEA_CONTROL_AGENT_URL: platformEnv.KEA_CONTROL_AGENT_URL,
 			EMAIL: platformEnv.EMAIL,
 			EMAIL_FROM_ADDRESS: required('EMAIL_FROM_ADDRESS', platformEnv.EMAIL_FROM_ADDRESS),
 			EMAIL_FROM_NAME: required('EMAIL_FROM_NAME', platformEnv.EMAIL_FROM_NAME),
@@ -80,6 +82,7 @@ export function getRuntimeEnv(): RuntimeEnv {
 		OPNSENSE_API_KEY: privateEnv.OPNSENSE_API_KEY,
 		OPNSENSE_API_SECRET: privateEnv.OPNSENSE_API_SECRET,
 		OPNSENSE_API_URL: privateEnv.OPNSENSE_API_URL,
+		KEA_CONTROL_AGENT_URL: privateEnv.KEA_CONTROL_AGENT_URL,
 		EMAIL_FROM_ADDRESS: required('EMAIL_FROM_ADDRESS', privateEnv.EMAIL_FROM_ADDRESS),
 		EMAIL_FROM_NAME: required('EMAIL_FROM_NAME', privateEnv.EMAIL_FROM_NAME),
 		EMAIL_REPLY_TO: required('EMAIL_REPLY_TO', privateEnv.EMAIL_REPLY_TO),

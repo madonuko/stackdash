@@ -21,6 +21,7 @@ declare global {
 				OPNSENSE_API_KEY?: string;
 				OPNSENSE_API_SECRET?: string;
 				OPNSENSE_API_URL?: string;
+				KEA_CONTROL_AGENT_URL?: string;
 				EMAIL?: SendEmail;
 				EMAIL_FROM_ADDRESS: string;
 				EMAIL_FROM_NAME: string;

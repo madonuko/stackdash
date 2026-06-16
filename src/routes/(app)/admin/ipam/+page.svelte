@@ -40,6 +40,7 @@
 		admin.sync(data);
 	});
 
+
 	let dialogOpen = $state(false);
 	let editing = $state<IpamPrefix | null>(null);
 	let saving = $state(false);
@@ -50,7 +51,6 @@
 	let whitelistEnd = $state('');
 	let disabled = $state(false);
 	let ipv6UseTransitAddress = $state(false);
-	let createMissingOpnsenseDhcpv4Subnet = $state(false);
 
 	const userCount = $derived(admin.adminUsers.length);
 	const enabledCount = $derived(featureFlagKeys.filter((key) => admin.featureFlags[key]).length);
@@ -61,7 +61,6 @@
 		admin.ipamPrefixes.filter((prefix) => prefix.family === 'ipv6').length
 	);
 	const isIpv6Prefix = $derived(cidr.trim().includes(':'));
-	const showCreateMissingOpnsenseDhcpv4Subnet = $derived(!isIpv6Prefix);
 
 	function formatCount(value: string) {
 		const parsed = BigInt(value);
@@ -70,29 +69,26 @@
 		return `${parsed / 1_000_000_000n}B+`;
 	}
 
-	function opnsenseStatus(prefix: IpamPrefix) {
+	function keaStatus(prefix: IpamPrefix) {
 		if (prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress) {
 			return 'Not required';
 		}
 
-		if (!prefix.opnsenseSubnetUuid) {
-			return 'No OPNsense Subnet';
+		if (!prefix.keaSubnetId) {
+			return 'No Kea Subnet';
 		}
 
-		if (prefix.family === 'ipv6' && !prefix.opnsenseInterface) {
+		if (prefix.family === 'ipv6' && !prefix.keaInterface) {
 			return 'No IPv6 Interface';
 		}
 
 		return 'Ready';
 	}
 
-	function opnsenseReady(prefix: IpamPrefix) {
+	function keaReady(prefix: IpamPrefix) {
 		if (prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress) return true;
 
-		return (
-			Boolean(prefix.opnsenseSubnetUuid) &&
-			(prefix.family === 'ipv4' || Boolean(prefix.opnsenseInterface))
-		);
+		return Boolean(prefix.keaSubnetId) && (prefix.family === 'ipv4' || Boolean(prefix.keaInterface));
 	}
 
 	function openCreate() {
@@ -103,7 +99,6 @@
 		whitelistEnd = '';
 		disabled = false;
 		ipv6UseTransitAddress = false;
-		createMissingOpnsenseDhcpv4Subnet = false;
 		formError = '';
 		dialogOpen = true;
 	}
@@ -116,7 +111,6 @@
 		whitelistEnd = prefix.whitelistEnd ?? '';
 		disabled = prefix.disabled;
 		ipv6UseTransitAddress = prefix.ipv6UseTransitAddress;
-		createMissingOpnsenseDhcpv4Subnet = false;
 		formError = '';
 		dialogOpen = true;
 	}
@@ -138,9 +132,7 @@
 			whitelistStart: whitelistStart.trim(),
 			whitelistEnd: whitelistEnd.trim(),
 			disabled,
-			ipv6UseTransitAddress: isIpv6Prefix && ipv6UseTransitAddress,
-			createMissingOpnsenseDhcpv4Subnet:
-				showCreateMissingOpnsenseDhcpv4Subnet && createMissingOpnsenseDhcpv4Subnet
+			ipv6UseTransitAddress: isIpv6Prefix && ipv6UseTransitAddress
 		};
 
 		try {
@@ -278,7 +270,7 @@
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Family</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Mode</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Available</th>
-						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">OPNsense Status</th>
+						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Kea Status</th>
 						<th class="px-5 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
 					</tr>
 				</thead>
@@ -312,10 +304,10 @@
 							</td>
 							<td class="px-5 py-3">
 								<Badge
-									variant={opnsenseReady(prefix) ? 'secondary' : 'outline'}
-									class="text-[10px] {opnsenseReady(prefix) ? '' : 'text-amber-300'}"
+									variant={keaReady(prefix) ? 'secondary' : 'outline'}
+									class="text-[10px] {keaReady(prefix) ? '' : 'text-amber-300'}"
 								>
-									{opnsenseStatus(prefix)}
+									{keaStatus(prefix)}
 								</Badge>
 							</td>
 							<td class="px-5 py-3 text-right">
@@ -404,16 +396,7 @@
 					</span>
 				</label>
 			{/if}
-			{#if showCreateMissingOpnsenseDhcpv4Subnet}
-				<label class="flex items-center gap-2 text-sm text-gray-300">
-					<input
-						type="checkbox"
-						bind:checked={createMissingOpnsenseDhcpv4Subnet}
-						class="accent-red-500"
-					/>
-					Create missing OPNsense DHCPv4 subnet
-				</label>
-			{/if}
+
 			<label class="flex items-center gap-2 text-sm text-gray-300">
 				<input type="checkbox" bind:checked={disabled} class="accent-red-500" />
 				Disabled

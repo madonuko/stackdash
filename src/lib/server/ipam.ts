@@ -3,7 +3,7 @@ import { Address4, Address6 } from 'ip-address';
 import { and, asc, eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipamAllocations, ipamPrefixes } from '$lib/server/db/schema';
-import { isOpnsenseConfigured, OpnsenseClient } from '$lib/server/opnsense';
+import { isKeaConfigured, KeaClient } from '$lib/server/kea';
 
 export type IpFamily = 'ipv4' | 'ipv6';
 export type VmNetworkingMode = 'both' | 'ipv6';
@@ -22,11 +22,6 @@ export type IpamPrefixInput = {
 	whitelistEnd?: string | null;
 	disabled?: boolean;
 	ipv6UseTransitAddress?: boolean;
-	createMissingOpnsenseDhcpv4Subnet?: boolean;
-};
-
-type ResolveOpnsensePrefixOptions = {
-	createMissingDhcpv4Subnet?: boolean;
 };
 
 export type IpamPrefixWithStats = IpamPrefix & {
@@ -156,6 +151,20 @@ function formatPrefix(family: IpFamily, value: bigint, prefixLength: number) {
 	return `${formatAddress(family, value)}/${prefixLength}`;
 }
 
+function defaultWhitelistBounds(range: AddressRange) {
+	if (range.family === 'ipv4') {
+		const excludesNetworkAndBroadcast = range.prefixLength < 31;
+		const first = range.start + (excludesNetworkAndBroadcast ? 1n : 0n);
+		const last = range.end - (excludesNetworkAndBroadcast ? 1n : 0n);
+		return first <= last ? { first, last } : { first: range.start, last: range.end };
+	}
+
+	return {
+		first: range.start < range.end ? range.start + 1n : range.start,
+		last: range.end
+	};
+}
+
 export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 	const normalized = normalizeCidr(input.cidr.trim());
 	const ipv6UseTransitAddress =
@@ -170,15 +179,15 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		error(400, `${normalized.family} prefix is too small for VM allocations`);
 	}
 
-	const whitelistStart = input.whitelistStart?.trim() || null;
-	const whitelistEnd = input.whitelistEnd?.trim() || null;
+	let whitelistStart = input.whitelistStart?.trim() || null;
+	let whitelistEnd = input.whitelistEnd?.trim() || null;
 	if (whitelistStart || whitelistEnd) {
-		if (!whitelistStart || !whitelistEnd) {
-			error(400, 'Both whitelist start and end must be specified');
-		}
-		const startValue = parseAddress(normalized.family, whitelistStart);
-		const endValue = parseAddress(normalized.family, whitelistEnd);
 		const range = parseCidr(normalized.cidr);
+		const defaults = defaultWhitelistBounds(range);
+		const startValue = whitelistStart
+			? parseAddress(normalized.family, whitelistStart)
+			: defaults.first;
+		const endValue = whitelistEnd ? parseAddress(normalized.family, whitelistEnd) : defaults.last;
 		if (startValue < range.start || startValue > range.end) {
 			error(400, 'Whitelist start must be inside the prefix');
 		}
@@ -188,6 +197,9 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		if (startValue > endValue) {
 			error(400, 'Whitelist start must be <= whitelist end');
 		}
+
+		whitelistStart = formatAddress(normalized.family, startValue);
+		whitelistEnd = formatAddress(normalized.family, endValue);
 	}
 
 	return {
@@ -201,59 +213,16 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 	};
 }
 
-function interfaceCidrs(row: Awaited<ReturnType<OpnsenseClient['listInterfaces']>>[number]) {
-	const cidrs = new Set<string>();
-
-	for (const route of row.routes ?? []) {
-		if (Address4.isValid(route)) cidrs.add(new Address4(route).networkForm());
-		if (Address6.isValid(route)) cidrs.add(new Address6(route).networkForm());
-	}
-
-	if (row.addr4 && Address4.isValid(row.addr4)) cidrs.add(new Address4(row.addr4).networkForm());
-	if (row.addr6 && Address6.isValid(row.addr6)) cidrs.add(new Address6(row.addr6).networkForm());
-
-	for (const address of row.ipv4 ?? []) {
-		if (address.ipaddr && Address4.isValid(address.ipaddr)) {
-			cidrs.add(new Address4(address.ipaddr).networkForm());
-		}
-	}
-
-	for (const address of row.ipv6 ?? []) {
-		const cidr =
-			address.ipaddr && address.subnetbits
-				? `${address.ipaddr}/${address.subnetbits}`
-				: address.ipaddr;
-		if (cidr && Address6.isValid(cidr)) cidrs.add(new Address6(cidr).networkForm());
-	}
-
-	if (row.config?.ipaddr && row.config.subnet) {
-		const cidr = `${row.config.ipaddr}/${row.config.subnet}`;
-		if (Address4.isValid(cidr)) cidrs.add(new Address4(cidr).networkForm());
-	}
-
-	if (row.config?.ipaddrv6 && row.config.subnetv6) {
-		const cidr = `${row.config.ipaddrv6}/${row.config.subnetv6}`;
-		if (Address6.isValid(cidr)) cidrs.add(new Address6(cidr).networkForm());
-	}
-
-	return Array.from(cidrs);
-}
-
-export async function resolveOpnsensePrefixFields(
-	prefix: ReturnType<typeof normalizeIpamPrefixInput>,
-	options: ResolveOpnsensePrefixOptions = {}
-) {
-	if (!isOpnsenseConfigured()) {
-		if (options.createMissingDhcpv4Subnet) error(400, 'OPNsense is not configured');
-
+export async function resolveKeaPrefixFields(prefix: ReturnType<typeof normalizeIpamPrefixInput>) {
+	if (!isKeaConfigured()) {
 		return {
 			...prefix,
-			opnsenseSubnetUuid: null,
-			opnsenseInterface: null
+			keaSubnetId: null,
+			keaInterface: null
 		};
 	}
 
-	const client = new OpnsenseClient();
+	const client = new KeaClient();
 
 	if (prefix.family === 'ipv4') {
 		const subnets = await client.listDHCPv4Subnets();
@@ -261,28 +230,19 @@ export async function resolveOpnsensePrefixFields(
 			const cidr = normalizeCidr(item.subnet).cidr;
 			return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
 		});
-		let opnsenseSubnetUuid = subnet?.uuid ?? null;
-
-		if (!opnsenseSubnetUuid && options.createMissingDhcpv4Subnet) {
-			const created = await client.createDHCPv4Subnet(prefix.cidr, {
-				description: prefix.name
-			});
-			if (created?.result !== 'saved') error(502, 'Failed to create OPNsense DHCPv4 subnet');
-			opnsenseSubnetUuid = created.uuid;
-		}
 
 		return {
 			...prefix,
-			opnsenseSubnetUuid,
-			opnsenseInterface: null
+			keaSubnetId: subnet ? String(subnet.id) : null,
+			keaInterface: null
 		};
 	}
 
 	if (!prefix.ipv6UseTransitAddress) {
 		return {
 			...prefix,
-			opnsenseSubnetUuid: null,
-			opnsenseInterface: null
+			keaSubnetId: null,
+			keaInterface: null
 		};
 	}
 
@@ -291,47 +251,20 @@ export async function resolveOpnsensePrefixFields(
 		const cidr = normalizeCidr(item.subnet).cidr;
 		return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
 	});
-	if (matchingSubnet?.interface) {
-		return {
-			...prefix,
-			opnsenseSubnetUuid: matchingSubnet.uuid,
-			opnsenseInterface: matchingSubnet.interface
-		};
-	}
-
-	const interfaces = await client.listInterfaces();
-	const matches = interfaces.filter((row) => {
-		const identifier = row.identifier ?? row.config?.identifier;
-		if (!identifier) return false;
-
-		return interfaceCidrs(row).some(
-			(cidr) => cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr)
-		);
-	});
-
-	if (matches.length === 0) error(400, `No matching OPNsense interface found for ${prefix.cidr}`);
-	if (matches.length > 1) {
-		error(
-			400,
-			`Multiple OPNsense interfaces match ${prefix.cidr}: ${matches
-				.map((row) => row.identifier ?? row.config?.identifier)
-				.join(', ')}`
-		);
-	}
 
 	return {
 		...prefix,
-		opnsenseSubnetUuid: matchingSubnet?.uuid ?? null,
-		opnsenseInterface: matches[0].identifier ?? matches[0].config?.identifier ?? null
+		keaSubnetId: matchingSubnet ? String(matchingSubnet.id) : null,
+		keaInterface: matchingSubnet?.interface ?? null
 	};
 }
 
 function prefixCanAllocate(prefix: IpamPrefix) {
 	if (prefix.disabled) return false;
-	if (!isOpnsenseConfigured()) return true;
-	if (prefix.family === 'ipv4') return Boolean(prefix.opnsenseSubnetUuid);
+	if (!isKeaConfigured()) return true;
+	if (prefix.family === 'ipv4') return Boolean(prefix.keaSubnetId);
 	if (!prefix.ipv6UseTransitAddress) return true;
-	return Boolean(prefix.opnsenseSubnetUuid && prefix.opnsenseInterface);
+	return Boolean(prefix.keaSubnetId);
 }
 
 function ipv4UsableRange(prefix: IpamPrefix) {
@@ -478,9 +411,9 @@ function allocatedCount(
 
 async function getDhcpLeaseUsage(): Promise<DhcpLeaseUsage> {
 	const empty = { ipv4Addresses: new Set<string>(), ipv6Addresses: new Set<string>() };
-	if (!isOpnsenseConfigured()) return empty;
+	if (!isKeaConfigured()) return empty;
 
-	const client = new OpnsenseClient();
+	const client = new KeaClient();
 	const [ipv4Leases, ipv6Leases] = await Promise.all([
 		client.listDHCPv4Leases(),
 		client.listDHCPv6Leases()
@@ -488,14 +421,16 @@ async function getDhcpLeaseUsage(): Promise<DhcpLeaseUsage> {
 
 	const ipv4Addresses = new Set<string>();
 	for (const lease of ipv4Leases) {
-		if (!Address4.isValid(lease.address)) continue;
-		ipv4Addresses.add(new Address4(lease.address).bigInt().toString());
+		const address = lease['ip-address'];
+		if (!address || !Address4.isValid(address)) continue;
+		ipv4Addresses.add(new Address4(address).bigInt().toString());
 	}
 
 	const ipv6Addresses = new Set<string>();
 	for (const lease of ipv6Leases) {
-		if (!Address6.isValid(lease.address)) continue;
-		ipv6Addresses.add(new Address6(lease.address).bigInt().toString());
+		const address = lease['ip-address'];
+		if (!address || !Address6.isValid(address)) continue;
+		ipv6Addresses.add(new Address6(address).bigInt().toString());
 	}
 
 	return { ipv4Addresses, ipv6Addresses };
@@ -716,7 +651,7 @@ async function createLocalAllocation(
 	error(409, `No available ${label}`);
 }
 
-async function syncOpnsenseIpv4Allocation(db: QueryableDb, allocation: PendingAllocation) {
+async function syncKeaIpv4Allocation(db: QueryableDb, allocation: PendingAllocation) {
 	if (allocation.family !== 'ipv4') {
 		error(500, `Expected IPv4 allocation, received ${allocation.family}`);
 	}
@@ -725,16 +660,16 @@ async function syncOpnsenseIpv4Allocation(db: QueryableDb, allocation: PendingAl
 		error(500, `IPv4 allocation ${allocation.id} is missing an address`);
 	}
 
-	if (!isOpnsenseConfigured()) return allocation;
+	if (!isKeaConfigured()) return allocation;
 
-	const client = new OpnsenseClient();
+	const client = new KeaClient();
 
-	if (!allocation.sourcePrefix.opnsenseSubnetUuid) {
-		error(400, `${allocation.sourcePrefix.cidr} is missing an OPNsense DHCPv4 subnet UUID`);
+	if (!allocation.sourcePrefix.keaSubnetId) {
+		error(400, `${allocation.sourcePrefix.cidr} is missing a Kea DHCPv4 subnet id`);
 	}
 
 	const reservation = await client.createDHCPv4Reservation(
-		allocation.sourcePrefix.opnsenseSubnetUuid,
+		allocation.sourcePrefix.keaSubnetId,
 		allocation.address,
 		allocation.macAddress
 	);
@@ -742,15 +677,15 @@ async function syncOpnsenseIpv4Allocation(db: QueryableDb, allocation: PendingAl
 	await db
 		.update(ipamAllocations)
 		.set({
-			opnsenseSubnetUuid: allocation.sourcePrefix.opnsenseSubnetUuid,
-			opnsenseReservationUuid: reservation?.result === 'saved' ? reservation.uuid : null
+			keaSubnetId: allocation.sourcePrefix.keaSubnetId,
+			keaReservationAddress: reservation?.result === 'saved' ? String(reservation.id) : null
 		})
 		.where(eq(ipamAllocations.id, allocation.id));
 
 	return allocation;
 }
 
-async function syncOpnsenseIpv6Allocation(
+async function syncKeaIpv6Allocation(
 	db: QueryableDb,
 	transitAllocation: PendingAllocation,
 	prefixAllocation: PendingAllocation
@@ -786,19 +721,15 @@ async function syncOpnsenseIpv6Allocation(
 		error(500, `IPv6 prefix allocation ${prefixAllocation.id} is missing a prefix`);
 	}
 
-	if (!isOpnsenseConfigured()) return;
+	if (!isKeaConfigured()) return;
 
-	if (!transitAllocation.sourcePrefix.opnsenseSubnetUuid) {
-		error(400, `${transitAllocation.sourcePrefix.cidr} is missing an OPNsense DHCPv6 subnet UUID`);
+	if (!transitAllocation.sourcePrefix.keaSubnetId) {
+		error(400, `${transitAllocation.sourcePrefix.cidr} is missing a Kea DHCPv6 subnet id`);
 	}
 
-	if (!transitAllocation.sourcePrefix.opnsenseInterface) {
-		error(400, `${transitAllocation.sourcePrefix.cidr} is missing an OPNsense IPv6 interface`);
-	}
-
-	const client = new OpnsenseClient();
+	const client = new KeaClient();
 	const reservation = await client.createDHCPv6Reservation(
-		transitAllocation.sourcePrefix.opnsenseSubnetUuid,
+		transitAllocation.sourcePrefix.keaSubnetId,
 		transitAllocation.address,
 		prefixAllocation.prefix,
 		transitAllocation.macAddress
@@ -807,8 +738,8 @@ async function syncOpnsenseIpv6Allocation(
 	await db
 		.update(ipamAllocations)
 		.set({
-			opnsenseSubnetUuid: transitAllocation.sourcePrefix.opnsenseSubnetUuid,
-			opnsenseReservationUuid: reservation?.result === 'saved' ? reservation.uuid : null
+			keaSubnetId: transitAllocation.sourcePrefix.keaSubnetId,
+			keaReservationAddress: reservation?.result === 'saved' ? String(reservation.id) : null
 		})
 		.where(eq(ipamAllocations.id, transitAllocation.id));
 }
@@ -841,9 +772,9 @@ export async function allocateVmNetworking(
 		allocations.push(ipv6PrefixAllocation);
 
 		for (const allocation of allocations.filter((allocation) => allocation.family === 'ipv4')) {
-			await syncOpnsenseIpv4Allocation(db, allocation);
+			await syncKeaIpv4Allocation(db, allocation);
 		}
-		await syncOpnsenseIpv6Allocation(db, ipv6TransitAllocation, ipv6PrefixAllocation);
+		await syncKeaIpv6Allocation(db, ipv6TransitAllocation, ipv6PrefixAllocation);
 
 		return allocations;
 	} catch (err) {
@@ -862,17 +793,31 @@ export async function releaseVmNetworking(
 		where: eq(ipamAllocations.associatedVmId, vmId)
 	});
 
-	if (isOpnsenseConfigured()) {
-		const client = new OpnsenseClient();
+	if (isKeaConfigured()) {
+		const client = new KeaClient();
 
 		for (const allocation of allocations) {
 			try {
-				if (allocation.family === 'ipv4' && allocation.opnsenseReservationUuid) {
-					await client.deleteDHCPv4Reservation(allocation.opnsenseReservationUuid);
+				if (
+					allocation.family === 'ipv4' &&
+					allocation.keaSubnetId &&
+					allocation.keaReservationAddress
+				) {
+					await client.deleteDHCPv4Reservation(
+						allocation.keaSubnetId,
+						allocation.keaReservationAddress
+					);
 				}
 
-				if (allocation.family === 'ipv6' && allocation.opnsenseReservationUuid) {
-					await client.deleteDHCPv6Reservation(allocation.opnsenseReservationUuid);
+				if (
+					allocation.family === 'ipv6' &&
+					allocation.keaSubnetId &&
+					allocation.keaReservationAddress
+				) {
+					await client.deleteDHCPv6Reservation(
+						allocation.keaSubnetId,
+						allocation.keaReservationAddress
+					);
 				}
 			} catch (err) {
 				if (!bestEffort) throw err;

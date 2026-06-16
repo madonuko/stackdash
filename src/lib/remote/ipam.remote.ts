@@ -8,7 +8,7 @@ import { requireAdmin } from '$lib/server/auth-context';
 import {
 	listIpamPrefixesWithStats,
 	normalizeIpamPrefixInput,
-	resolveOpnsensePrefixFields
+	resolveKeaPrefixFields
 } from '$lib/server/ipam';
 
 async function requireCurrentAdmin() {
@@ -32,15 +32,12 @@ const prefixParams = type({
 	whitelistStart: 'string?',
 	whitelistEnd: 'string?',
 	disabled: 'boolean?',
-	ipv6UseTransitAddress: 'boolean?',
-	createMissingOpnsenseDhcpv4Subnet: 'boolean?'
+	ipv6UseTransitAddress: 'boolean?'
 });
 
 export const createIpamPrefix = command(prefixParams, async (params) => {
 	const db = await requireCurrentAdmin();
-	const normalized = await resolveOpnsensePrefixFields(normalizeIpamPrefixInput(params), {
-		createMissingDhcpv4Subnet: params.createMissingOpnsenseDhcpv4Subnet
-	});
+	const normalized = await resolveKeaPrefixFields(normalizeIpamPrefixInput(params));
 
 	if (!normalized.name) error(400, 'Name is required');
 
@@ -55,8 +52,7 @@ const updatePrefixParams = type({
 	whitelistStart: 'string?',
 	whitelistEnd: 'string?',
 	disabled: 'boolean?',
-	ipv6UseTransitAddress: 'boolean?',
-	createMissingOpnsenseDhcpv4Subnet: 'boolean?'
+	ipv6UseTransitAddress: 'boolean?'
 });
 
 export const updateIpamPrefix = command(updatePrefixParams, async (params) => {
@@ -66,9 +62,7 @@ export const updateIpamPrefix = command(updatePrefixParams, async (params) => {
 	});
 	if (!existing) error(404, 'IPAM prefix not found');
 
-	const normalized = await resolveOpnsensePrefixFields(normalizeIpamPrefixInput(params), {
-		createMissingDhcpv4Subnet: params.createMissingOpnsenseDhcpv4Subnet
-	});
+	const normalized = await resolveKeaPrefixFields(normalizeIpamPrefixInput(params));
 	if (!normalized.name) error(400, 'Name is required');
 
 	if (existing.ipv6UseTransitAddress !== normalized.ipv6UseTransitAddress) {
