@@ -40,7 +40,6 @@
 		admin.sync(data);
 	});
 
-
 	let dialogOpen = $state(false);
 	let editing = $state<IpamPrefix | null>(null);
 	let saving = $state(false);
@@ -68,8 +67,6 @@
 		if (parsed < 1_000_000_000n) return `${parsed / 1_000_000n}M`;
 		return `${parsed / 1_000_000_000n}B+`;
 	}
-
-
 
 	function openCreate() {
 		editing = null;
