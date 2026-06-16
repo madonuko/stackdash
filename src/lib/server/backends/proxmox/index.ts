@@ -1,5 +1,5 @@
-import { HTTPError } from 'ky';
-import { duidLlFromMacAddress } from '$lib/server/network-identifiers';
+import ky, { HTTPError } from 'ky';
+import { Agent } from 'undici';
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
 import type {
@@ -20,6 +20,14 @@ interface ResolvedVm {
 	vmid: number;
 }
 
+type ProxmoxBackendOptions = {
+	snippetsEndpointUrl?: string;
+	snippetsEndpointUsername?: string;
+	snippetsEndpointPassword?: string;
+	snippetsEndpointVerifySsl?: boolean;
+	snippetsStorage?: string;
+};
+
 function generateMacAddress() {
 	const bytes = crypto.getRandomValues(new Uint8Array(6));
 	bytes[0] = (bytes[0] & 0xfe) | 0x02;
@@ -27,34 +35,58 @@ function generateMacAddress() {
 	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(':');
 }
 
-function cloudInitVendorDataForDuid(duid: string) {
+const defaultIpv4Gateway = '144.225.80.254';
+const defaultIpv6Gateway = 'fe80::1040:ffff';
+const defaultNameservers = ['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001'];
+
+function cloudInitNetworkConfig(params: VmCreateParams, macAddress: string) {
+	const addresses = [
+		...(params.networkConfig?.ipv4 ? [`${params.networkConfig.ipv4.address}/32`] : []),
+		...(params.networkConfig?.ipv6 ? [`${params.networkConfig.ipv6.address}/128`] : []),
+		...(params.networkConfig?.ipv6Prefix ? [params.networkConfig.ipv6Prefix] : [])
+	];
+
+	const routes = [
+		...(params.networkConfig?.ipv4
+			? [
+					{ to: `${defaultIpv4Gateway}/32`, scope: 'link' },
+					{ to: '0.0.0.0/0', via: defaultIpv4Gateway, onLink: true }
+				]
+			: []),
+		...(params.networkConfig?.ipv6 ? [{ to: '::/0', via: defaultIpv6Gateway, onLink: true }] : [])
+	];
+
 	return `#cloud-config
-write_files:
-  - path: /etc/dhcp/dhclient6.conf
-    permissions: '0644'
-    content: |
-      interface "eth0" {
-        send dhcp6.client-id ${duid};
-      }
-  - path: /etc/NetworkManager/conf.d/99-stack-dhcp-duid.conf
-    permissions: '0644'
-    content: |
-      [connection]
-      ipv6.dhcp-duid=${duid}
-  - path: /etc/systemd/network/99-stack-dhcp-duid.network.d/duid.conf
-    permissions: '0644'
-    content: |
-      [DHCPv6]
-      DUIDRawData=${duid}
+network:
+  version: 2
+  ethernets:
+    public0:
+      match:
+        macaddress: "${macAddress.toLowerCase()}"
+      set-name: eth0
+      addresses:
+${addresses.map((address) => `        - ${address}`).join('\n')}
+      routes:
+${routes
+	.map(
+		(route) =>
+			`        - to: ${route.to}${'scope' in route ? `\n          scope: ${route.scope}` : ''}${'via' in route ? `\n          via: ${route.via}` : ''}${'onLink' in route && route.onLink ? '\n          on-link: true' : ''}`
+	)
+	.join('\n')}
+      nameservers:
+        addresses:
+${defaultNameservers.map((address) => `          - ${address}`).join('\n')}
 `;
 }
 
 export class ProxmoxBackend implements VmBackend {
 	readonly name = 'proxmox' as const;
 	private client: ProxmoxClient;
+	private options: ProxmoxBackendOptions;
 
-	constructor(client: ProxmoxClient) {
+	constructor(client: ProxmoxClient, options: ProxmoxBackendOptions = {}) {
 		this.client = client;
+		this.options = options;
 	}
 
 	private mapStatus(status: string): VmStatus {
@@ -123,7 +155,9 @@ export class ProxmoxBackend implements VmBackend {
 		);
 	}
 
-	private async findSnippetStorage(node: string) {
+	private async snippetStorage(node: string) {
+		if (this.options.snippetsStorage) return this.options.snippetsStorage;
+
 		const storages = await this.client.listStorage(node);
 		const storage = storages.find(
 			(storage) =>
@@ -133,10 +167,59 @@ export class ProxmoxBackend implements VmBackend {
 		);
 
 		if (!storage) {
-			throw new Error(`No active Proxmox storage on node "${node}" supports snippets`);
+			throw new Error(
+				`No active Proxmox storage on node "${node}" supports snippets. Set PROXMOX_SNIPPETS_STORAGE to the storage id used by pvecic-snippets-endpoint.`
+			);
 		}
 
 		return storage.storage;
+	}
+
+	private async uploadSnippet(filename: string, content: string) {
+		const endpointUrl = this.options.snippetsEndpointUrl?.replace(/\/+$/, '');
+		const username = this.options.snippetsEndpointUsername;
+		const password = this.options.snippetsEndpointPassword;
+
+		if (!endpointUrl || !username || !password) {
+			throw new Error(
+				'Custom cloud-init networking requires PROXMOX_SNIPPETS_ENDPOINT_URL, PROXMOX_SNIPPETS_ENDPOINT_USERNAME, and PROXMOX_SNIPPETS_ENDPOINT_PASSWORD'
+			);
+		}
+
+		const insecureAgent =
+			this.options.snippetsEndpointVerifySsl === false
+				? new Agent({ connect: { rejectUnauthorized: false } })
+				: undefined;
+		const insecureFetch = insecureAgent
+			? (input: RequestInfo | URL, init?: RequestInit) =>
+					fetch(input, {
+						...init,
+						// @ts-expect-error -- Node/undici dispatcher extension
+						dispatcher: insecureAgent
+					})
+			: undefined;
+
+		try {
+			await ky.put(`${endpointUrl}/${encodeURIComponent(filename)}`, {
+				headers: {
+					Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+					'Content-Type': 'text/cloud-config'
+				},
+				body: content,
+				timeout: 60_000,
+				...(insecureFetch ? { fetch: insecureFetch } : {})
+			});
+		} catch (err) {
+			if (err instanceof HTTPError) {
+				const body = await err.response.text().catch(() => '<unreadable response body>');
+				throw new Error(
+					`Snippet endpoint upload failed for ${filename}: ${err.response.status} ${err.response.statusText} - ${body}`
+				);
+			}
+
+			const cause = err instanceof Error && err.cause ? `: ${String(err.cause)}` : '';
+			throw new Error(`Snippet endpoint upload failed for ${filename}: ${String(err)}${cause}`);
+		}
 	}
 
 	async listVms(): Promise<VmInfo[]> {
@@ -305,22 +388,18 @@ export class ProxmoxBackend implements VmBackend {
 				? {
 						ciuser: 'root',
 						...(sshKeysEncoded ? { sshkeys: sshKeysEncoded } : {}),
-						...(params.password ? { cipassword: params.password } : {}),
-						ipconfig0: 'ip=dhcp'
+						...(params.password ? { cipassword: params.password } : {})
 					}
 				: {};
 		const bootDisk = 'virtio0';
 		const pvePool = 'stack-volumes';
 		const macAddress = params.macAddress ?? generateMacAddress();
-		const duid = duidLlFromMacAddress(macAddress);
-		const cloudInitVendorDataFilename = `stack-${vmid}-vendor.yaml`;
-		const cloudInitSnippetStorage = await this.findSnippetStorage(node.node);
-		const cloudInitVendorDataVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitVendorDataFilename}`;
-		await this.client.uploadSnippet(
-			node.node,
-			cloudInitSnippetStorage,
-			cloudInitVendorDataFilename,
-			cloudInitVendorDataForDuid(duid)
+		const cloudInitNetworkConfigFilename = `stack-${vmid}-network.yaml`;
+		const cloudInitSnippetStorage = await this.snippetStorage(node.node);
+		const cloudInitNetworkConfigVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitNetworkConfigFilename}`;
+		await this.uploadSnippet(
+			cloudInitNetworkConfigFilename,
+			cloudInitNetworkConfig(params, macAddress)
 		);
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
@@ -355,7 +434,7 @@ export class ProxmoxBackend implements VmBackend {
 					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
 						ide2: `${pvePool}:cloudinit`,
 						boot: `order=${bootDisk}`,
-						cicustom: `vendor=${cloudInitVendorDataVolid}`,
+						cicustom: `network=${cloudInitNetworkConfigVolid}`,
 						...cloudInitAuth
 					});
 					await this.client.waitForTask(node.node, cloudInitUpid);

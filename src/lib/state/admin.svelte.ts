@@ -90,8 +90,6 @@ export type IpamPrefix = {
 	ipv6UseTransitAddress: boolean;
 	whitelistStart: string | null;
 	whitelistEnd: string | null;
-	keaSubnetId: string | null;
-	keaInterface: string | null;
 	allocated: number;
 	capacity: string;
 	available: string;

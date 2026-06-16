@@ -8,7 +8,7 @@ import { requireAdmin } from '$lib/server/auth-context';
 import {
 	listIpamPrefixesWithStats,
 	normalizeIpamPrefixInput,
-	resolveKeaPrefixFields
+	resolveIpamPrefixFields
 } from '$lib/server/ipam';
 
 async function requireCurrentAdmin() {
@@ -37,7 +37,7 @@ const prefixParams = type({
 
 export const createIpamPrefix = command(prefixParams, async (params) => {
 	const db = await requireCurrentAdmin();
-	const normalized = await resolveKeaPrefixFields(normalizeIpamPrefixInput(params));
+	const normalized = await resolveIpamPrefixFields(normalizeIpamPrefixInput(params));
 
 	if (!normalized.name) error(400, 'Name is required');
 
@@ -62,7 +62,7 @@ export const updateIpamPrefix = command(updatePrefixParams, async (params) => {
 	});
 	if (!existing) error(404, 'IPAM prefix not found');
 
-	const normalized = await resolveKeaPrefixFields(normalizeIpamPrefixInput(params));
+	const normalized = await resolveIpamPrefixFields(normalizeIpamPrefixInput(params));
 	if (!normalized.name) error(400, 'Name is required');
 
 	if (existing.ipv6UseTransitAddress !== normalized.ipv6UseTransitAddress) {

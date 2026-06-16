@@ -3,7 +3,6 @@ import { Address4, Address6 } from 'ip-address';
 import { and, asc, eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipamAllocations, ipamPrefixes } from '$lib/server/db/schema';
-import { isKeaConfigured, KeaClient } from '$lib/server/kea';
 
 export type IpFamily = 'ipv4' | 'ipv6';
 export type VmNetworkingMode = 'both' | 'ipv6';
@@ -48,11 +47,6 @@ type PendingAllocation = IpamAllocation & {
 };
 
 type AllocationKind = 'ipv4' | 'ipv6-transit' | 'ipv6-prefix';
-
-type DhcpLeaseUsage = {
-	ipv4Addresses: Set<string>;
-	ipv6Addresses: Set<string>;
-};
 
 const v6Bits = 128;
 const vmIpv4PrefixLength = 32;
@@ -213,58 +207,12 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 	};
 }
 
-export async function resolveKeaPrefixFields(prefix: ReturnType<typeof normalizeIpamPrefixInput>) {
-	if (!isKeaConfigured()) {
-		return {
-			...prefix,
-			keaSubnetId: null,
-			keaInterface: null
-		};
-	}
-
-	const client = new KeaClient();
-
-	if (prefix.family === 'ipv4') {
-		const subnets = await client.listDHCPv4Subnets();
-		const subnet = subnets.find((item) => {
-			const cidr = normalizeCidr(item.subnet).cidr;
-			return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
-		});
-
-		return {
-			...prefix,
-			keaSubnetId: subnet ? String(subnet.id) : null,
-			keaInterface: null
-		};
-	}
-
-	if (!prefix.ipv6UseTransitAddress) {
-		return {
-			...prefix,
-			keaSubnetId: null,
-			keaInterface: null
-		};
-	}
-
-	const dhcpv6Subnets = await client.listDHCPv6Subnets();
-	const matchingSubnet = dhcpv6Subnets.find((item) => {
-		const cidr = normalizeCidr(item.subnet).cidr;
-		return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
-	});
-
-	return {
-		...prefix,
-		keaSubnetId: matchingSubnet ? String(matchingSubnet.id) : null,
-		keaInterface: matchingSubnet?.interface ?? null
-	};
+export async function resolveIpamPrefixFields(prefix: ReturnType<typeof normalizeIpamPrefixInput>) {
+	return prefix;
 }
 
 function prefixCanAllocate(prefix: IpamPrefix) {
-	if (prefix.disabled) return false;
-	if (!isKeaConfigured()) return true;
-	if (prefix.family === 'ipv4') return Boolean(prefix.keaSubnetId);
-	if (!prefix.ipv6UseTransitAddress) return true;
-	return Boolean(prefix.keaSubnetId);
+	return !prefix.disabled;
 }
 
 function ipv4UsableRange(prefix: IpamPrefix) {
@@ -373,8 +321,7 @@ function prefixCapacity(prefix: IpamPrefix) {
 
 function allocatedCount(
 	prefix: IpamPrefix,
-	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[],
-	dhcpLeases: DhcpLeaseUsage
+	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[]
 ) {
 	if (prefix.family === 'ipv4') {
 		const used = new Set(
@@ -382,11 +329,6 @@ function allocatedCount(
 				allocation.address ? [parseAddress('ipv4', allocation.address).toString()] : []
 			)
 		);
-
-		for (const lease of dhcpLeases.ipv4Addresses) {
-			const value = BigInt(lease);
-			if (isIpv4ValueAllocatable(prefix, value)) used.add(lease);
-		}
 
 		return BigInt(used.size);
 	}
@@ -400,53 +342,16 @@ function allocatedCount(
 		})
 	);
 
-	for (const lease of dhcpLeases.ipv6Addresses) {
-		const value = BigInt(lease);
-		if (!isIpv6ValueAllocatable(prefix, value)) continue;
-		used.add(prefix.ipv6UseTransitAddress ? lease : ipv6AllocationStart(prefix, value).toString());
-	}
-
 	return BigInt(used.size);
 }
 
-async function getDhcpLeaseUsage(): Promise<DhcpLeaseUsage> {
-	const empty = { ipv4Addresses: new Set<string>(), ipv6Addresses: new Set<string>() };
-	if (!isKeaConfigured()) return empty;
-
-	const client = new KeaClient();
-	const [ipv4Leases, ipv6Leases] = await Promise.all([
-		client.listDHCPv4Leases(),
-		client.listDHCPv6Leases()
-	]);
-
-	const ipv4Addresses = new Set<string>();
-	for (const lease of ipv4Leases) {
-		const address = lease['ip-address'];
-		if (!address || !Address4.isValid(address)) continue;
-		ipv4Addresses.add(new Address4(address).bigInt().toString());
-	}
-
-	const ipv6Addresses = new Set<string>();
-	for (const lease of ipv6Leases) {
-		const address = lease['ip-address'];
-		if (!address || !Address6.isValid(address)) continue;
-		ipv6Addresses.add(new Address6(address).bigInt().toString());
-	}
-
-	return { ipv4Addresses, ipv6Addresses };
-}
-
-async function prefixStats(
-	db: QueryableDb,
-	prefix: IpamPrefix,
-	dhcpLeases: DhcpLeaseUsage
-): Promise<IpamPrefixWithStats> {
+async function prefixStats(db: QueryableDb, prefix: IpamPrefix): Promise<IpamPrefixWithStats> {
 	const allocations = await db.query.ipamAllocations.findMany({
 		where: eq(ipamAllocations.ipamPrefixId, prefix.id),
 		columns: { address: true, prefix: true }
 	});
 	const capacity = prefixCanAllocate(prefix) ? prefixCapacity(prefix) : 0n;
-	const allocated = allocatedCount(prefix, allocations, dhcpLeases);
+	const allocated = allocatedCount(prefix, allocations);
 	const available = capacity > allocated ? capacity - allocated : 0n;
 
 	return {
@@ -463,9 +368,8 @@ export async function listIpamPrefixesWithStats(db: QueryableDb) {
 		.select()
 		.from(ipamPrefixes)
 		.orderBy(asc(ipamPrefixes.family), asc(ipamPrefixes.cidr));
-	const dhcpLeases = await getDhcpLeaseUsage();
 
-	return Promise.all(prefixes.map((prefix) => prefixStats(db, prefix, dhcpLeases)));
+	return Promise.all(prefixes.map((prefix) => prefixStats(db, prefix)));
 }
 
 export async function getIpamAvailability(db: QueryableDb): Promise<IpamAvailability> {
@@ -487,11 +391,7 @@ export async function getIpamAvailability(db: QueryableDb): Promise<IpamAvailabi
 	};
 }
 
-function nextIpv4Address(
-	prefix: IpamPrefix,
-	allocations: Pick<IpamAllocation, 'address'>[],
-	dhcpLeases: DhcpLeaseUsage
-) {
+function nextIpv4Address(prefix: IpamPrefix, allocations: Pick<IpamAllocation, 'address'>[]) {
 	const usable = ipv4UsableRange(prefix);
 	if (!usable) return null;
 
@@ -500,11 +400,6 @@ function nextIpv4Address(
 			allocation.address ? [parseAddress('ipv4', allocation.address).toString()] : []
 		)
 	);
-
-	for (const lease of dhcpLeases.ipv4Addresses) {
-		const value = BigInt(lease);
-		if (isIpv4ValueAllocatable(prefix, value)) used.add(lease);
-	}
 
 	const allocStart = prefix.whitelistStart
 		? parseAddress('ipv4', prefix.whitelistStart)
@@ -521,8 +416,7 @@ function nextIpv4Address(
 
 function nextIpv6Allocation(
 	prefix: IpamPrefix,
-	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[],
-	dhcpLeases: DhcpLeaseUsage
+	allocations: Pick<IpamAllocation, 'address' | 'prefix'>[]
 ) {
 	const range = parseCidr(prefix.cidr);
 	const bounds = ipv6WhitelistBounds(prefix);
@@ -538,12 +432,6 @@ function nextIpv6Allocation(
 			return [];
 		})
 	);
-
-	for (const lease of dhcpLeases.ipv6Addresses) {
-		const value = BigInt(lease);
-		if (!isIpv6ValueAllocatable(prefix, value)) continue;
-		used.add(prefix.ipv6UseTransitAddress ? lease : ipv6AllocationStart(prefix, value).toString());
-	}
 
 	let value = ceilToMultiple(bounds.first, range.start, allocationSize);
 	if (prefix.ipv6UseTransitAddress && value === range.start && range.start < range.end) {
@@ -574,8 +462,7 @@ async function createKindAllocation(
 	db: QueryableDb,
 	kind: AllocationKind,
 	vmId: string,
-	macAddress: string,
-	dhcpLeases: DhcpLeaseUsage
+	macAddress: string
 ): Promise<PendingAllocation> {
 	const family: IpFamily = kind === 'ipv4' ? 'ipv4' : 'ipv6';
 	const prefixes = await db
@@ -596,8 +483,8 @@ async function createKindAllocation(
 
 		const next =
 			kind === 'ipv4'
-				? { address: nextIpv4Address(prefix, allocations, dhcpLeases), prefix: null }
-				: nextIpv6Allocation(prefix, allocations, dhcpLeases);
+				? { address: nextIpv4Address(prefix, allocations), prefix: null }
+				: nextIpv6Allocation(prefix, allocations);
 
 		if (!next?.address && !next?.prefix) continue;
 
@@ -630,12 +517,11 @@ async function createLocalAllocation(
 	db: QueryableDb,
 	kind: AllocationKind,
 	vmId: string,
-	macAddress: string,
-	dhcpLeases: DhcpLeaseUsage
+	macAddress: string
 ) {
 	for (let attempt = 0; attempt < 5; attempt++) {
 		try {
-			return await createKindAllocation(db, kind, vmId, macAddress, dhcpLeases);
+			return await createKindAllocation(db, kind, vmId, macAddress);
 		} catch (err) {
 			if (uniqueViolation(err)) continue;
 			throw err;
@@ -651,42 +537,7 @@ async function createLocalAllocation(
 	error(409, `No available ${label}`);
 }
 
-async function syncKeaIpv4Allocation(db: QueryableDb, allocation: PendingAllocation) {
-	if (allocation.family !== 'ipv4') {
-		error(500, `Expected IPv4 allocation, received ${allocation.family}`);
-	}
-
-	if (!allocation.address) {
-		error(500, `IPv4 allocation ${allocation.id} is missing an address`);
-	}
-
-	if (!isKeaConfigured()) return allocation;
-
-	const client = new KeaClient();
-
-	if (!allocation.sourcePrefix.keaSubnetId) {
-		error(400, `${allocation.sourcePrefix.cidr} is missing a Kea DHCPv4 subnet id`);
-	}
-
-	const reservation = await client.createDHCPv4Reservation(
-		allocation.sourcePrefix.keaSubnetId,
-		allocation.address,
-		allocation.macAddress
-	);
-
-	await db
-		.update(ipamAllocations)
-		.set({
-			keaSubnetId: allocation.sourcePrefix.keaSubnetId,
-			keaReservationAddress: reservation?.result === 'saved' ? String(reservation.id) : null
-		})
-		.where(eq(ipamAllocations.id, allocation.id));
-
-	return allocation;
-}
-
-async function syncKeaIpv6Allocation(
-	db: QueryableDb,
+function assertIpv6AllocationPair(
 	transitAllocation: PendingAllocation,
 	prefixAllocation: PendingAllocation
 ) {
@@ -720,28 +571,6 @@ async function syncKeaIpv6Allocation(
 	if (!prefixAllocation.prefix) {
 		error(500, `IPv6 prefix allocation ${prefixAllocation.id} is missing a prefix`);
 	}
-
-	if (!isKeaConfigured()) return;
-
-	if (!transitAllocation.sourcePrefix.keaSubnetId) {
-		error(400, `${transitAllocation.sourcePrefix.cidr} is missing a Kea DHCPv6 subnet id`);
-	}
-
-	const client = new KeaClient();
-	const reservation = await client.createDHCPv6Reservation(
-		transitAllocation.sourcePrefix.keaSubnetId,
-		transitAllocation.address,
-		prefixAllocation.prefix,
-		transitAllocation.macAddress
-	);
-
-	await db
-		.update(ipamAllocations)
-		.set({
-			keaSubnetId: transitAllocation.sourcePrefix.keaSubnetId,
-			keaReservationAddress: reservation?.result === 'saved' ? String(reservation.id) : null
-		})
-		.where(eq(ipamAllocations.id, transitAllocation.id));
 }
 
 export async function allocateVmNetworking(
@@ -751,30 +580,25 @@ export async function allocateVmNetworking(
 	const allocations: PendingAllocation[] = [];
 
 	try {
-		const dhcpLeases = await getDhcpLeaseUsage();
-
 		if (params.mode === 'both') {
 			allocations.push(
 				await db.transaction((tx) =>
-					createLocalAllocation(tx, 'ipv4', params.vmId, params.macAddress, dhcpLeases)
+					createLocalAllocation(tx, 'ipv4', params.vmId, params.macAddress)
 				)
 			);
 		}
 
 		const ipv6TransitAllocation = await db.transaction((tx) =>
-			createLocalAllocation(tx, 'ipv6-transit', params.vmId, params.macAddress, dhcpLeases)
+			createLocalAllocation(tx, 'ipv6-transit', params.vmId, params.macAddress)
 		);
 		allocations.push(ipv6TransitAllocation);
 
 		const ipv6PrefixAllocation = await db.transaction((tx) =>
-			createLocalAllocation(tx, 'ipv6-prefix', params.vmId, params.macAddress, dhcpLeases)
+			createLocalAllocation(tx, 'ipv6-prefix', params.vmId, params.macAddress)
 		);
 		allocations.push(ipv6PrefixAllocation);
 
-		for (const allocation of allocations.filter((allocation) => allocation.family === 'ipv4')) {
-			await syncKeaIpv4Allocation(db, allocation);
-		}
-		await syncKeaIpv6Allocation(db, ipv6TransitAllocation, ipv6PrefixAllocation);
+		assertIpv6AllocationPair(ipv6TransitAllocation, ipv6PrefixAllocation);
 
 		return allocations;
 	} catch (err) {
@@ -789,74 +613,5 @@ export async function releaseVmNetworking(
 	bestEffort = false,
 	knownAddresses: { ipv4?: string | null; ipv6?: string | null } = {}
 ) {
-	const allocations = await db.query.ipamAllocations.findMany({
-		where: eq(ipamAllocations.associatedVmId, vmId)
-	});
-
-	if (isKeaConfigured()) {
-		const client = new KeaClient();
-
-		for (const allocation of allocations) {
-			try {
-				if (
-					allocation.family === 'ipv4' &&
-					allocation.keaSubnetId &&
-					allocation.keaReservationAddress
-				) {
-					await client.deleteDHCPv4Reservation(
-						allocation.keaSubnetId,
-						allocation.keaReservationAddress
-					);
-				}
-
-				if (
-					allocation.family === 'ipv6' &&
-					allocation.keaSubnetId &&
-					allocation.keaReservationAddress
-				) {
-					await client.deleteDHCPv6Reservation(
-						allocation.keaSubnetId,
-						allocation.keaReservationAddress
-					);
-				}
-			} catch (err) {
-				if (!bestEffort) throw err;
-				console.warn(`Failed to release ${allocation.family} reservation ${allocation.id}`, err);
-			}
-		}
-
-		const ipv4Leases = new Set(
-			allocations.flatMap((allocation) =>
-				allocation.family === 'ipv4' && allocation.address ? [allocation.address] : []
-			)
-		);
-		if (knownAddresses.ipv4) ipv4Leases.add(knownAddresses.ipv4);
-
-		const ipv6Leases = new Set(
-			allocations.flatMap((allocation) =>
-				allocation.family === 'ipv6' && allocation.address ? [allocation.address] : []
-			)
-		);
-		if (knownAddresses.ipv6) ipv6Leases.add(knownAddresses.ipv6);
-
-		for (const address of ipv4Leases) {
-			try {
-				await client.deleteDHCPv4Lease(address);
-			} catch (err) {
-				if (!bestEffort) throw err;
-				console.warn(`Failed to delete DHCPv4 lease ${address} for VM ${vmId}`, err);
-			}
-		}
-
-		for (const address of ipv6Leases) {
-			try {
-				await client.deleteDHCPv6Lease(address);
-			} catch (err) {
-				if (!bestEffort) throw err;
-				console.warn(`Failed to delete DHCPv6 lease ${address} for VM ${vmId}`, err);
-			}
-		}
-	}
-
 	await db.delete(ipamAllocations).where(eq(ipamAllocations.associatedVmId, vmId));
 }

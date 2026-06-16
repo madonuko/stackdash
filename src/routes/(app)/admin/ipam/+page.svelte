@@ -69,27 +69,7 @@
 		return `${parsed / 1_000_000_000n}B+`;
 	}
 
-	function keaStatus(prefix: IpamPrefix) {
-		if (prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress) {
-			return 'Not required';
-		}
 
-		if (!prefix.keaSubnetId) {
-			return 'No Kea Subnet';
-		}
-
-		if (prefix.family === 'ipv6' && !prefix.keaInterface) {
-			return 'No IPv6 Interface';
-		}
-
-		return 'Ready';
-	}
-
-	function keaReady(prefix: IpamPrefix) {
-		if (prefix.family === 'ipv6' && !prefix.ipv6UseTransitAddress) return true;
-
-		return Boolean(prefix.keaSubnetId) && (prefix.family === 'ipv4' || Boolean(prefix.keaInterface));
-	}
 
 	function openCreate() {
 		editing = null;
@@ -270,7 +250,6 @@
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Family</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Mode</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Available</th>
-						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Kea Status</th>
 						<th class="px-5 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
 					</tr>
 				</thead>
@@ -302,14 +281,7 @@
 								<span class="tabular-nums">{formatCount(prefix.available)}</span>
 								<span class="text-gray-600"> / {formatCount(prefix.capacity)}</span>
 							</td>
-							<td class="px-5 py-3">
-								<Badge
-									variant={keaReady(prefix) ? 'secondary' : 'outline'}
-									class="text-[10px] {keaReady(prefix) ? '' : 'text-amber-300'}"
-								>
-									{keaStatus(prefix)}
-								</Badge>
-							</td>
+
 							<td class="px-5 py-3 text-right">
 								<div class="flex items-center justify-end gap-1">
 									<Button

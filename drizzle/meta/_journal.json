@@ -134,6 +134,13 @@
       "when": 1781589676376,
       "tag": "0018_tiresome_quicksilver",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781593948218,
+      "tag": "0019_cuddly_serpent_society",
+      "breakpoints": true
     }
   ]
 }

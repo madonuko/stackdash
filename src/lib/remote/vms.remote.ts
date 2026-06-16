@@ -349,6 +349,15 @@ export const createVm = command(createParams, async (params) => {
 			macAddress,
 			mode: params.networkingMode ?? 'both'
 		});
+		const ipv4NetworkAllocation = networkingAllocations.find(
+			(allocation) => allocation.family === 'ipv4' && allocation.address
+		);
+		const ipv6TransitNetworkAllocation = networkingAllocations.find(
+			(allocation) => allocation.family === 'ipv6' && allocation.address
+		);
+		const ipv6PrefixNetworkAllocation = networkingAllocations.find(
+			(allocation) => allocation.family === 'ipv6' && allocation.prefix
+		);
 		const backend = getBackend('proxmox');
 		result = await backend.createVm({
 			id: vmId,
@@ -360,6 +369,27 @@ export const createVm = command(createParams, async (params) => {
 			diskGb: vmType.storageAmount,
 			imageId: params.imageId,
 			imageSource: baseImage?.filePath,
+			networkConfig: {
+				...(ipv4NetworkAllocation?.address
+					? {
+							ipv4: {
+								address: ipv4NetworkAllocation.address,
+								prefixLength: ipv4NetworkAllocation.prefixLength
+							}
+						}
+					: {}),
+				...(ipv6TransitNetworkAllocation?.address
+					? {
+							ipv6: {
+								address: ipv6TransitNetworkAllocation.address,
+								prefixLength: ipv6TransitNetworkAllocation.prefixLength
+							}
+						}
+					: {}),
+				...(ipv6PrefixNetworkAllocation?.prefix
+					? { ipv6Prefix: ipv6PrefixNetworkAllocation.prefix }
+					: {})
+			},
 			sshKeys: publicKeys,
 			password: params.password,
 			onProvisionSettled: ({ ok, error: err }) => {

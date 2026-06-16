@@ -262,33 +262,6 @@ export class ProxmoxClient {
 		return res.data;
 	}
 
-	async uploadSnippet(
-		node: string,
-		storage: string,
-		filename: string,
-		content: string
-	): Promise<void> {
-		const form = new FormData();
-		form.append('content', 'snippets');
-		form.append('filename', new File([content], filename, { type: 'text/plain' }));
-		form.append('overwrite', '1');
-
-		try {
-			await this.api
-				.post(`nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/upload`, {
-					body: form,
-					timeout: 120_000
-				})
-				.json<PveResponse<string>>();
-		} catch (error) {
-			await this.logHttpError(`uploadSnippet(${node}, ${storage}, ${filename})`, error, {
-				filename,
-				content: 'snippets'
-			});
-			throw error;
-		}
-	}
-
 	async importStorageContentFromUrl(
 		node: string,
 		storage: string,
