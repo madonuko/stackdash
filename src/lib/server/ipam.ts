@@ -3,6 +3,7 @@ import { Address4, Address6 } from 'ip-address';
 import { and, asc, eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipamAllocations, ipamPrefixes } from '$lib/server/db/schema';
+import { isKeaConfigured, KeaClient } from '$lib/server/kea';
 
 export type IpFamily = 'ipv4' | 'ipv6';
 export type VmNetworkingMode = 'both' | 'ipv6';
@@ -132,6 +133,17 @@ function formatAddress(family: IpFamily, value: bigint) {
 
 function formatPrefix(family: IpFamily, value: bigint, prefixLength: number) {
 	return `${formatAddress(family, value)}/${prefixLength}`;
+}
+
+function isCidrInside(parent: string, child: string) {
+	const parentRange = parseCidr(parent);
+	const childRange = parseCidr(child);
+
+	return (
+		parentRange.family === childRange.family &&
+		childRange.start >= parentRange.start &&
+		childRange.end <= parentRange.end
+	);
 }
 
 function defaultWhitelistBounds(range: AddressRange) {
@@ -501,6 +513,75 @@ async function createLocalAllocation(
 	error(409, `No available ${label}`);
 }
 
+async function findKeaDhcpv4SubnetId(client: KeaClient, prefix: IpamPrefix) {
+	const subnets = await client.listDHCPv4Subnets();
+	return subnets.find((subnet) => {
+		const cidr = normalizeCidr(subnet.subnet).cidr;
+		return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
+	})?.id;
+}
+
+async function findKeaDhcpv6SubnetId(client: KeaClient, prefix: IpamPrefix) {
+	const subnets = await client.listDHCPv6Subnets();
+	return subnets.find((subnet) => {
+		const cidr = normalizeCidr(subnet.subnet).cidr;
+		return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
+	})?.id;
+}
+
+async function createBestEffortKeaReservations(allocations: PendingAllocation[]) {
+	if (!isKeaConfigured()) return;
+
+	const client = new KeaClient();
+	const ipv4Allocations = allocations.filter((allocation) => allocation.family === 'ipv4');
+	const ipv6TransitAllocation = allocations.find(
+		(allocation) => allocation.family === 'ipv6' && allocation.address
+	);
+	const ipv6PrefixAllocation = allocations.find(
+		(allocation) => allocation.family === 'ipv6' && allocation.prefix
+	);
+
+	for (const allocation of ipv4Allocations) {
+		if (!allocation.address) continue;
+
+		try {
+			const subnetId = await findKeaDhcpv4SubnetId(client, allocation.sourcePrefix);
+			if (!subnetId) {
+				console.warn(`No matching Kea DHCPv4 subnet found for ${allocation.sourcePrefix.cidr}`);
+				continue;
+			}
+
+			await client.createDHCPv4Reservation(subnetId, allocation.address, allocation.macAddress);
+		} catch (err) {
+			console.warn(`Failed to create best-effort Kea DHCPv4 reservation for ${allocation.id}`, err);
+		}
+	}
+
+	if (ipv6TransitAllocation?.address && ipv6PrefixAllocation?.prefix) {
+		try {
+			const subnetId = await findKeaDhcpv6SubnetId(client, ipv6TransitAllocation.sourcePrefix);
+			if (!subnetId) {
+				console.warn(
+					`No matching Kea DHCPv6 subnet found for ${ipv6TransitAllocation.sourcePrefix.cidr}`
+				);
+				return;
+			}
+
+			await client.createDHCPv6Reservation(
+				subnetId,
+				ipv6TransitAllocation.address,
+				ipv6PrefixAllocation.prefix,
+				ipv6TransitAllocation.macAddress
+			);
+		} catch (err) {
+			console.warn(
+				`Failed to create best-effort Kea DHCPv6 reservation for ${ipv6TransitAllocation.id}`,
+				err
+			);
+		}
+	}
+}
+
 function assertIpv6AllocationPair(
 	transitAllocation: PendingAllocation,
 	prefixAllocation: PendingAllocation
@@ -563,6 +644,7 @@ export async function allocateVmNetworking(
 		allocations.push(ipv6PrefixAllocation);
 
 		assertIpv6AllocationPair(ipv6TransitAllocation, ipv6PrefixAllocation);
+		await createBestEffortKeaReservations(allocations);
 
 		return allocations;
 	} catch (err) {
