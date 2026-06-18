@@ -1,5 +1,8 @@
 import ky, { HTTPError } from 'ky';
+import { stringify as stringifyYaml } from 'yaml';
+import { Address6 } from 'ip-address';
 import { Agent } from 'undici';
+
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
 import type {
@@ -35,48 +38,72 @@ function generateMacAddress() {
 	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(':');
 }
 
-const defaultIpv4Gateway = '144.225.80.254';
+function firstIpv6AddressInPrefix(prefix: string) {
+	if (!Address6.isValid(prefix)) return null;
+
+	const address = new Address6(prefix);
+	return `${Address6.fromBigInt(address.startAddress().bigInt() + 1n).correctForm()}/${address.subnetMask}`;
+}
+
+const defaultIpv4Gateway = '144.225.80.2';
 const defaultIpv6Gateway = 'fe80::1040:ffff';
 const defaultNameservers = ['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001'];
 
+function cloudInitVendorConfig() {
+	const yamlContents = `#cloud-config\n${stringifyYaml({
+		write_files: [
+			{
+				path: '/etc/sysctl.d/99-ipv6-forwarding.conf',
+				content: 'net.ipv6.conf.all.forwarding = 1\n'
+			}
+		],
+		runcmd: ['sysctl --system']
+	})}`;
+
+	console.log(`finished cloud-init vendor config file:\n${yamlContents}`);
+
+	return yamlContents;
+}
+
 function cloudInitNetworkConfig(params: VmCreateParams, macAddress: string) {
+	const delegatedPrefixAddress = params.networkConfig?.ipv6Prefix
+		? firstIpv6AddressInPrefix(params.networkConfig.ipv6Prefix)
+		: null;
 	const addresses = [
 		...(params.networkConfig?.ipv4 ? [`${params.networkConfig.ipv4.address}/32`] : []),
 		...(params.networkConfig?.ipv6 ? [`${params.networkConfig.ipv6.address}/128`] : []),
-		...(params.networkConfig?.ipv6Prefix ? [params.networkConfig.ipv6Prefix] : [])
+		...(delegatedPrefixAddress ? [delegatedPrefixAddress] : [])
 	];
-
 	const routes = [
 		...(params.networkConfig?.ipv4
 			? [
 					{ to: `${defaultIpv4Gateway}/32`, scope: 'link' },
-					{ to: '0.0.0.0/0', via: defaultIpv4Gateway, onLink: true }
+					{ to: '0.0.0.0/0', via: defaultIpv4Gateway, 'on-link': true }
 				]
 			: []),
-		...(params.networkConfig?.ipv6 ? [{ to: '::/0', via: defaultIpv6Gateway, onLink: true }] : [])
+		...(params.networkConfig?.ipv6
+			? [{ to: '::/0', via: defaultIpv6Gateway, 'on-link': true }]
+			: [])
 	];
 
-	return `#cloud-config
-network:
-  version: 2
-  ethernets:
-    public0:
-      match:
-        macaddress: "${macAddress.toLowerCase()}"
-      set-name: eth0
-      addresses:
-${addresses.map((address) => `        - ${address}`).join('\n')}
-      routes:
-${routes
-	.map(
-		(route) =>
-			`        - to: ${route.to}${'scope' in route ? `\n          scope: ${route.scope}` : ''}${'via' in route ? `\n          via: ${route.via}` : ''}${'onLink' in route && route.onLink ? '\n          on-link: true' : ''}`
-	)
-	.join('\n')}
-      nameservers:
-        addresses:
-${defaultNameservers.map((address) => `          - ${address}`).join('\n')}
-`;
+	const yamlContents = stringifyYaml({
+		version: 2,
+		ethernets: {
+			public0: {
+				match: { macaddress: macAddress.toLowerCase() },
+				'set-name': 'eth0',
+				dhcp4: false,
+				dhcp6: false,
+				addresses,
+				routes,
+				nameservers: { addresses: defaultNameservers }
+			}
+		}
+	});
+
+	console.log(`finished cloud-init network-config file:\n${yamlContents}`);
+
+	return yamlContents;
 }
 
 export class ProxmoxBackend implements VmBackend {
@@ -395,12 +422,14 @@ export class ProxmoxBackend implements VmBackend {
 		const pvePool = 'stack-volumes';
 		const macAddress = params.macAddress ?? generateMacAddress();
 		const cloudInitNetworkConfigFilename = `stack-${vmid}-network.yaml`;
+		const cloudInitVendorConfigFilename = `stack-${vmid}-vendor.yaml`;
 		const cloudInitSnippetStorage = await this.snippetStorage(node.node);
 		const cloudInitNetworkConfigVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitNetworkConfigFilename}`;
-		await this.uploadSnippet(
-			cloudInitNetworkConfigFilename,
-			cloudInitNetworkConfig(params, macAddress)
-		);
+		const cloudInitVendorConfigVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitVendorConfigFilename}`;
+		await Promise.all([
+			this.uploadSnippet(cloudInitNetworkConfigFilename, cloudInitNetworkConfig(params, macAddress)),
+			this.uploadSnippet(cloudInitVendorConfigFilename, cloudInitVendorConfig())
+		]);
 
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
@@ -434,7 +463,7 @@ export class ProxmoxBackend implements VmBackend {
 					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
 						ide2: `${pvePool}:cloudinit`,
 						boot: `order=${bootDisk}`,
-						cicustom: `network=${cloudInitNetworkConfigVolid}`,
+						cicustom: `network=${cloudInitNetworkConfigVolid},vendor=${cloudInitVendorConfigVolid}`,
 						...cloudInitAuth
 					});
 					await this.client.waitForTask(node.node, cloudInitUpid);

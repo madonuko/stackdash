@@ -128,6 +128,7 @@ export interface PveCreateQemuParams {
 	scsi0?: string;
 	ide2?: string;
 	net0?: string;
+	net1?: string;
 	cicustom?: string;
 	boot?: string;
 	serial0?: string;

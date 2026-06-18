@@ -3,7 +3,7 @@ import { Address4, Address6 } from 'ip-address';
 import { and, asc, eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { ipamAllocations, ipamPrefixes } from '$lib/server/db/schema';
-import { isKeaConfigured, KeaClient } from '$lib/server/kea';
+import { isVyosConfigured, VyosClient } from '$lib/server/vyos';
 
 export type IpFamily = 'ipv4' | 'ipv6';
 export type VmNetworkingMode = 'both' | 'ipv6';
@@ -513,27 +513,17 @@ async function createLocalAllocation(
 	error(409, `No available ${label}`);
 }
 
-async function findKeaDhcpv4SubnetId(client: KeaClient, prefix: IpamPrefix) {
-	const subnets = await client.listDHCPv4Subnets();
-	return subnets.find((subnet) => {
-		const cidr = normalizeCidr(subnet.subnet).cidr;
-		return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
-	})?.id;
+function tenantDescription(vmId: string, label: string) {
+	return `tenant ${vmId.slice(-8)} ${label}`;
 }
 
-async function findKeaDhcpv6SubnetId(client: KeaClient, prefix: IpamPrefix) {
-	const subnets = await client.listDHCPv6Subnets();
-	return subnets.find((subnet) => {
-		const cidr = normalizeCidr(subnet.subnet).cidr;
-		return cidr === prefix.cidr || isCidrInside(cidr, prefix.cidr);
-	})?.id;
-}
+async function createBestEffortVyosState(allocations: PendingAllocation[], vmId: string) {
+	if (!isVyosConfigured()) return;
 
-async function createBestEffortKeaReservations(allocations: PendingAllocation[]) {
-	if (!isKeaConfigured()) return;
-
-	const client = new KeaClient();
-	const ipv4Allocations = allocations.filter((allocation) => allocation.family === 'ipv4');
+	const client = new VyosClient();
+	const ipv4Allocation = allocations.find(
+		(allocation) => allocation.family === 'ipv4' && allocation.address
+	);
 	const ipv6TransitAllocation = allocations.find(
 		(allocation) => allocation.family === 'ipv6' && allocation.address
 	);
@@ -541,41 +531,46 @@ async function createBestEffortKeaReservations(allocations: PendingAllocation[])
 		(allocation) => allocation.family === 'ipv6' && allocation.prefix
 	);
 
-	for (const allocation of ipv4Allocations) {
-		if (!allocation.address) continue;
-
+	if (ipv4Allocation?.address) {
 		try {
-			const subnetId = await findKeaDhcpv4SubnetId(client, allocation.sourcePrefix);
-			if (!subnetId) {
-				console.warn(`No matching Kea DHCPv4 subnet found for ${allocation.sourcePrefix.cidr}`);
-				continue;
-			}
-
-			await client.createDHCPv4Reservation(subnetId, allocation.address, allocation.macAddress);
+			await client.ensureStaticNeighborEntry({
+				ipaddress: ipv4Allocation.address,
+				macAddress: ipv4Allocation.macAddress,
+				description: tenantDescription(vmId, 'IPv4')
+			});
 		} catch (err) {
-			console.warn(`Failed to create best-effort Kea DHCPv4 reservation for ${allocation.id}`, err);
+			console.warn(
+				`Failed to create best-effort VyOS IPv4 neighbor for ${ipv4Allocation.id}`,
+				err
+			);
 		}
 	}
 
-	if (ipv6TransitAllocation?.address && ipv6PrefixAllocation?.prefix) {
+	if (ipv6TransitAllocation?.address) {
 		try {
-			const subnetId = await findKeaDhcpv6SubnetId(client, ipv6TransitAllocation.sourcePrefix);
-			if (!subnetId) {
-				console.warn(
-					`No matching Kea DHCPv6 subnet found for ${ipv6TransitAllocation.sourcePrefix.cidr}`
-				);
-				return;
-			}
-
-			await client.createDHCPv6Reservation(
-				subnetId,
-				ipv6TransitAllocation.address,
-				ipv6PrefixAllocation.prefix,
-				ipv6TransitAllocation.macAddress
-			);
+			await client.ensureStaticNeighborEntry({
+				ipaddress: ipv6TransitAllocation.address,
+				macAddress: ipv6TransitAllocation.macAddress,
+				description: tenantDescription(vmId, 'IPv6 transit')
+			});
 		} catch (err) {
 			console.warn(
-				`Failed to create best-effort Kea DHCPv6 reservation for ${ipv6TransitAllocation.id}`,
+				`Failed to create best-effort VyOS IPv6 neighbor for ${ipv6TransitAllocation.id}`,
+				err
+			);
+		}
+	}
+
+	if (ipv6PrefixAllocation?.prefix && ipv6TransitAllocation?.address) {
+		try {
+			await client.ensureStaticRoute({
+				destination: ipv6PrefixAllocation.prefix,
+				gateway: ipv6TransitAllocation.address,
+				description: tenantDescription(vmId, 'IPv6 prefix')
+			});
+		} catch (err) {
+			console.warn(
+				`Failed to create best-effort VyOS IPv6 prefix route for ${ipv6PrefixAllocation.id}`,
 				err
 			);
 		}
@@ -644,7 +639,8 @@ export async function allocateVmNetworking(
 		allocations.push(ipv6PrefixAllocation);
 
 		assertIpv6AllocationPair(ipv6TransitAllocation, ipv6PrefixAllocation);
-		await createBestEffortKeaReservations(allocations);
+		// Router orchestration is stubbed until the VyOS integration is implemented.
+		// await createBestEffortVyosState(allocations, params.vmId);
 
 		return allocations;
 	} catch (err) {
