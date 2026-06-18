@@ -1,5 +1,5 @@
 {
-  "id": "fabca584-ec66-47dd-a73f-3a1c41501514",
+  "id": "7a486678-51ba-4549-bfae-e00380d1566c",
   "prevId": "4cd6ab7f-cc5c-4181-9e5a-ba41d460584d",
   "version": "7",
   "dialect": "postgresql",
@@ -639,18 +639,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "opnsense_subnet_uuid": {
-          "name": "opnsense_subnet_uuid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "opnsense_reservation_uuid": {
-          "name": "opnsense_reservation_uuid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "bigint",
@@ -706,7 +694,7 @@
               "nulls": "last"
             }
           ],
-          "isUnique": true,
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -812,21 +800,22 @@
           "notNull": true,
           "default": false
         },
-        "gateway": {
-          "name": "gateway",
+        "ipv6_use_transit_address": {
+          "name": "ipv6_use_transit_address",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "whitelist_start": {
+          "name": "whitelist_start",
           "type": "inet",
           "primaryKey": false,
           "notNull": false
         },
-        "opnsense_subnet_uuid": {
-          "name": "opnsense_subnet_uuid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "opnsense_interface": {
-          "name": "opnsense_interface",
-          "type": "text",
+        "whitelist_end": {
+          "name": "whitelist_end",
+          "type": "inet",
           "primaryKey": false,
           "notNull": false
         },
