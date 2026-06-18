@@ -427,7 +427,10 @@ export class ProxmoxBackend implements VmBackend {
 		const cloudInitNetworkConfigVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitNetworkConfigFilename}`;
 		const cloudInitVendorConfigVolid = `${cloudInitSnippetStorage}:snippets/${cloudInitVendorConfigFilename}`;
 		await Promise.all([
-			this.uploadSnippet(cloudInitNetworkConfigFilename, cloudInitNetworkConfig(params, macAddress)),
+			this.uploadSnippet(
+				cloudInitNetworkConfigFilename,
+				cloudInitNetworkConfig(params, macAddress)
+			),
 			this.uploadSnippet(cloudInitVendorConfigFilename, cloudInitVendorConfig())
 		]);
 

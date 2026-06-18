@@ -539,10 +539,7 @@ async function createBestEffortVyosState(allocations: PendingAllocation[], vmId:
 				description: tenantDescription(vmId, 'IPv4')
 			});
 		} catch (err) {
-			console.warn(
-				`Failed to create best-effort VyOS IPv4 neighbor for ${ipv4Allocation.id}`,
-				err
-			);
+			console.warn(`Failed to create best-effort VyOS IPv4 neighbor for ${ipv4Allocation.id}`, err);
 		}
 	}
 
