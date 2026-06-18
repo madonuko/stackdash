@@ -62,6 +62,7 @@ export interface VmNetworkConfig {
 	ipv4?: { address: string; prefixLength: number };
 	ipv6?: { address: string; prefixLength: number };
 	ipv6Prefix?: string;
+	firewallIpSet?: string[];
 }
 
 export interface VmCreateParams {

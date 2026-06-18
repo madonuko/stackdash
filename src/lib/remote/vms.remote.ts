@@ -358,6 +358,11 @@ export const createVm = command(createParams, async (params) => {
 		const ipv6PrefixNetworkAllocation = networkingAllocations.find(
 			(allocation) => allocation.family === 'ipv6' && allocation.prefix
 		);
+		const firewallIpSet = [
+			...(ipv4NetworkAllocation?.address ? [`${ipv4NetworkAllocation.address}/32`] : []),
+			...(ipv6TransitNetworkAllocation?.address ? [`${ipv6TransitNetworkAllocation.address}/128`] : []),
+			...(ipv6PrefixNetworkAllocation?.prefix ? [ipv6PrefixNetworkAllocation.prefix] : [])
+		];
 		const backend = getBackend('proxmox');
 		result = await backend.createVm({
 			id: vmId,
@@ -370,6 +375,7 @@ export const createVm = command(createParams, async (params) => {
 			imageId: params.imageId,
 			imageSource: baseImage?.filePath,
 			networkConfig: {
+				firewallIpSet,
 				...(ipv4NetworkAllocation?.address
 					? {
 							ipv4: {

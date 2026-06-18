@@ -45,7 +45,7 @@ function firstIpv6AddressInPrefix(prefix: string) {
 	return `${Address6.fromBigInt(address.startAddress().bigInt() + 1n).correctForm()}/${address.subnetMask}`;
 }
 
-const defaultIpv4Gateway = '144.225.80.2';
+const defaultIpv4Gateway = '144.225.80.254';
 const defaultIpv6Gateway = 'fe80::1040:ffff';
 const defaultNameservers = ['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001'];
 
@@ -63,6 +63,10 @@ function cloudInitVendorConfig() {
 	console.log(`finished cloud-init vendor config file:\n${yamlContents}`);
 
 	return yamlContents;
+}
+
+function uniqueFirewallIpSetEntries(params: VmCreateParams) {
+	return [...new Set(params.networkConfig?.firewallIpSet ?? [])];
 }
 
 function cloudInitNetworkConfig(params: VmCreateParams, macAddress: string) {
@@ -434,6 +438,8 @@ export class ProxmoxBackend implements VmBackend {
 			this.uploadSnippet(cloudInitVendorConfigFilename, cloudInitVendorConfig())
 		]);
 
+		const firewallIpSetEntries = uniqueFirewallIpSetEntries(params);
+
 		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
 			vmid,
@@ -448,11 +454,30 @@ export class ProxmoxBackend implements VmBackend {
 			efidisk0: `${pvePool}:0,efitype=4m,pre-enrolled-keys=1`,
 			scsihw: 'virtio-scsi-single',
 			...(params.imageSource ? {} : { virtio0: `${pvePool}:${params.diskGb}` }),
-			net0: `virtio=${macAddress},bridge=vmbr0,tag=1040`,
+			net0: `virtio=${macAddress},bridge=vmbr0,tag=1040,firewall=1`,
 			boot: `order=${bootDisk}`,
 			serial0: 'socket',
 			agent: '1'
 		});
+
+		await this.client.updateQemuFirewallOptions(node.node, vmid, {
+			enable: 1,
+			policy_in: 'ACCEPT',
+			policy_out: 'ACCEPT',
+			ipfilter: 1,
+			macfilter: 1,
+			ndp: 1,
+			dhcp: 0
+		});
+		if (firewallIpSetEntries.length > 0) {
+			const ipsetName = 'ipfilter-net0';
+			await this.client.createQemuFirewallIpset(node.node, vmid, ipsetName);
+			await Promise.all(
+				firewallIpSetEntries.map((cidr) =>
+					this.client.addQemuFirewallIpsetEntry(node.node, vmid, ipsetName, cidr, 'stack-ipam')
+				)
+			);
+		}
 
 		// Phase 2 — import cloud image as boot disk (runs in background)
 		if (params.imageSource) {
