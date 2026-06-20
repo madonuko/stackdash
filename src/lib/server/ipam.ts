@@ -475,6 +475,12 @@ function nextIpv6Allocation(prefix: IpamPrefix, used: Set<string>) {
 	const bounds = ipv6AllocationBounds(prefix);
 	if (!bounds) return null;
 
+	// cap bounds.last to prevent incredibly long loops in the case of ipv6 /128 addresses.
+	// this should never be a problem in practice, but don't wanna crash the worker.
+	const CAP = 1_000_000n;
+	const cappedLast = bounds.first + bounds.allocationSize * CAP;
+	bounds.last = bounds.last < cappedLast ? bounds.last : cappedLast;
+
 	for (let value = bounds.first; value <= bounds.last; value += bounds.allocationSize) {
 		if (used.has(value.toString())) continue;
 		return formatIpv6Allocation(prefix, value);
