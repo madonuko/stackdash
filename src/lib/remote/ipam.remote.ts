@@ -27,6 +27,7 @@ const prefixParams = type({
 	cidr: 'string',
 	whitelistStart: 'string?',
 	whitelistEnd: 'string?',
+	gatewayAddress: 'string?',
 	disabled: 'boolean?',
 	ipv6UseTransitAddress: 'boolean?'
 });
@@ -47,6 +48,7 @@ const updatePrefixParams = type({
 	cidr: 'string',
 	whitelistStart: 'string?',
 	whitelistEnd: 'string?',
+	gatewayAddress: 'string?',
 	disabled: 'boolean?',
 	ipv6UseTransitAddress: 'boolean?'
 });

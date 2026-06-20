@@ -59,7 +59,7 @@ export interface BackendImageImportParams {
 }
 
 export interface VmNetworkConfig {
-	ipv4?: { address: string; prefixLength: number };
+	ipv4?: { address: string; prefixLength: number; gateway: string };
 	ipv6?: { address: string; prefixLength: number };
 	ipv6Prefix?: string;
 	firewallIpSet?: string[];

@@ -20,6 +20,7 @@ CREATE TABLE "ipam_prefixes" (
 	"ipv6_use_transit_address" boolean DEFAULT false NOT NULL,
 	"whitelist_start" "inet",
 	"whitelist_end" "inet",
+	"gateway_address" "inet",
 	"created_at" bigint DEFAULT (extract(epoch from now()) * 1000)::bigint NOT NULL
 );
 --> statement-breakpoint

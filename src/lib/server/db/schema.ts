@@ -275,6 +275,7 @@ export const ipamPrefixes = pgTable(
 		ipv6UseTransitAddress: boolean('ipv6_use_transit_address').notNull().default(false),
 		whitelistStart: inet('whitelist_start'),
 		whitelistEnd: inet('whitelist_end'),
+		gatewayAddress: inet('gateway_address'),
 		createdAt: bigint('created_at', { mode: 'number' })
 			.notNull()
 			.default(sql`(extract(epoch from now()) * 1000)::bigint`)

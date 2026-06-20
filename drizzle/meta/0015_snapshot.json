@@ -1,5 +1,5 @@
 {
-  "id": "7a486678-51ba-4549-bfae-e00380d1566c",
+  "id": "609cd49f-2397-4867-a152-bc1e2522bfcc",
   "prevId": "4cd6ab7f-cc5c-4181-9e5a-ba41d460584d",
   "version": "7",
   "dialect": "postgresql",
@@ -815,6 +815,12 @@
         },
         "whitelist_end": {
           "name": "whitelist_end",
+          "type": "inet",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gateway_address": {
+          "name": "gateway_address",
           "type": "inet",
           "primaryKey": false,
           "notNull": false

@@ -90,6 +90,7 @@ export type IpamPrefix = {
 	ipv6UseTransitAddress: boolean;
 	whitelistStart: string | null;
 	whitelistEnd: string | null;
+	gatewayAddress: string | null;
 	allocated: number;
 	capacity: string;
 	available: string;

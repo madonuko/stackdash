@@ -48,6 +48,7 @@
 	let cidr = $state('');
 	let whitelistStart = $state('');
 	let whitelistEnd = $state('');
+	let gatewayAddress = $state('');
 	let disabled = $state(false);
 	let ipv6UseTransitAddress = $state(false);
 
@@ -74,6 +75,7 @@
 		cidr = '';
 		whitelistStart = '';
 		whitelistEnd = '';
+		gatewayAddress = '';
 		disabled = false;
 		ipv6UseTransitAddress = false;
 		formError = '';
@@ -86,6 +88,7 @@
 		cidr = prefix.cidr;
 		whitelistStart = prefix.whitelistStart ?? '';
 		whitelistEnd = prefix.whitelistEnd ?? '';
+		gatewayAddress = prefix.gatewayAddress ?? '';
 		disabled = prefix.disabled;
 		ipv6UseTransitAddress = prefix.ipv6UseTransitAddress;
 		formError = '';
@@ -98,7 +101,7 @@
 	}
 
 	async function savePrefix() {
-		if (!name.trim() || !cidr.trim()) return;
+		if (!name.trim() || !cidr.trim() || (!isIpv6Prefix && !gatewayAddress.trim())) return;
 
 		saving = true;
 		formError = '';
@@ -108,6 +111,7 @@
 			cidr: cidr.trim(),
 			whitelistStart: whitelistStart.trim(),
 			whitelistEnd: whitelistEnd.trim(),
+			gatewayAddress: isIpv6Prefix ? '' : gatewayAddress.trim(),
 			disabled,
 			ipv6UseTransitAddress: isIpv6Prefix && ipv6UseTransitAddress
 		};
@@ -245,6 +249,7 @@
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Name</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Prefix</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Family</th>
+						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Gateway</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Mode</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Available</th>
 						<th class="px-5 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
@@ -264,6 +269,9 @@
 							<td class="px-5 py-3 font-mono text-xs text-gray-300">{prefix.cidr}</td>
 							<td class="px-5 py-3">
 								<Badge variant="secondary" class="text-[10px]">{prefix.family}</Badge>
+							</td>
+							<td class="px-5 py-3 font-mono text-xs text-gray-300">
+								{prefix.gatewayAddress ?? '—'}
 							</td>
 							<td class="px-5 py-3">
 								<Badge variant="outline" class="text-[10px]">
@@ -340,6 +348,12 @@
 				<Label for="ipam-cidr">Prefix</Label>
 				<Input id="ipam-cidr" bind:value={cidr} placeholder="203.0.113.0/24" />
 			</div>
+			{#if !isIpv6Prefix}
+				<div class="grid gap-2">
+					<Label for="ipam-gateway-address">Gateway Address</Label>
+					<Input id="ipam-gateway-address" bind:value={gatewayAddress} placeholder="203.0.113.1" />
+				</div>
+			{/if}
 			<div class="grid grid-cols-2 gap-4">
 				<div class="grid gap-2">
 					<Label for="ipam-whitelist-start">Whitelist Start</Label>
@@ -375,7 +389,13 @@
 			<Button variant="outline" onclick={() => (dialogOpen = false)} disabled={saving}
 				>Cancel</Button
 			>
-			<Button onclick={savePrefix} disabled={saving || !name.trim() || !cidr.trim()}>
+			<Button
+				onclick={savePrefix}
+				disabled={saving ||
+					!name.trim() ||
+					!cidr.trim() ||
+					(!isIpv6Prefix && !gatewayAddress.trim())}
+			>
 				{#if saving}
 					<Loader2 class="mr-2 h-3 w-3 animate-spin" />
 				{/if}

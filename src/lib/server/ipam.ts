@@ -20,6 +20,7 @@ export type IpamPrefixInput = {
 	cidr: string;
 	whitelistStart?: string | null;
 	whitelistEnd?: string | null;
+	gatewayAddress?: string | null;
 	disabled?: boolean;
 	ipv6UseTransitAddress?: boolean;
 };
@@ -136,17 +137,6 @@ function formatPrefix(family: IpFamily, value: bigint, prefixLength: number) {
 	return `${formatAddress(family, value)}/${prefixLength}`;
 }
 
-function isCidrInside(parent: string, child: string) {
-	const parentRange = parseCidr(parent);
-	const childRange = parseCidr(child);
-
-	return (
-		parentRange.family === childRange.family &&
-		childRange.start >= parentRange.start &&
-		childRange.end <= parentRange.end
-	);
-}
-
 function defaultWhitelistBounds(range: AddressRange) {
 	if (range.family === 'ipv4') {
 		const excludesNetworkAndBroadcast = range.prefixLength < 31;
@@ -175,10 +165,22 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		error(400, `${normalized.family} prefix is too small for VM allocations`);
 	}
 
+	const range = parseCidr(normalized.cidr);
+	let gatewayAddress = input.gatewayAddress?.trim() || null;
+	if (normalized.family === 'ipv4') {
+		if (!gatewayAddress) error(400, 'Gateway address is required for IPv4 prefixes');
+		const gatewayValue = parseAddress('ipv4', gatewayAddress);
+		if (gatewayValue < range.start || gatewayValue > range.end) {
+			error(400, 'Gateway address must be inside the prefix');
+		}
+		gatewayAddress = formatAddress('ipv4', gatewayValue);
+	} else {
+		gatewayAddress = null
+	}
+
 	let whitelistStart = input.whitelistStart?.trim() || null;
 	let whitelistEnd = input.whitelistEnd?.trim() || null;
 	if (whitelistStart || whitelistEnd) {
-		const range = parseCidr(normalized.cidr);
 		const defaults = defaultWhitelistBounds(range);
 		const startValue = whitelistStart
 			? parseAddress(normalized.family, whitelistStart)
@@ -205,6 +207,7 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 		ipv6UseTransitAddress,
 		whitelistStart,
 		whitelistEnd,
+		gatewayAddress,
 		disabled: input.disabled ?? false
 	};
 }
@@ -244,6 +247,10 @@ function ipv6WhitelistBounds(prefix: IpamPrefix) {
 	return first <= last ? { first, last } : null;
 }
 
+function ipv4GatewayValue(prefix: IpamPrefix) {
+	return prefix.gatewayAddress ? parseAddress('ipv4', prefix.gatewayAddress) : null;
+}
+
 function prefixCapacity(prefix: IpamPrefix) {
 	const range = parseCidr(prefix.cidr);
 
@@ -252,17 +259,23 @@ function prefixCapacity(prefix: IpamPrefix) {
 		if (!usable) return 0n;
 
 		let capacity: bigint;
+		let capacityStart: bigint;
+		let capacityEnd: bigint;
 		if (prefix.whitelistStart && prefix.whitelistEnd) {
 			// Whitelist set: only count IPs within the whitelist range
 			const start = parseAddress('ipv4', prefix.whitelistStart);
 			const end = parseAddress('ipv4', prefix.whitelistEnd);
-			const overlapStart = start > usable.first ? start : usable.first;
-			const overlapEnd = end < usable.last ? end : usable.last;
-			capacity = overlapStart <= overlapEnd ? overlapEnd - overlapStart + 1n : 0n;
+			capacityStart = start > usable.first ? start : usable.first;
+			capacityEnd = end < usable.last ? end : usable.last;
 		} else {
 			// No whitelist: entire usable range
-			capacity = usable.last - usable.first + 1n;
+			capacityStart = usable.first;
+			capacityEnd = usable.last;
 		}
+
+		capacity = capacityStart <= capacityEnd ? capacityEnd - capacityStart + 1n : 0n;
+		const gateway = ipv4GatewayValue(prefix);
+		if (gateway !== null && gateway >= capacityStart && gateway <= capacityEnd) capacity -= 1n;
 
 		return capacity > 0n ? capacity : 0n;
 	}
@@ -409,8 +422,9 @@ function ipv4AllocationBounds(prefix: IpamPrefix) {
 	const allocEnd = prefix.whitelistEnd ? parseAddress('ipv4', prefix.whitelistEnd) : usable.last;
 	const first = allocStart > usable.first ? allocStart : usable.first;
 	const last = allocEnd < usable.last ? allocEnd : usable.last;
+	const gateway = ipv4GatewayValue(prefix);
 
-	return first <= last ? { first, last } : null;
+	return first <= last ? { first, last, gateway } : null;
 }
 
 function randomIpv4Address(prefix: IpamPrefix, used: Set<string>) {
@@ -418,7 +432,7 @@ function randomIpv4Address(prefix: IpamPrefix, used: Set<string>) {
 	if (!bounds) return null;
 
 	const value = bounds.first + randomBigIntBelow(bounds.last - bounds.first + 1n);
-	if (used.has(value.toString())) return null;
+	if (value === bounds.gateway || used.has(value.toString())) return null;
 
 	return formatAddress('ipv4', value);
 }
@@ -464,7 +478,7 @@ function nextIpv4Address(prefix: IpamPrefix, used: Set<string>) {
 	if (!bounds) return null;
 
 	for (let value = bounds.first; value <= bounds.last; value++) {
-		if (used.has(value.toString())) continue;
+		if (value === bounds.gateway || used.has(value.toString())) continue;
 		return formatAddress('ipv4', value);
 	}
 

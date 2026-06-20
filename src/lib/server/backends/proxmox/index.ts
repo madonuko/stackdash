@@ -46,7 +46,6 @@ function firstIpv6AddressInPrefix(prefix: string) {
 	return `${Address6.fromBigInt(address.startAddress().bigInt() + 1n).correctForm()}/${address.subnetMask}`;
 }
 
-const defaultIpv4Gateway = '144.225.80.254';
 const defaultIpv6Gateway = 'fe80::1040:ffff';
 const defaultNameservers = ['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001'];
 
@@ -80,8 +79,8 @@ function cloudInitNetworkConfig(params: VmCreateParams, macAddress: string) {
 	const routes = [
 		...(params.networkConfig?.ipv4
 			? [
-					{ to: `${defaultIpv4Gateway}/32`, scope: 'link' },
-					{ to: '0.0.0.0/0', via: defaultIpv4Gateway, 'on-link': true }
+					{ to: `${params.networkConfig.ipv4.gateway}/32`, scope: 'link' },
+					{ to: '0.0.0.0/0', via: params.networkConfig.ipv4.gateway, 'on-link': true }
 				]
 			: []),
 		...(params.networkConfig?.ipv6
