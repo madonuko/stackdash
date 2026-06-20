@@ -475,8 +475,12 @@ export const deleteVm = command(deleteParams, async (params) => {
 		await deleteProjectServerEntity(row.ownerProjectId, row.id).catch((err) => {
 			console.warn(`Failed to delete Autumn entity for VM ${row.id}`, err);
 		});
-	}
-	await releaseVmNetworking(db, row.id);
+  }
+
+  await releaseVmNetworking(db, row.id).catch(err => {
+   	console.warn(`Failed to release networking for VM ${row.id}`, err);
+  })
+
 	await db.update(vms).set({ active: false }).where(eq(vms.id, params.vmId));
 	refreshProxmoxVmCache().catch(() => {});
 });
