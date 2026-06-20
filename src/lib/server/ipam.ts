@@ -484,7 +484,7 @@ function nextIpv6Allocation(prefix: IpamPrefix, used: Set<string>) {
 }
 
 function prefixMatchesKind(prefix: IpamPrefix, kind: AllocationKind) {
-	if (!prefix.disabled) return false;
+	if (prefix.disabled) return false;
 	if (kind === 'ipv6-transit') return prefix.ipv6UseTransitAddress;
 	if (kind === 'ipv6-prefix') return !prefix.ipv6UseTransitAddress;
 	return true;
