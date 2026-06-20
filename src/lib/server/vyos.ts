@@ -55,7 +55,8 @@ function getVyosConfig() {
 
 	return {
 		apiUrl: env.VYOS_API_URL.replace(/\/+$/, ''),
-		apiKey: env.VYOS_API_KEY
+		apiKey: env.VYOS_API_KEY,
+		verifySsl: env.VYOS_VERIFY_SSL !== 'false'
 	};
 }
 
@@ -73,14 +74,17 @@ export class VyosClient {
 
 		this.apiKey = config.apiKey;
 
-		// Build a custom fetch that skips TLS verification for self-signed certs
-		const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
-		const insecureFetch = (input: RequestInfo | URL, init?: RequestInit) =>
-			fetch(input, {
-				...init,
-				// @ts-expect-error -- Node/undici dispatcher extension
-				dispatcher: insecureAgent
-			});
+		const insecureAgent = config.verifySsl
+			? undefined
+			: new Agent({ connect: { rejectUnauthorized: false } });
+		const insecureFetch = insecureAgent
+			? (input: RequestInfo | URL, init?: RequestInit) =>
+					fetch(input, {
+						...init,
+						// @ts-expect-error -- Node/undici dispatcher extension
+						dispatcher: insecureAgent
+					})
+			: undefined;
 
 		this.api = ky.create({
 			prefix: `${config.apiUrl}`,
@@ -88,7 +92,7 @@ export class VyosClient {
 				Accept: 'application/json'
 			},
 			timeout: 30_000,
-			fetch: insecureFetch
+			...(insecureFetch ? { fetch: insecureFetch } : {})
 		});
 	}
 

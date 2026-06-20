@@ -20,6 +20,7 @@ declare global {
 				BETTER_AUTH_SECRET: string;
 				VYOS_API_URL?: string;
 				VYOS_API_KEY?: string;
+				VYOS_VERIFY_SSL?: string;
 				EMAIL?: SendEmail;
 				EMAIL_FROM_ADDRESS: string;
 				EMAIL_FROM_NAME: string;
