@@ -455,7 +455,8 @@ export class ProxmoxBackend implements VmBackend {
 			boot: `order=${bootDisk}`,
 			serial0: 'socket',
 			agent: '1',
-			tags: `vmid-${params.id};projectid-${params.projectId};userid-${params.userId}`
+			tags: `vmid-${params.id};projectid-${params.projectId};userid-${params.userId}`,
+			'ha-managed': 1
 		});
 
 		await this.client.updateQemuFirewallOptions(node.node, vmid, {
