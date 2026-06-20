@@ -240,6 +240,14 @@ export class ProxmoxClient {
 			.json<PveResponse<null>>();
 	}
 
+	async addQemuFirewallSecurityGroupRule(node: string, vmid: number, group: string): Promise<void> {
+		await this.api
+			.post(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/firewall/rules`, {
+				body: this.toForm({ type: 'group', action: group, enable: 1 })
+			})
+			.json<PveResponse<null>>();
+	}
+
 	async deleteQemuVm(
 		node: string,
 		vmid: number,

@@ -50,7 +50,8 @@ function createProxmox(): ProxmoxBackend {
 		snippetsEndpointUsername: env.PROXMOX_SNIPPETS_ENDPOINT_USERNAME,
 		snippetsEndpointPassword: env.PROXMOX_SNIPPETS_ENDPOINT_PASSWORD,
 		snippetsEndpointVerifySsl: env.PROXMOX_SNIPPETS_ENDPOINT_VERIFY_SSL !== 'false',
-		snippetsStorage: env.PROXMOX_SNIPPETS_STORAGE
+		snippetsStorage: env.PROXMOX_SNIPPETS_STORAGE,
+		firewallSecurityGroup: env.PROXMOX_VM_FIREWALL_SECURITY_GROUP
 	});
 }
 

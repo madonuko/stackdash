@@ -29,6 +29,7 @@ type ProxmoxBackendOptions = {
 	snippetsEndpointPassword?: string;
 	snippetsEndpointVerifySsl?: boolean;
 	snippetsStorage?: string;
+	firewallSecurityGroup?: string;
 };
 
 function generateMacAddress() {
@@ -469,6 +470,13 @@ export class ProxmoxBackend implements VmBackend {
 			ndp: 1,
 			dhcp: 0
 		});
+		if (this.options.firewallSecurityGroup) {
+			await this.client.addQemuFirewallSecurityGroupRule(
+				node.node,
+				vmid,
+				this.options.firewallSecurityGroup
+			);
+		}
 		if (firewallIpSetEntries.length > 0) {
 			const ipsetName = 'ipfilter-net0';
 			await this.client.createQemuFirewallIpset(node.node, vmid, ipsetName);
