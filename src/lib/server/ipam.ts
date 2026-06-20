@@ -209,10 +209,6 @@ export function normalizeIpamPrefixInput(input: IpamPrefixInput) {
 	};
 }
 
-function prefixCanAllocate(prefix: IpamPrefix) {
-	return !prefix.disabled;
-}
-
 function ipv4UsableRange(prefix: IpamPrefix) {
 	const range = parseCidr(prefix.cidr);
 	const excludesNetworkAndBroadcast = range.prefixLength < 31;
@@ -315,7 +311,7 @@ async function prefixStats(db: QueryableDb, prefix: IpamPrefix): Promise<IpamPre
 		where: eq(ipamAllocations.ipamPrefixId, prefix.id),
 		columns: { address: true, prefix: true }
 	});
-	const capacity = prefixCanAllocate(prefix) ? prefixCapacity(prefix) : 0n;
+	const capacity = !prefix.disabled ? prefixCapacity(prefix) : 0n;
 	const allocated = allocatedCount(prefix, allocations);
 	const available = capacity > allocated ? capacity - allocated : 0n;
 
@@ -488,7 +484,7 @@ function nextIpv6Allocation(prefix: IpamPrefix, used: Set<string>) {
 }
 
 function prefixMatchesKind(prefix: IpamPrefix, kind: AllocationKind) {
-	if (!prefixCanAllocate(prefix)) return false;
+	if (!prefix.disabled) return false;
 	if (kind === 'ipv6-transit') return prefix.ipv6UseTransitAddress;
 	if (kind === 'ipv6-prefix') return !prefix.ipv6UseTransitAddress;
 	return true;
