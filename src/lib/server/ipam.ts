@@ -654,13 +654,9 @@ function tenantDescription(vmId: string, label: string) {
 	return `tenant ${vmId.slice(-8)} ${label}`;
 }
 
-async function createBestEffortVyosState(allocations: PendingAllocation[], vmId: string) {
+async function createVyosDelegatedRoute(allocations: PendingAllocation[], vmId: string) {
 	if (!isVyosConfigured()) return;
 
-	const client = new VyosClient();
-	const ipv4Allocation = allocations.find(
-		(allocation) => allocation.family === 'ipv4' && allocation.address
-	);
 	const ipv6TransitAllocation = allocations.find(
 		(allocation) => allocation.family === 'ipv6' && allocation.address
 	);
@@ -668,47 +664,41 @@ async function createBestEffortVyosState(allocations: PendingAllocation[], vmId:
 		(allocation) => allocation.family === 'ipv6' && allocation.prefix
 	);
 
-	if (ipv4Allocation?.address) {
-		try {
-			await client.ensureStaticNeighborEntry({
-				ipaddress: ipv4Allocation.address,
-				macAddress: ipv4Allocation.macAddress,
-				description: tenantDescription(vmId, 'IPv4')
-			});
-		} catch (err) {
-			console.warn(`Failed to create best-effort VyOS IPv4 neighbor for ${ipv4Allocation.id}`, err);
-		}
-	}
+	if (!ipv6PrefixAllocation?.prefix || !ipv6TransitAllocation?.address) return;
 
-	if (ipv6TransitAllocation?.address) {
-		try {
-			await client.ensureStaticNeighborEntry({
-				ipaddress: ipv6TransitAllocation.address,
-				macAddress: ipv6TransitAllocation.macAddress,
-				description: tenantDescription(vmId, 'IPv6 transit')
-			});
-		} catch (err) {
-			console.warn(
-				`Failed to create best-effort VyOS IPv6 neighbor for ${ipv6TransitAllocation.id}`,
-				err
-			);
-		}
-	}
+	const client = new VyosClient();
+	await client.createDelegatedRoute({
+		destination: ipv6PrefixAllocation.prefix,
+		gateway: ipv6TransitAllocation.address,
+		description: tenantDescription(vmId, 'IPv6 prefix')
+	});
+}
 
-	if (ipv6PrefixAllocation?.prefix && ipv6TransitAllocation?.address) {
-		try {
-			await client.ensureStaticRoute({
-				destination: ipv6PrefixAllocation.prefix,
-				gateway: ipv6TransitAllocation.address,
-				description: tenantDescription(vmId, 'IPv6 prefix')
-			});
-		} catch (err) {
-			console.warn(
-				`Failed to create best-effort VyOS IPv6 prefix route for ${ipv6PrefixAllocation.id}`,
-				err
-			);
+async function deleteVyosDelegatedRoute(allocations: PendingAllocation[]) {
+	if (!isVyosConfigured()) return;
+
+	const ipv6PrefixAllocation = allocations.find(
+		(allocation) => allocation.family === 'ipv6' && allocation.prefix
+	);
+
+	if (!ipv6PrefixAllocation?.prefix) return;
+
+	const client = new VyosClient();
+	await client.deleteDelegatedRoute(ipv6PrefixAllocation.prefix);
+}
+
+async function vmAllocations(db: QueryableDb, vmId: string): Promise<PendingAllocation[]> {
+	const allocations = await db.query.ipamAllocations.findMany({
+		where: eq(ipamAllocations.associatedVmId, vmId),
+		with: {
+			ipamPrefix: true
 		}
-	}
+	});
+
+	return allocations.map(({ ipamPrefix, ...allocation }) => ({
+		...allocation,
+		sourcePrefix: ipamPrefix
+	}));
 }
 
 function assertIpv6AllocationPair(
@@ -773,8 +763,7 @@ export async function allocateVmNetworking(
 		allocations.push(ipv6PrefixAllocation);
 
 		assertIpv6AllocationPair(ipv6TransitAllocation, ipv6PrefixAllocation);
-		// Router orchestration is stubbed until the VyOS integration is implemented.
-		// await createBestEffortVyosState(allocations, params.vmId);
+		await createVyosDelegatedRoute(allocations, params.vmId);
 
 		return allocations;
 	} catch (err) {
@@ -784,5 +773,7 @@ export async function allocateVmNetworking(
 }
 
 export async function releaseVmNetworking(db: QueryableDb, vmId: string) {
+	const allocations = await vmAllocations(db, vmId);
+	await deleteVyosDelegatedRoute(allocations);
 	await db.delete(ipamAllocations).where(eq(ipamAllocations.associatedVmId, vmId));
 }

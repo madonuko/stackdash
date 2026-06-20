@@ -1,8 +1,22 @@
 import { getRuntimeEnv } from '$lib/server/env';
+import ky, { type KyInstance } from 'ky';
+import { Agent } from 'undici';
 
-type VyosCommandResponse = {
-	result?: string;
-	status?: string;
+type VyosApiResponse<T = unknown> = {
+	success: boolean;
+	data: T;
+	error: unknown;
+};
+
+type VyosCommandResponse = VyosApiResponse;
+
+type VyosStaticIpv6Route = {
+	blackhole?: Record<string, never>;
+	'next-hop'?: Record<string, { interface?: string }>;
+};
+
+type VyosStaticIpv6Routes = {
+	route6?: Record<string, VyosStaticIpv6Route>;
 };
 
 export type VyosStaticNeighborParams = {
@@ -14,7 +28,7 @@ export type VyosStaticNeighborParams = {
 export type VyosStaticRouteParams = {
 	destination: string;
 	gateway: string;
-	description: string;
+	description?: string;
 };
 
 export class VyosError extends Error {
@@ -50,20 +64,111 @@ export function isVyosConfigured() {
 }
 
 export class VyosClient {
+	private api: KyInstance;
+	private apiKey: string;
+
 	constructor() {
 		const config = getVyosConfig();
 		if (!config) throw new VyosError("Couldn't get VyOS config", 500, '');
+
+		this.apiKey = config.apiKey;
+
+		// Build a custom fetch that skips TLS verification for self-signed certs
+		const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
+		const insecureFetch = (input: RequestInfo | URL, init?: RequestInit) =>
+			fetch(input, {
+				...init,
+				// @ts-expect-error -- Node/undici dispatcher extension
+				dispatcher: insecureAgent
+			});
+
+		this.api = ky.create({
+			prefix: `${config.apiUrl}`,
+			headers: {
+				Accept: 'application/json'
+			},
+			timeout: 30_000,
+			fetch: insecureFetch
+		});
 	}
 
-	async ensureStaticNeighborEntry(
-		params: VyosStaticNeighborParams
+	/**
+	 * VyOS API expects form-encoded POST bodies with a JSON `data` field and
+	 * plaintext API key in the `key` field.
+	 */
+	private toForm(data: Record<string, unknown>): URLSearchParams {
+		const form = new URLSearchParams();
+		form.append('data', JSON.stringify(data));
+		form.append('key', this.apiKey);
+		return form;
+	}
+
+	private async post<T = unknown>(endpoint: string, data: Record<string, unknown>) {
+		const response = await this.api
+			.post(endpoint, {
+				body: this.toForm(data)
+			})
+			.json<VyosApiResponse<T>>();
+
+		if (!response.success) {
+			throw new VyosError(`VyOS ${endpoint} request failed`, 500, response.error ?? response);
+		}
+
+		return response;
+	}
+
+	private static routeHasNextHop(route: VyosStaticIpv6Route | undefined, gateway: string): boolean {
+		return route?.['next-hop'] !== undefined && gateway in route['next-hop'];
+	}
+
+	async getStaticIpv6Routes(): Promise<VyosStaticIpv6Routes> {
+		const response = await this.post<VyosStaticIpv6Routes | null>('retrieve', {
+			op: 'showConfig',
+			path: ['protocols', 'static', 'route6']
+		});
+
+		return response.data ?? {};
+	}
+
+	private async saveConfig() {
+		await this.post('config-file', { op: 'save' });
+	}
+
+	async createDelegatedRoute(params: VyosStaticRouteParams): Promise<VyosCommandResponse | null> {
+		const existingRoutes = await this.getStaticIpv6Routes();
+		const existingRoute = existingRoutes.route6?.[params.destination];
+
+		if (VyosClient.routeHasNextHop(existingRoute, params.gateway)) {
+			return null;
+		}
+
+		if (existingRoute) {
+			await this.deleteDelegatedRouteWithoutSavingConfig(params.destination);
+		}
+
+		const response = await this.post('configure', {
+			op: 'set',
+			path: ['protocols', 'static', 'route6', params.destination, 'next-hop', params.gateway]
+		});
+		await this.saveConfig();
+		return response;
+	}
+
+	async deleteDelegatedRoute(destination: string): Promise<VyosCommandResponse | null> {
+		const existingRoutes = await this.getStaticIpv6Routes();
+		if (!existingRoutes.route6?.[destination]) return null;
+
+		const response = await this.deleteDelegatedRouteWithoutSavingConfig(destination);
+		await this.saveConfig();
+		return response;
+	}
+
+	private async deleteDelegatedRouteWithoutSavingConfig(
+		destination: string
 	): Promise<VyosCommandResponse | null> {
-		console.warn('VyOS static neighbor orchestration is not implemented yet', params);
-		return null;
-	}
-
-	async ensureStaticRoute(params: VyosStaticRouteParams): Promise<VyosCommandResponse | null> {
-		console.warn('VyOS static route orchestration is not implemented yet', params);
-		return null;
+		return await this.post('configure', {
+			op: 'delete',
+			path: ['protocols', 'static', 'route6', destination]
+		});
 	}
 }
