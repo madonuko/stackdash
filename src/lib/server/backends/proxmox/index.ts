@@ -32,6 +32,10 @@ type ProxmoxBackendOptions = {
 	firewallSecurityGroup?: string;
 };
 
+type CloudInitVendorConfigParams = {
+	enableSshPasswordAuth?: boolean;
+};
+
 function generateMacAddress() {
 	const bytes = crypto.getRandomValues(new Uint8Array(6));
 	bytes[0] = (bytes[0] & 0xfe) | 0x02;
@@ -49,15 +53,29 @@ function firstIpv6AddressInPrefix(prefix: string) {
 const defaultIpv6Gateway = 'fe80::1040:ffff';
 const defaultNameservers = ['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001'];
 
-function cloudInitVendorConfig() {
+function cloudInitVendorConfig(params: CloudInitVendorConfigParams) {
 	const yamlContents = `#cloud-config\n${stringifyYaml({
 		write_files: [
 			{
 				path: '/etc/sysctl.d/99-ipv6-forwarding.conf',
 				content: 'net.ipv6.conf.all.forwarding = 1\n'
-			}
+			},
+			...((params.enableSshPasswordAuth ?? false)
+				? [
+						{
+							path: '/etc/ssh/sshd_config.d/50-enable-root-login.conf',
+							content: 'PermitRootLogin yes\n'
+						}
+					]
+				: [])
 		],
-		runcmd: ['sysctl --system']
+		runcmd: [
+			'sysctl --system',
+			...((params.enableSshPasswordAuth ?? false)
+				? ['systemctl restart ssh', 'systemctl restart sshd']
+				: [])
+		],
+		ssh_pwauth: params.enableSshPasswordAuth ?? false
 	})}`;
 
 	return yamlContents;
@@ -431,7 +449,10 @@ export class ProxmoxBackend implements VmBackend {
 				cloudInitNetworkConfigFilename,
 				cloudInitNetworkConfig(params, macAddress)
 			),
-			this.uploadSnippet(cloudInitVendorConfigFilename, cloudInitVendorConfig())
+			this.uploadSnippet(
+				cloudInitVendorConfigFilename,
+				cloudInitVendorConfig({ enableSshPasswordAuth: Boolean(params.password) })
+			)
 		]);
 
 		const firewallIpSetEntries = uniqueFirewallIpSetEntries(params);
