@@ -108,7 +108,7 @@
 			<input
 				bind:value={search}
 				placeholder="Search images..."
-				class="h-7 w-44 border border-gray-700 bg-gray-800 pr-2 pl-7 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+				class="h-7 w-44 border border-gray-700 bg-gray-800 pr-2 pl-7 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 			/>
 		</div>
 	</div>
@@ -169,7 +169,7 @@
 							<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
 								{image.description}
 							</p>
-							<p class="mt-auto pt-2 text-[10px] leading-none text-gray-600">
+							<p class="mt-auto pt-2 text-[10px] leading-none text-gray-500">
 								{displayArchitecture(image)} | {image.version}
 							</p>
 						</div>
@@ -188,7 +188,7 @@
 				Your Images ({customImages.length})
 			</span>
 			{#if data.proxmoxIsos?.length}
-				<span class="text-[10px] text-gray-600">{data.proxmoxIsos.length} Proxmox ISOs found</span>
+				<span class="text-[10px] text-gray-500">{data.proxmoxIsos.length} Proxmox ISOs found</span>
 			{/if}
 		</div>
 
@@ -200,21 +200,21 @@
 						onclick={() => openDetail(image)}
 					>
 						<div class="flex min-w-0 items-center gap-2">
-							<Disc class="h-2.5 w-2.5 shrink-0 text-gray-600" />
+							<Disc class="h-2.5 w-2.5 shrink-0 text-gray-500" />
 							<span class="truncate text-xs text-gray-200">{image.name}</span>
 							<Badge variant="outline" class="text-[7px] {imageTypeClass(image.imageType)}">
 								.{image.imageType}
 							</Badge>
-							<span class="text-[10px] text-gray-600">{image.version}</span>
+							<span class="text-[10px] text-gray-500">{image.version}</span>
 						</div>
-						<span class="text-[10px] text-gray-600">{displayArchitecture(image)}</span>
+						<span class="text-[10px] text-gray-500">{displayArchitecture(image)}</span>
 					</button>
 				{/each}
 			</div>
 		{:else if search.trim()}
-			<div class="px-5 py-3 text-center text-[10px] text-gray-600">No matches</div>
+			<div class="px-5 py-3 text-center text-[10px] text-gray-500">No matches</div>
 		{:else}
-			<div class="flex items-center justify-center gap-1.5 py-3 text-gray-600">
+			<div class="flex items-center justify-center gap-1.5 py-3 text-gray-500">
 				<Disc class="h-3 w-3" />
 				<p class="text-[10px]">No imported images</p>
 			</div>

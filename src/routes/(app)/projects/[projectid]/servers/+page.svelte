@@ -36,5 +36,5 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex h-full items-center justify-center text-xs text-gray-600">Loading server...</div>
+	<div class="flex h-full items-center justify-center text-xs text-gray-500">Loading server...</div>
 {/if}

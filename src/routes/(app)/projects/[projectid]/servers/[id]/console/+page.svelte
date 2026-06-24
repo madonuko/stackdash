@@ -30,6 +30,6 @@
 			{/if}
 		{/each}
 	{:else}
-		<div class="text-gray-600">Server is offline. Start the server to connect.</div>
+		<div class="text-gray-500">Server is offline. Start the server to connect.</div>
 	{/if}
 </div>

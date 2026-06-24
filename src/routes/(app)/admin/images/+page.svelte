@@ -595,7 +595,7 @@
 					bind:value={admin.imgDescription}
 					placeholder="Short description of this image..."
 					rows="2"
-					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 				></textarea>
 			</div>
 
@@ -607,7 +607,7 @@
 							bind:value={admin.imgLogoSvg}
 							placeholder="<svg ...></svg>"
 							rows="3"
-							class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+							class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 						></textarea>
 					</div>
 					<div class="flex flex-col gap-2">

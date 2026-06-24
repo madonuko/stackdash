@@ -232,7 +232,7 @@
 										<div
 											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md {enabled
 												? 'bg-red-500/10 text-red-400'
-												: 'bg-gray-800/50 text-gray-600'}"
+												: 'bg-gray-800/50 text-gray-500'}"
 										>
 											<Icon class="h-4 w-4" />
 										</div>
@@ -524,7 +524,7 @@
 					bind:value={admin.imgDescription}
 					placeholder="Short description of this image..."
 					rows="2"
-					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 				></textarea>
 			</div>
 
@@ -551,7 +551,7 @@
 					bind:value={admin.imgIcon}
 					placeholder="logo--linux"
 					rows="2"
-					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+					class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 				></textarea>
 				{#if admin.imgIcon.trim()}
 					<div class="flex items-center gap-2 text-xs text-gray-500">
@@ -600,7 +600,7 @@
 								onclick={() => (admin.imgFilePath = iso.volid)}
 							>
 								<span class="truncate font-mono">{iso.volid}</span>
-								<span class="ml-2 shrink-0 text-gray-600">{formatSize(iso.size)}</span>
+								<span class="ml-2 shrink-0 text-gray-500">{formatSize(iso.size)}</span>
 							</button>
 						{/each}
 					</div>

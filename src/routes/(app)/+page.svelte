@@ -176,7 +176,7 @@
 								</div>
 								<div class="flex items-center gap-3 text-sm text-gray-500">
 									<ArrowRight
-										class="size-4 text-gray-600 transition-colors group-hover:text-red-300"
+										class="size-4 text-gray-500 transition-colors group-hover:text-red-300"
 									/>
 								</div>
 							</button>
@@ -217,7 +217,7 @@
 						</span>
 						<span>
 							<span class="text-base font-medium text-gray-400">New Project</span>
-							<span class="mt-1 block text-sm text-gray-600">Create a workspace</span>
+							<span class="mt-1 block text-sm text-gray-500">Create a workspace</span>
 						</span>
 					</button>
 				</div>

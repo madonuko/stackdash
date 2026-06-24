@@ -216,7 +216,7 @@
 						></span>
 						<span class="text-sm text-gray-200">{server.name}</span>
 					</div>
-					<ChevronRight class="h-3 w-3 text-gray-600" />
+					<ChevronRight class="h-3 w-3 text-gray-500" />
 				</button>
 			{/each}
 		</div>
@@ -288,14 +288,14 @@
 				<div class="flex flex-col items-center justify-center py-20 text-gray-500">
 					<FileText class="mb-3 h-8 w-8" />
 					<p class="font-sans text-sm">Server is offline</p>
-					<p class="mt-1 font-sans text-xs text-gray-600">Start the server to view logs.</p>
+					<p class="mt-1 font-sans text-xs text-gray-500">Start the server to view logs.</p>
 				</div>
 			{:else}
 				{#each filtered as entry (entry.id)}
 					<div
 						class="flex items-start gap-3 border-b border-gray-800/20 px-5 py-1.5 transition-colors duration-100 hover:bg-gray-900/50"
 					>
-						<span class="shrink-0 pt-0.5 text-gray-600">{entry.timestamp}</span>
+						<span class="shrink-0 pt-0.5 text-gray-500">{entry.timestamp}</span>
 						<button onclick={() => (filter = filter === entry.severity ? 'all' : entry.severity)}>
 							<Badge
 								variant="outline"
@@ -340,7 +340,7 @@
 		<div
 			class="flex h-7 shrink-0 items-center justify-between border-t border-gray-800 bg-gray-950 px-5"
 		>
-			<span class="text-[10px] text-gray-600">
+			<span class="text-[10px] text-gray-500">
 				{filtered.length} entries
 				{#if filter !== 'all' || search.trim()}
 					(filtered from {currentLogs.length})

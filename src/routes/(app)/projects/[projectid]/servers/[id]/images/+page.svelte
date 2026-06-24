@@ -123,7 +123,7 @@
 				<input
 					bind:value={rebuildImageConfirm}
 					placeholder={selectedServer.id}
-					class="h-8 w-56 border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+					class="h-8 w-56 border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 				/>
 				<Button
 					variant="outline"
@@ -153,7 +153,7 @@
 			<input
 				bind:value={imgSearch}
 				placeholder="Search images..."
-				class="h-7 w-44 border border-gray-700 bg-gray-800 pr-2 pl-7 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+				class="h-7 w-44 border border-gray-700 bg-gray-800 pr-2 pl-7 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 			/>
 		</div>
 		<Button
@@ -243,7 +243,7 @@
 									Rebuild
 								</Button>
 							</div>
-							<p class="mt-auto pt-1.5 text-[10px] leading-none text-gray-600">
+							<p class="mt-auto pt-1.5 text-[10px] leading-none text-gray-500">
 								{version.archs.join('  ')} | {image.versions.length} version{image.versions.length >
 								1
 									? 's'
@@ -272,12 +272,12 @@
 						class="flex items-center justify-between px-5 py-3 transition-colors hover:bg-gray-800/20"
 					>
 						<div class="flex items-center gap-2">
-							<Disc class="h-2.5 w-2.5 shrink-0 text-gray-600" />
+							<Disc class="h-2.5 w-2.5 shrink-0 text-gray-500" />
 							<span class="text-xs text-gray-200">{image.name}</span>
 							<Badge variant="outline" class="text-[7px] {imageTypeColors[image.type]}"
 								>.{image.type}</Badge
 							>
-							<span class="text-[10px] text-gray-600">{image.size}</span>
+							<span class="text-[10px] text-gray-500">{image.size}</span>
 						</div>
 						<div class="flex items-center gap-1.5">
 							{#if mountedImage === image.name}
@@ -300,11 +300,11 @@
 								class="h-6 px-2 text-[10px]"
 								onclick={() => startRebuild(image.name, '')}>Rebuild</Button
 							>
-							<span class="text-[10px] text-gray-600">{image.uploaded}</span>
+							<span class="text-[10px] text-gray-500">{image.uploaded}</span>
 							<Button
 								variant="ghost"
 								size="sm"
-								class="h-5 w-5 p-0 text-gray-600 hover:text-red-400"
+								class="h-5 w-5 p-0 text-gray-500 hover:text-red-400"
 								onclick={() => deleteVmImage(image.id)}
 							>
 								<Trash2 class="h-2.5 w-2.5" />
@@ -314,9 +314,9 @@
 				{/each}
 			</div>
 		{:else if imgSearch.trim()}
-			<div class="px-5 py-3 text-center text-[10px] text-gray-600">No matches</div>
+			<div class="px-5 py-3 text-center text-[10px] text-gray-500">No matches</div>
 		{:else}
-			<div class="flex items-center justify-center gap-1.5 py-3 text-gray-600">
+			<div class="flex items-center justify-center gap-1.5 py-3 text-gray-500">
 				<Upload class="h-3 w-3" />
 				<p class="text-[10px]">No uploaded images</p>
 			</div>

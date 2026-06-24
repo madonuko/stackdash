@@ -216,7 +216,7 @@
 						<tr class="transition-colors duration-100 hover:bg-gray-800/20">
 							<td class="px-5 py-3">
 								<span class="text-sm font-medium text-gray-100">{net.name}</span>
-								<span class="ml-2 text-xs text-gray-600">{net.id}</span>
+								<span class="ml-2 text-xs text-gray-500">{net.id}</span>
 							</td>
 							<td class="px-5 py-3 font-mono text-sm text-gray-300">{net.cidr}</td>
 							<td class="px-5 py-3">

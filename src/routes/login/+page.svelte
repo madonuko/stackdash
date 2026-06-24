@@ -153,7 +153,7 @@
 
 			<div class="flex items-center gap-2">
 				<div class="h-px flex-1 bg-gray-800"></div>
-				<span class="text-[10px] text-gray-600">or</span>
+				<span class="text-[10px] text-gray-500">or</span>
 				<div class="h-px flex-1 bg-gray-800"></div>
 			</div>
 

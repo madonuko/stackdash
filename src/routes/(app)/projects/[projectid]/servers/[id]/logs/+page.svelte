@@ -101,7 +101,7 @@
 				aria-label="Search logs"
 				bind:value={logSearch}
 				placeholder="Search..."
-				class="h-6 w-36 border border-gray-700 bg-gray-800 pr-2 pl-6 text-[11px] text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+				class="h-6 w-36 border border-gray-700 bg-gray-800 pr-2 pl-6 text-[11px] text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 			/>
 		</div>
 		{#if hasLogFilters}<button
@@ -152,7 +152,7 @@
 		{#each filteredLogs as entry (entry.id)}<div
 				class="flex items-baseline gap-0 px-4 py-px leading-[1.6] hover:bg-gray-800/20"
 			>
-				<span class="w-[148px] shrink-0 text-gray-600">{entry.timestamp}</span><button
+				<span class="w-[148px] shrink-0 text-gray-500">{entry.timestamp}</span><button
 					class="w-[42px] shrink-0 cursor-pointer text-left font-semibold uppercase {sevColors[
 						entry.severity
 					]} {logSevFilter === entry.severity ? 'underline' : ''}"

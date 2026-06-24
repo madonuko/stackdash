@@ -396,7 +396,7 @@
 									<input
 										bind:value={imagesSearch}
 										placeholder="Search images..."
-										class="h-8 w-full border border-gray-700 bg-gray-800 px-3 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+										class="h-8 w-full border border-gray-700 bg-gray-800 px-3 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 									/>
 								</div>
 								<div class="mt-3 grid grid-cols-2 gap-px bg-gray-900">
@@ -428,7 +428,7 @@
 													<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
 														{img.description}
 													</p>
-													<p class="mt-auto pt-2 text-[10px] leading-none text-gray-600">
+													<p class="mt-auto pt-2 text-[10px] leading-none text-gray-500">
 														x86 | {img.version} | {img.imageType}
 													</p>
 												</div>
@@ -492,9 +492,9 @@
 								value="snapshots"
 								class="mt-6 flex flex-col items-center justify-center py-8 text-center"
 							>
-								<HardDrive class="mb-3 h-8 w-8 text-gray-600" />
+								<HardDrive class="mb-3 h-8 w-8 text-gray-500" />
 								<p class="text-xs text-gray-500">Snapshots coming soon</p>
-								<p class="mt-1 max-w-xs text-[11px] text-gray-600">
+								<p class="mt-1 max-w-xs text-[11px] text-gray-500">
 									Create point-in-time copies of your servers for quick recovery.
 								</p>
 							</Tabs.Content>
@@ -502,9 +502,9 @@
 								value="apps"
 								class="mt-6 flex flex-col items-center justify-center py-8 text-center"
 							>
-								<Server class="mb-3 h-8 w-8 text-gray-600" />
+								<Server class="mb-3 h-8 w-8 text-gray-500" />
 								<p class="text-xs text-gray-500">Apps coming soon</p>
-								<p class="mt-1 max-w-xs text-[11px] text-gray-600">
+								<p class="mt-1 max-w-xs text-[11px] text-gray-500">
 									One-click deploy popular applications like WordPress, Nextcloud, and more.
 								</p>
 							</Tabs.Content>
@@ -519,9 +519,9 @@
 						<div class="mt-3">
 							{#if vmTypes.length === 0}
 								<div class="flex flex-col items-center justify-center py-8 text-center">
-									<Server class="mb-3 h-6 w-6 text-gray-600" />
+									<Server class="mb-3 h-6 w-6 text-gray-500" />
 									<p class="text-xs text-gray-500">No VM types available</p>
-									<p class="mt-1 text-[11px] text-gray-600">
+									<p class="mt-1 text-[11px] text-gray-500">
 										Create a plan in the Admin panel to get started.
 									</p>
 								</div>
@@ -604,7 +604,7 @@
 													name="newVolumeName"
 													bind:value={newVolumeName}
 													placeholder="volume-name"
-													class="h-7 w-full border border-gray-700 bg-gray-900 px-2 text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+													class="h-7 w-full border border-gray-700 bg-gray-900 px-2 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 												/>
 											</div>
 											<div class="w-24">
@@ -669,7 +669,7 @@
 									{:else}
 										<div class="mt-2 border border-gray-800/50 bg-gray-900/50 p-3 text-center">
 											<p class="text-xs text-gray-500">No volumes available.</p>
-											<p class="mt-1 text-[11px] text-gray-600">
+											<p class="mt-1 text-[11px] text-gray-500">
 												Create a volume to attach it to this server.
 											</p>
 										</div>
@@ -691,7 +691,7 @@
 								{#each [{ value: 'both' as const, label: '1 Public IPv4 Address and an IPv6 block', disabled: !bothNetworksAvailable }, { value: 'ipv6' as const, label: 'IPv6 block only', disabled: !ipv6Available }] as opt (opt.value)}
 									<label
 										class="flex items-center gap-2 border p-3 text-xs transition-colors {opt.disabled
-											? 'cursor-not-allowed border-gray-800 text-gray-600'
+											? 'cursor-not-allowed border-gray-800 text-gray-500'
 											: networkingOption === opt.value
 												? 'cursor-pointer border-red-500 bg-red-950/20 text-gray-100'
 												: 'cursor-pointer border-gray-700 text-gray-400 hover:border-gray-600'}"
@@ -706,7 +706,7 @@
 										/>
 										{opt.label}
 										{#if opt.disabled}
-											<span class="ml-auto text-[11px] text-gray-600">Exhausted</span>
+											<span class="ml-auto text-[11px] text-gray-500">Exhausted</span>
 										{/if}
 									</label>
 								{/each}
@@ -762,7 +762,7 @@
 							{:else}
 								<div class="border border-gray-800/50 bg-gray-900/50 p-4 text-center">
 									<p class="text-xs text-gray-500">No SSH keys available.</p>
-									<p class="mt-1 text-[11px] text-gray-600">
+									<p class="mt-1 text-[11px] text-gray-500">
 										Password authentication will be used instead.
 									</p>
 									<a
@@ -787,7 +787,7 @@
 											name="serverPassword"
 											type={showServerPassword ? 'text' : 'password'}
 											bind:value={serverPassword}
-											class="h-9 min-w-0 flex-1 border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-red-500 focus:outline-none"
+											class="h-9 min-w-0 flex-1 border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 placeholder:text-gray-500 focus:border-red-500 focus:outline-none"
 											placeholder="Generated password"
 										/>
 										<button
@@ -816,7 +816,7 @@
 											{/if}
 										</button>
 									</div>
-									<p class="mt-1.5 text-[11px] text-gray-600">
+									<p class="mt-1.5 text-[11px] text-gray-500">
 										Save this password now. It will not be shown after the server is created.
 									</p>
 								</div>
@@ -843,7 +843,7 @@
 								{#if section.isComplete}
 									<Check class="h-3 w-3 shrink-0 text-emerald-500" />
 								{:else}
-									<Circle class="h-3 w-3 shrink-0 text-gray-600" />
+									<Circle class="h-3 w-3 shrink-0 text-gray-500" />
 								{/if}
 								<span class={section.isComplete ? 'text-gray-200' : 'text-gray-500'}
 									>{section.label}</span

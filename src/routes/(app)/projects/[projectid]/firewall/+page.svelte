@@ -209,7 +209,7 @@
 							{group.rules.length} rules &bull; {group.servers.length} servers
 						</p>
 					</div>
-					<ChevronRight class="h-3.5 w-3.5 shrink-0 text-gray-600" />
+					<ChevronRight class="h-3.5 w-3.5 shrink-0 text-gray-500" />
 				</button>
 			{/each}
 
@@ -229,7 +229,7 @@
 			<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-5">
 				<div class="flex items-center gap-2">
 					<span class="text-sm font-medium text-gray-200">{selectedGroup.name}</span>
-					<span class="text-gray-600">&middot;</span>
+					<span class="text-gray-500">&middot;</span>
 					<div class="flex gap-1">
 						{#each selectedGroup.servers as s (s)}
 							<Badge variant="secondary" class="text-[10px]">{s}</Badge>

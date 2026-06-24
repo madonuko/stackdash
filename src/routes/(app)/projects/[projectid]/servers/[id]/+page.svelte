@@ -322,7 +322,7 @@
 			{:else if selectedServer.status === 'restarting'}
 				<div class="text-amber-500">Restarting server...</div>
 			{:else}
-				<div class="text-gray-600">Server is offline. Start the server to connect.</div>
+				<div class="text-gray-500">Server is offline. Start the server to connect.</div>
 			{/if}
 		</div>
 	</div>
@@ -380,7 +380,7 @@
 		{:else}
 			{#each currentLogs as entry (entry.id)}
 				<div class="flex items-baseline gap-0 px-4 py-px leading-[1.6] hover:bg-gray-800/20">
-					<span class="w-[148px] shrink-0 text-gray-600">{entry.timestamp}</span>
+					<span class="w-[148px] shrink-0 text-gray-500">{entry.timestamp}</span>
 					<span class="w-[42px] shrink-0 font-semibold uppercase {sevColors[entry.severity]}"
 						>{entry.severity.slice(0, 4)}</span
 					>

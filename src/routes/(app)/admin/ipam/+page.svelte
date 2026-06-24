@@ -284,7 +284,7 @@
 							</td>
 							<td class="px-5 py-3 text-sm text-gray-300">
 								<span class="tabular-nums">{formatCount(prefix.available)}</span>
-								<span class="text-gray-600"> / {formatCount(prefix.capacity)}</span>
+								<span class="text-gray-500"> / {formatCount(prefix.capacity)}</span>
 							</td>
 
 							<td class="px-5 py-3 text-right">

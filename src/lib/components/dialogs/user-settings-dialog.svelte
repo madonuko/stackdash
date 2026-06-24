@@ -792,7 +792,7 @@
 									bind:value={newKeyValue}
 									placeholder="ssh-ed25519 AAAA..."
 									rows="3"
-									class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+									class="w-full resize-none border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 								></textarea>
 								<Button
 									variant="outline"
@@ -858,7 +858,7 @@
 													<p class="truncate text-sm font-medium text-gray-100">{token.name}</p>
 													<p class="mt-0.5 truncate font-mono text-[11px] text-gray-500">
 														sk-stack-****...****
-														<span class="ml-2 font-sans text-gray-600">Created {token.created}</span
+														<span class="ml-2 font-sans text-gray-500">Created {token.created}</span
 														>
 													</p>
 												</div>

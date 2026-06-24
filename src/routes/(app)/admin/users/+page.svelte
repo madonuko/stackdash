@@ -355,7 +355,7 @@
 
 			{#if admin.adminUsers.length === 0}
 				<div class="flex flex-col items-center justify-center gap-2 py-20 text-gray-500">
-					<Users class="h-8 w-8 text-gray-600" />
+					<Users class="h-8 w-8 text-gray-500" />
 					<p class="text-sm">No users found</p>
 				</div>
 			{:else}
@@ -438,7 +438,7 @@
 
 							<!-- Bottom meta + action -->
 							<div class="flex items-center justify-between">
-								<div class="flex items-center gap-1 text-[11px] text-gray-600">
+								<div class="flex items-center gap-1 text-[11px] text-gray-500">
 									<Calendar class="h-3 w-3" />
 									{formatDateShort(account.createdAt)}
 								</div>
@@ -713,7 +713,7 @@
 								<span class="text-[10px] text-gray-500">Sessions</span>
 							</div>
 							{#if u.sessionCount > 0}
-								<ChevronRight class="ml-auto h-3 w-3 text-gray-600" />
+								<ChevronRight class="ml-auto h-3 w-3 text-gray-500" />
 							{/if}
 						</button>
 						<button
@@ -726,7 +726,7 @@
 								<span class="text-[10px] text-gray-500">Accounts</span>
 							</div>
 							{#if u.accountCount > 0}
-								<ChevronRight class="ml-auto h-3 w-3 text-gray-600" />
+								<ChevronRight class="ml-auto h-3 w-3 text-gray-500" />
 							{/if}
 						</button>
 						<button
@@ -739,7 +739,7 @@
 								<span class="text-[10px] text-gray-500">Organizations</span>
 							</div>
 							{#if u.orgCount > 0}
-								<ChevronRight class="ml-auto h-3 w-3 text-gray-600" />
+								<ChevronRight class="ml-auto h-3 w-3 text-gray-500" />
 							{/if}
 						</button>
 						<button
@@ -752,7 +752,7 @@
 								<span class="text-[10px] text-gray-500">SSH Keys</span>
 							</div>
 							{#if u.sshKeyCount > 0}
-								<ChevronRight class="ml-auto h-3 w-3 text-gray-600" />
+								<ChevronRight class="ml-auto h-3 w-3 text-gray-500" />
 							{/if}
 						</button>
 						<button
@@ -765,7 +765,7 @@
 								<span class="text-[10px] text-gray-500">API Tokens</span>
 							</div>
 							{#if u.apiTokenCount > 0}
-								<ChevronRight class="ml-auto h-3 w-3 text-gray-600" />
+								<ChevronRight class="ml-auto h-3 w-3 text-gray-500" />
 							{/if}
 						</button>
 					</div>
@@ -804,7 +804,7 @@
 									<div class="flex items-center justify-between py-2.5">
 										<div class="flex flex-col">
 											<span class="text-xs text-gray-200">{vm.name}</span>
-											<span class="text-[11px] text-gray-600"
+											<span class="text-[11px] text-gray-500"
 												>{new Date(vm.createdAt).toLocaleString()}</span
 											>
 										</div>
@@ -825,7 +825,7 @@
 									<div class="flex items-center justify-between py-2.5">
 										<div class="flex flex-col">
 											<span class="text-xs text-gray-200">{vol.name}</span>
-											<span class="text-[11px] text-gray-600"
+											<span class="text-[11px] text-gray-500"
 												>{vol.size} GB · {new Date(vol.createdAt).toLocaleString()}</span
 											>
 										</div>
@@ -871,9 +871,9 @@
 								<div class="flex flex-col gap-0.5 py-2.5">
 									<span class="font-mono text-xs text-gray-300">{s.id}</span>
 									{#if s.ipAddress}
-										<span class="text-[11px] text-gray-600">IP: {s.ipAddress}</span>
+										<span class="text-[11px] text-gray-500">IP: {s.ipAddress}</span>
 									{/if}
-									<span class="text-[11px] text-gray-600">{formatDate(s.createdAt)}</span>
+									<span class="text-[11px] text-gray-500">{formatDate(s.createdAt)}</span>
 								</div>
 							{/each}
 						</div>
@@ -887,7 +887,7 @@
 								<div class="flex flex-col gap-0.5 py-2.5">
 									<span class="text-xs font-medium text-gray-200">{a.providerId}</span>
 									<span class="font-mono text-[11px] text-gray-400">{a.accountId}</span>
-									<span class="text-[11px] text-gray-600">{formatDate(a.createdAt)}</span>
+									<span class="text-[11px] text-gray-500">{formatDate(a.createdAt)}</span>
 								</div>
 							{/each}
 						</div>
@@ -905,7 +905,7 @@
 									<span class="text-xs text-gray-200">{o.name}</span>
 									<div class="flex items-center gap-1.5">
 										<Badge variant="secondary" class="text-[10px]">{o.role}</Badge>
-										<ChevronRight class="h-3 w-3 text-gray-600" />
+										<ChevronRight class="h-3 w-3 text-gray-500" />
 									</div>
 								</button>
 							{/each}
@@ -932,7 +932,7 @@
 							{#each admin.userApiTokens as t (t.id)}
 								<div class="flex flex-col gap-0.5 py-2.5">
 									<span class="text-xs text-gray-200">{t.name}</span>
-									<span class="text-[11px] text-gray-600"
+									<span class="text-[11px] text-gray-500"
 										>{new Date(t.createdAt).toLocaleString()}</span
 									>
 								</div>

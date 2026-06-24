@@ -348,7 +348,7 @@
 					<span class="text-sm font-semibold tracking-tight text-gray-50">Stack</span>
 				</a>
 				{#if isOnProjectRoute}
-					<span class="text-sm text-gray-600">/</span>
+					<span class="text-sm text-gray-500">/</span>
 					<DropdownMenu.Root>
 						<DropdownMenu.Trigger
 							class="flex items-center gap-1 px-1.5 py-0.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 hover:text-gray-50"
@@ -378,7 +378,7 @@
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 					{#if currentProjectSection}
-						<span class="text-sm text-gray-600">/</span>
+						<span class="text-sm text-gray-500">/</span>
 						<p class="text-sm font-medium text-gray-400">{currentProjectSection}</p>
 					{/if}
 				{/if}

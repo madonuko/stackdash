@@ -283,7 +283,7 @@
 							<Badge variant="secondary" class="text-[10px]">Available</Badge>
 						{/if}
 					</div>
-					<div class="mt-1 flex items-center gap-3 text-xs text-gray-600">
+					<div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
 						<span>{vol.id}</span>
 						<span class="h-1 w-1 rounded-full bg-gray-700"></span>
 						<span>{vol.region}</span>
