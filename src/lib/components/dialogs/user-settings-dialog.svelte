@@ -274,6 +274,13 @@
 	}
 
 	async function removePasskey(id: string) {
+		const passkey = passkeys.find((p) => p.id === id);
+		if (
+			!window.confirm(
+				`Remove passkey${passkey?.name ? ` "${passkey.name}"` : ''}? You will no longer be able to sign in with it.`
+			)
+		)
+			return;
 		removingPasskey = id;
 		try {
 			await authClient.passkey.deletePasskey({ id });
@@ -330,8 +337,14 @@
 
 	async function removeSshKey(id: string) {
 		if (sshKeyRemoving) return;
-		sshKeyRemoving = id;
 		const key = sshKeys.find((k) => k.id === id);
+		if (
+			!window.confirm(
+				`Delete SSH key${key?.name ? ` "${key.name}"` : ''}? Anything relying on it for access will stop working.`
+			)
+		)
+			return;
+		sshKeyRemoving = id;
 		sshKeys = sshKeys.filter((k) => k.id !== id);
 		try {
 			await deleteSshKey({ keyId: id });
@@ -400,6 +413,12 @@
 		const idx = tokens.findIndex((t) => t.id === id);
 		if (idx === -1) return;
 		const tokenToRemove = tokens[idx];
+		if (
+			!window.confirm(
+				`Revoke API token "${tokenToRemove.name}"? Any integrations using it will immediately stop working.`
+			)
+		)
+			return;
 		tokens = tokens.filter((t) => t.id !== id);
 
 		try {
