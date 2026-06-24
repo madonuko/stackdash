@@ -111,6 +111,10 @@
 		<span class="text-sm font-semibold text-gray-100">Networking</span>
 	</div>
 
+	<div class="border-b border-gray-800 bg-gray-900/40 px-5 py-2 text-xs text-gray-500">
+		Preview — networking isn't live yet. Changes here aren't saved.
+	</div>
+
 	<div class="flex-1 overflow-auto">
 		<!-- IP Addresses Section -->
 		<div class="border-b border-gray-800">
