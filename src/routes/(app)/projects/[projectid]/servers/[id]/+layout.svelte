@@ -8,6 +8,8 @@
 	import { killVm, rebootVm, startVm, stopVm } from '$lib/remote/vms.remote';
 	import { getServerWithFallback } from '$lib/state/servers.svelte';
 	import { serverTabs, type ServerTab } from './lib/server-detail';
+	import { toast } from 'svelte-sonner';
+	import { getErrorMessage } from '$lib/utils';
 
 	type ServerTabHref =
 		| `/projects/${string}/servers/${string}`
@@ -40,8 +42,23 @@
 		return (tab === 'overview' ? base : `${base}/${tab}`) as ServerTabHref;
 	}
 
+	const powerMessages = {
+		start: { success: 'Server started', error: 'Failed to start server' },
+		shutdown: { success: 'Server is shutting down', error: 'Failed to shut down server' },
+		restart: { success: 'Server is restarting', error: 'Failed to restart server' },
+		kill: { success: 'Server powered off', error: 'Failed to power off server' }
+	} as const;
+
 	async function power(action: 'start' | 'shutdown' | 'kill' | 'restart') {
 		if (!selectedServer || powerLoading) return;
+
+		if (action === 'kill') {
+			const confirmed = window.confirm(
+				`Force power off "${selectedServer.name}"?\n\nThis is the equivalent of pulling the plug and can corrupt the filesystem or lose unsaved data. Use Shutdown for a clean stop.`
+			);
+			if (!confirmed) return;
+		}
+
 		powerLoading = true;
 
 		try {
@@ -54,6 +71,9 @@
 			} else {
 				await killVm({ vmId: selectedServer.id });
 			}
+			toast.success(powerMessages[action].success);
+		} catch (error) {
+			toast.error(getErrorMessage(error, powerMessages[action].error));
 		} finally {
 			powerLoading = false;
 		}
