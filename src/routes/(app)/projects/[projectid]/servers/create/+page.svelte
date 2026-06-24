@@ -288,6 +288,7 @@
 	async function handleCreate() {
 		if (
 			!serverName.trim() ||
+			!selectedImageId ||
 			!selectedPlanId ||
 			!networkingReady ||
 			(usePasswordAuthentication && !serverPassword.trim())
@@ -545,7 +546,7 @@
 												<span class="text-gray-700">&bull;</span>
 												<span>{plan.storageAmount}GB</span>
 											</div>
-											{#if plan.rate}
+											{#if plan.cap}
 												<span class="text-xs font-medium text-gray-300">${plan.cap}/month</span>
 											{/if}
 										</button>
@@ -902,7 +903,7 @@
 									<span class="text-gray-200">Password</span>
 								</div>
 							{/if}
-							{#if selectedPlan?.rate}
+							{#if selectedPlan?.cap}
 								<div class="flex items-center justify-between text-xs">
 									<span class="text-gray-500">Estimated</span>
 									<span class="font-medium text-gray-100">${selectedPlan.cap}/month</span>
@@ -927,6 +928,7 @@
 					<Button
 						class="w-full"
 						disabled={!serverName.trim() ||
+							!selectedImageId ||
 							!selectedPlanId ||
 							(usePasswordAuthentication && !serverPassword.trim()) ||
 							!networkingReady ||
