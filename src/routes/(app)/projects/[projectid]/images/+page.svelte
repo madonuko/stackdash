@@ -121,6 +121,7 @@
 			{#if totalPages > 1 && !selectedImage}
 				<div class="flex items-center gap-1.5">
 					<button
+						aria-label="Previous page"
 						class="flex h-6 w-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-300 disabled:opacity-30"
 						disabled={page === 0}
 						onclick={() => page--}
@@ -129,6 +130,7 @@
 					</button>
 					<span class="text-[10px] text-gray-500">{page + 1}/{totalPages}</span>
 					<button
+						aria-label="Next page"
 						class="flex h-6 w-6 items-center justify-center text-gray-500 transition-colors hover:text-gray-300 disabled:opacity-30"
 						disabled={page >= totalPages - 1}
 						onclick={() => page++}

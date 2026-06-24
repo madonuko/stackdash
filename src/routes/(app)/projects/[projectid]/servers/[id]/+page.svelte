@@ -256,6 +256,7 @@
 					<span class="font-mono text-xs text-gray-200">{selectedServer.ip}</span>
 					<button
 						class="text-gray-500 hover:text-gray-300"
+						aria-label="Copy IPv4 address"
 						onclick={() => copyToClipboard(selectedServer.ip, 'ipv4')}
 					>
 						{#if copied === 'ipv4'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy
@@ -274,6 +275,7 @@
 					<span class="font-mono text-[11px] text-gray-200">{selectedServer.ipv6}</span>
 					<button
 						class="text-gray-500 hover:text-gray-300"
+						aria-label="Copy IPv6 address"
 						onclick={() => copyToClipboard(selectedServer.ipv6, 'ipv6')}
 					>
 						{#if copied === 'ipv6'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy
@@ -340,11 +342,18 @@
 					variant="ghost"
 					size="sm"
 					class="h-6 w-6 p-0"
+					aria-label={logStreaming ? 'Pause log streaming' : 'Resume log streaming'}
 					onclick={() => (logStreaming = !logStreaming)}
 				>
 					{#if logStreaming}<Pause class="h-2.5 w-2.5" />{:else}<Play class="h-2.5 w-2.5" />{/if}
 				</Button>
-				<Button variant="ghost" size="sm" class="h-6 w-6 p-0 text-red-400" disabled>
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-6 w-6 p-0 text-red-400"
+					aria-label="Clear logs"
+					disabled
+				>
 					<Trash2 class="h-2.5 w-2.5" />
 				</Button>
 			</div>

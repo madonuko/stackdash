@@ -245,12 +245,14 @@
 										<Button
 											variant="ghost"
 											size="sm"
+											aria-label={`Edit ${vt.name}`}
 											class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
 											onclick={() => admin.vtOpenEdit(vt)}><Pencil class="h-3 w-3" /></Button
 										>
 										<Button
 											variant="ghost"
 											size="sm"
+											aria-label={`Delete ${vt.name}`}
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
 											onclick={() => admin.vtRemove(vt.id)}><Trash2 class="h-3 w-3" /></Button
 										>
@@ -324,12 +326,14 @@
 									<Button
 										variant="ghost"
 										size="sm"
+										aria-label={`Edit ${img.name}`}
 										class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
 										onclick={() => admin.imgOpenEdit(img)}><Pencil class="h-3 w-3" /></Button
 									>
 									<Button
 										variant="ghost"
 										size="sm"
+										aria-label={`Delete ${img.name}`}
 										class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
 										onclick={() => admin.imgRemove(img.id)}><Trash2 class="h-3 w-3" /></Button
 									>

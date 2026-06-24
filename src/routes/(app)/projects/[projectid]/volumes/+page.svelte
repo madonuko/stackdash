@@ -390,6 +390,7 @@
 						variant="ghost"
 						size="sm"
 						class="h-7 px-2 text-xs text-red-400 hover:text-red-300"
+						aria-label={`Delete ${vol.name}`}
 						disabled={vol.status === 'deleting' ||
 							vol.status === 'attached' ||
 							deletingVolumeIds.includes(vol.id)}

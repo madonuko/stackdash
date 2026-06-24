@@ -154,11 +154,18 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-emerald-500"
+											aria-label="Save reverse DNS"
 											onclick={saveEdit}
 										>
 											<Check class="h-3 w-3" />
 										</Button>
-										<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={cancelEdit}>
+										<Button
+											variant="ghost"
+											size="sm"
+											class="h-7 w-7 p-0"
+											aria-label="Cancel editing reverse DNS"
+											onclick={cancelEdit}
+										>
 											<X class="h-3 w-3" />
 										</Button>
 									</div>
@@ -174,6 +181,7 @@
 										variant="ghost"
 										size="sm"
 										class="h-7 w-7 p-0"
+										aria-label={`Edit reverse DNS for ${ip.address}`}
 										onclick={() => startEdit(idx)}
 									>
 										<Pencil class="h-3 w-3" />
@@ -241,6 +249,7 @@
 									variant="ghost"
 									size="sm"
 									class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+									aria-label={`Delete network ${net.name}`}
 									onclick={() => deleteNetwork(net.id)}
 								>
 									<Trash2 class="h-3 w-3" />

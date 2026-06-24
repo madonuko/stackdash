@@ -182,6 +182,7 @@
 							</button>
 							<DropdownMenu.Root>
 								<DropdownMenu.Trigger
+									aria-label={`Actions for ${project.projectName}`}
 									class="absolute top-1/2 right-4 flex size-8 -translate-y-1/2 items-center justify-center text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-800 hover:text-gray-300"
 								>
 									<MoreHorizontal class="size-4" />

@@ -193,7 +193,13 @@
 				<span class="text-sm font-semibold text-gray-100">Colocation</span>
 				<Badge variant="secondary" class="text-[10px]">{units.length}</Badge>
 			</div>
-			<Button variant="ghost" size="sm" class="h-7 w-7 p-0" onclick={() => (addOpen = true)}>
+			<Button
+				variant="ghost"
+				size="sm"
+				class="h-7 w-7 p-0"
+				aria-label="Add colocation unit"
+				onclick={() => (addOpen = true)}
+			>
 				<Plus class="h-3.5 w-3.5" />
 			</Button>
 		</div>

@@ -393,6 +393,7 @@
 									size="sm"
 									class="h-7 w-7 shrink-0 p-0 text-gray-500 opacity-0 transition-opacity group-hover:opacity-100"
 									onclick={() => admin.openUserSheet(account)}
+									aria-label={`Manage ${account.name}`}
 								>
 									<MoreHorizontal class="h-4 w-4" />
 								</Button>
@@ -780,6 +781,7 @@
 						size="sm"
 						class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
 						onclick={() => admin.closeOrgResources()}
+						aria-label="Back"
 					>
 						<ChevronLeft class="h-4 w-4" />
 					</Button>
@@ -847,6 +849,7 @@
 						size="sm"
 						class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
 						onclick={() => admin.closeUserResources()}
+						aria-label="Back"
 					>
 						<ChevronLeft class="h-4 w-4" />
 					</Button>

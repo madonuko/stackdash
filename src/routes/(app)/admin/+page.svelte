@@ -233,12 +233,14 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
+											aria-label={`Edit ${vt.name}`}
 											onclick={() => admin.vtOpenEdit(vt)}><Pencil class="h-3 w-3" /></Button
 										>
 										<Button
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+											aria-label={`Delete ${vt.name}`}
 											onclick={() => {
 												if (
 													window.confirm(
@@ -307,12 +309,14 @@
 										variant="ghost"
 										size="sm"
 										class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
+										aria-label={`Edit ${img.name}`}
 										onclick={() => admin.imgOpenEdit(img)}><Pencil class="h-3 w-3" /></Button
 									>
 									<Button
 										variant="ghost"
 										size="sm"
 										class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+										aria-label={`Delete ${img.name}`}
 										onclick={() => {
 											if (
 												window.confirm(

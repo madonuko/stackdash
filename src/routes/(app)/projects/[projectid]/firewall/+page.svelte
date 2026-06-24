@@ -193,6 +193,7 @@
 					variant="ghost"
 					size="sm"
 					class="h-7 w-7 p-0"
+					aria-label="Create firewall group"
 					onclick={() => (createGroupOpen = true)}
 				>
 					<Plus class="h-3.5 w-3.5" />
@@ -257,6 +258,7 @@
 							variant="ghost"
 							size="sm"
 							class="h-7 px-2 text-xs text-red-400 hover:text-red-300"
+							aria-label={`Delete ${selectedGroup.name}`}
 							onclick={() => deleteGroup(selectedGroup.id)}
 						>
 							<Trash2 class="h-3 w-3" />
@@ -297,6 +299,7 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+											aria-label={`Delete inbound rule ${rule.protocol} ${rule.ports}`}
 											onclick={() => deleteRule(rule.id)}
 										>
 											<Trash2 class="h-3 w-3" />
@@ -345,6 +348,7 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+											aria-label={`Delete outbound rule ${rule.protocol} ${rule.ports}`}
 											onclick={() => deleteRule(rule.id)}
 										>
 											<Trash2 class="h-3 w-3" />

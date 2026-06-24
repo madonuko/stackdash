@@ -100,12 +100,14 @@
 									variant="ghost"
 									size="sm"
 									class="h-6 w-6 p-0 text-emerald-500"
+									aria-label="Save reverse DNS"
 									onclick={() => saveRdns(idx)}><Check class="h-2.5 w-2.5" /></Button
 								>
 								<Button
 									variant="ghost"
 									size="sm"
 									class="h-6 w-6 p-0"
+									aria-label="Cancel reverse DNS edit"
 									onclick={() => (editingRdns = null)}><X class="h-2.5 w-2.5" /></Button
 								>
 							</div>
@@ -117,6 +119,7 @@
 						<div class="flex items-center gap-1">
 							<button
 								class="text-gray-500 hover:text-gray-300"
+								aria-label="Copy IP address"
 								onclick={() => copyText(ip.address, `colo-ip-${idx}`)}
 							>
 								{#if copied === `colo-ip-${idx}`}<Check
@@ -127,6 +130,7 @@
 								variant="ghost"
 								size="sm"
 								class="h-7 w-7 p-0"
+								aria-label="Edit reverse DNS"
 								onclick={() => {
 									editingRdns = idx;
 									rdnsValue = ip.rdns;
@@ -137,6 +141,7 @@
 									variant="ghost"
 									size="sm"
 									class="h-7 w-7 p-0 text-red-400"
+									aria-label={`Delete IP ${ip.address}`}
 									onclick={() => deleteIp(idx)}><X class="h-3 w-3" /></Button
 								>
 							{/if}

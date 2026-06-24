@@ -323,13 +323,15 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
-											onclick={() => admin.vtOpenEdit(vt)}><Pencil class="h-3 w-3" /></Button
+											onclick={() => admin.vtOpenEdit(vt)}
+											aria-label={`Edit ${vt.name}`}><Pencil class="h-3 w-3" /></Button
 										>
 										<Button
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-											onclick={() => admin.vtRemove(vt.id)}><Trash2 class="h-3 w-3" /></Button
+											onclick={() => admin.vtRemove(vt.id)}
+											aria-label={`Delete ${vt.name}`}><Trash2 class="h-3 w-3" /></Button
 										>
 									</div>
 								</td>
@@ -390,13 +392,15 @@
 										variant="ghost"
 										size="sm"
 										class="h-7 w-7 p-0 text-gray-400 hover:text-gray-100"
-										onclick={() => admin.imgOpenEdit(img)}><Pencil class="h-3 w-3" /></Button
+										onclick={() => admin.imgOpenEdit(img)}
+										aria-label={`Edit ${img.name}`}><Pencil class="h-3 w-3" /></Button
 									>
 									<Button
 										variant="ghost"
 										size="sm"
 										class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-										onclick={() => admin.imgRemove(img.id)}><Trash2 class="h-3 w-3" /></Button
+										onclick={() => admin.imgRemove(img.id)}
+										aria-label={`Delete ${img.name}`}><Trash2 class="h-3 w-3" /></Button
 									>
 								</div>
 							</td>

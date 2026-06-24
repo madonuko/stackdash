@@ -258,13 +258,16 @@
 				{#if sourceFilter}
 					<Badge variant="secondary" class="gap-1 text-[10px]">
 						{sourceFilter}
-						<button onclick={() => (sourceFilter = null)}><X class="h-2.5 w-2.5" /></button>
+						<button aria-label="Clear source filter" onclick={() => (sourceFilter = null)}
+							><X class="h-2.5 w-2.5" /></button
+						>
 					</Badge>
 				{/if}
 				<Button
 					variant="ghost"
 					size="sm"
 					class="h-7 w-7 p-0"
+					aria-label={streaming ? 'Pause log streaming' : 'Resume log streaming'}
 					onclick={() => (streaming = !streaming)}
 				>
 					{#if streaming}
@@ -273,7 +276,13 @@
 						<Play class="h-3 w-3" />
 					{/if}
 				</Button>
-				<Button variant="ghost" size="sm" class="h-7 w-7 p-0 text-red-400" onclick={clearLogs}>
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-7 w-7 p-0 text-red-400"
+					aria-label="Clear logs"
+					onclick={clearLogs}
+				>
 					<Trash2 class="h-3 w-3" />
 				</Button>
 			</div>
