@@ -147,6 +147,12 @@
 	}
 
 	async function removePrefix(prefix: IpamPrefix) {
+		if (
+			!window.confirm(
+				`Delete prefix "${prefix.name}" (${prefix.cidr})? Any live allocations from this pool may be orphaned. This cannot be undone.`
+			)
+		)
+			return;
 		try {
 			await deleteIpamPrefix({ prefixId: prefix.id });
 			admin.ipamPrefixes = admin.ipamPrefixes.filter((item) => item.id !== prefix.id);

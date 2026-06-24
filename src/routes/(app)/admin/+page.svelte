@@ -239,7 +239,14 @@
 											variant="ghost"
 											size="sm"
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-											onclick={() => admin.vtRemove(vt.id)}><Trash2 class="h-3 w-3" /></Button
+											onclick={() => {
+												if (
+													window.confirm(
+														`Delete VM type "${vt.name}"? Servers may be billed on this plan. This cannot be undone.`
+													)
+												)
+													admin.vtRemove(vt.id);
+											}}><Trash2 class="h-3 w-3" /></Button
 										>
 									</div>
 								</td>
@@ -306,7 +313,14 @@
 										variant="ghost"
 										size="sm"
 										class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-										onclick={() => admin.imgRemove(img.id)}><Trash2 class="h-3 w-3" /></Button
+										onclick={() => {
+											if (
+												window.confirm(
+													`Delete image "${img.name}"? It can no longer be used to provision servers. This cannot be undone.`
+												)
+											)
+												admin.imgRemove(img.id);
+										}}><Trash2 class="h-3 w-3" /></Button
 									>
 								</div>
 							</td>

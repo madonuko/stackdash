@@ -159,6 +159,12 @@
 		if (deletingVolumeIds.includes(id)) return;
 		const idx = volumes.findIndex((v) => v.id === id);
 		if (idx === -1) return;
+		if (
+			!window.confirm(
+				`Delete volume "${volumes[idx].name}"? This permanently destroys all data on it and cannot be undone.`
+			)
+		)
+			return;
 		actionError = '';
 		deletingVolumeIds = [...deletingVolumeIds, id];
 		volumes[idx].status = 'deleting';
