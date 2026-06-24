@@ -217,6 +217,9 @@
 						<p class="mt-0.5 text-xs text-gray-500">{unit.rackSize} &bull; {unit.location}</p>
 					</div>
 					<span
+						role="img"
+						aria-label={`Status: ${unit.status}`}
+						title={unit.status}
 						class="ml-2 h-2 w-2 shrink-0 rounded-full {unit.status === 'online'
 							? 'bg-emerald-500'
 							: unit.status === 'provisioning'
@@ -256,6 +259,7 @@
 			<div class="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-gray-800 px-2">
 				{#each tabs as tab (tab.id)}
 					<a
+						aria-current={activeTab === tab.id ? 'page' : undefined}
 						class="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors duration-100 {activeTab ===
 						tab.id
 							? 'border-b-2 border-red-500 text-gray-50'

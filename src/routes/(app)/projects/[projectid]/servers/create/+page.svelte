@@ -405,6 +405,8 @@
 										{@const isSelected = selectedImageId === img.id}
 										<div class="contents">
 											<button
+												aria-pressed={isSelected}
+												aria-label={`${img.name} ${img.version}`}
 												class="relative flex gap-4 overflow-hidden bg-gray-900 p-5 text-left transition-colors hover:bg-gray-800/40 {isSelected
 													? 'ring-2 ring-red-500 ring-inset'
 													: ''}"
@@ -464,6 +466,7 @@
 										<div class="mt-2 divide-y divide-gray-800/30">
 											{#each customDbImages as img (img.id)}
 												<button
+													aria-pressed={selectedImageId === img.id}
 													class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-800/20 {selectedImageId ===
 													img.id
 														? 'border-l-2 border-l-red-500 bg-gray-800/40'
@@ -530,6 +533,8 @@
 								<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 									{#each vmTypes as plan (plan.id)}
 										<button
+											aria-pressed={selectedPlanId === plan.id}
+											aria-label={`${plan.name} plan`}
 											class="flex flex-col gap-1 border p-3 text-left transition-colors {selectedPlanId ===
 											plan.id
 												? 'border-red-500 bg-red-950/20'

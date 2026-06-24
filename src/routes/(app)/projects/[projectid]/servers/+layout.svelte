@@ -29,6 +29,14 @@
 		);
 	}
 
+	function statusLabel(s: { liveLoaded?: boolean; status: string }): string {
+		if (!s.liveLoaded) return 'Unknown';
+		if (s.status === 'running') return 'Running';
+		if (s.status === 'provisioning') return 'Provisioning';
+		if (s.status === 'restarting') return 'Restarting';
+		return 'Stopped';
+	}
+
 	const initialServers = $derived(data.servers ?? []);
 	let projectId = $derived(data.projectId ?? null);
 	let refreshTimeout: number | null = null;
@@ -191,6 +199,9 @@
 						</p>
 					</div>
 					<span
+						role="img"
+						aria-label={`Status: ${statusLabel(server)}`}
+						title={statusLabel(server)}
 						class="mt-1 ml-2 h-2 w-2 shrink-0 rounded-full {server.liveLoaded
 							? server.status === 'running'
 								? 'bg-emerald-500'
