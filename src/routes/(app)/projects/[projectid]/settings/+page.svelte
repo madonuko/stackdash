@@ -47,6 +47,18 @@
 
 	let projectId = $derived(data.project.id);
 
+	const viewerRole = $derived(data.viewerRole as ProjectRole);
+	const isOwner = $derived(viewerRole === 'owner');
+	const canManageMembers = $derived(viewerRole === 'owner' || viewerRole === 'admin');
+	const currentUserId = $derived(data.user?.id);
+
+	const roleLabels: Record<ProjectRole, string> = {
+		owner: 'Owner',
+		admin: 'Admin',
+		read_write: 'Read Write',
+		read: 'Read'
+	};
+
 	$effect(() => {
 		return clearSavedTimeout;
 	});
@@ -163,8 +175,13 @@
 						<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Project Name</p>
 					</div>
 					<div class="flex flex-col gap-3">
-						<Input bind:value={projectName} class="font-medium" />
-						<Button size="sm" onclick={saveName} disabled={saving} class="w-fit">
+						<Input bind:value={projectName} class="font-medium" disabled={!canManageMembers} />
+						<Button
+							size="sm"
+							onclick={saveName}
+							disabled={saving || !canManageMembers}
+							class="w-fit"
+						>
 							{#if saving}
 								<Loader2 class="h-3 w-3 animate-spin" />
 								Saving...
@@ -184,15 +201,17 @@
 							<User class="h-4 w-4 text-red-400" />
 							<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Members</p>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							class="h-7 gap-1.5 text-xs"
-							onclick={() => (addMemberOpen = true)}
-						>
-							<Plus class="h-3 w-3" />
-							Add
-						</Button>
+						{#if canManageMembers}
+							<Button
+								variant="outline"
+								size="sm"
+								class="h-7 gap-1.5 text-xs"
+								onclick={() => (addMemberOpen = true)}
+							>
+								<Plus class="h-3 w-3" />
+								Add
+							</Button>
+						{/if}
 					</div>
 					<div class="max-h-48 overflow-y-auto">
 						<!-- Owner -->
@@ -210,49 +229,59 @@
 								<div class="min-w-0">
 									<p class="truncate text-sm font-medium text-gray-100">{member.name}</p>
 									<p class="truncate text-xs text-gray-500">{member.email}</p>
-									<DropdownMenu.Root>
-										<DropdownMenu.Trigger>
-											<span
-												class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-700"
-												>{member.permissions}</span
-											>
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
-											<DropdownMenu.Item
-												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-												disabled={updatingMemberIds.includes(member.userId)}
-												onclick={() => updateMemberRole(member.userId, 'admin')}
-												>Admin</DropdownMenu.Item
-											>
-											<DropdownMenu.Item
-												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-												disabled={updatingMemberIds.includes(member.userId)}
-												onclick={() => updateMemberRole(member.userId, 'read_write')}
-												>Read Write</DropdownMenu.Item
-											>
-											<DropdownMenu.Item
-												class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-												disabled={updatingMemberIds.includes(member.userId)}
-												onclick={() => updateMemberRole(member.userId, 'read')}
-												>Read</DropdownMenu.Item
-											>
-										</DropdownMenu.Content>
-									</DropdownMenu.Root>
-								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
-									onclick={() => removeMember(member.userId)}
-									disabled={removingMemberIds.includes(member.userId) ||
-										updatingMemberIds.includes(member.userId)}
-								>
-									{#if removingMemberIds.includes(member.userId)}
-										<Loader2 class="h-3.5 w-3.5 animate-spin" />
+									{#if canManageMembers && member.userId !== currentUserId}
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger>
+												<span
+													class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-700"
+													>{roleLabels[member.permissions]}</span
+												>
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
+												<DropdownMenu.Item
+													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+													disabled={updatingMemberIds.includes(member.userId)}
+													onclick={() => updateMemberRole(member.userId, 'admin')}
+													>Admin</DropdownMenu.Item
+												>
+												<DropdownMenu.Item
+													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+													disabled={updatingMemberIds.includes(member.userId)}
+													onclick={() => updateMemberRole(member.userId, 'read_write')}
+													>Read Write</DropdownMenu.Item
+												>
+												<DropdownMenu.Item
+													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+													disabled={updatingMemberIds.includes(member.userId)}
+													onclick={() => updateMemberRole(member.userId, 'read')}
+													>Read</DropdownMenu.Item
+												>
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
 									{:else}
-										<Trash2 class="h-3.5 w-3.5" />
+										<span
+											class="mt-1 inline-flex items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400"
+											>{roleLabels[member.permissions]}</span
+										>
 									{/if}
-								</Button>
+								</div>
+								{#if canManageMembers && member.userId !== currentUserId}
+									<Button
+										variant="ghost"
+										size="sm"
+										class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
+										aria-label={`Remove ${member.name}`}
+										onclick={() => removeMember(member.userId)}
+										disabled={removingMemberIds.includes(member.userId) ||
+											updatingMemberIds.includes(member.userId)}
+									>
+										{#if removingMemberIds.includes(member.userId)}
+											<Loader2 class="h-3.5 w-3.5 animate-spin" />
+										{:else}
+											<Trash2 class="h-3.5 w-3.5" />
+										{/if}
+									</Button>
+								{/if}
 							</div>
 						{/each}
 						{#if members.length === 0}
@@ -320,40 +349,42 @@
 					{/if}
 				</div>
 
-				<!-- Delete Project -->
-				<div class="rounded-xs border border-red-900/30 bg-red-950/10 p-5">
-					<div class="mb-3 flex items-center gap-2 border-b border-red-900/20 pb-2">
-						<Trash2 class="h-4 w-4 text-red-400" />
-						<p class="text-xs font-semibold tracking-wider text-red-400 uppercase">
-							Delete Project
-						</p>
-					</div>
-					<p class="mb-3 text-xs text-gray-400">
-						This will permanently delete the project and all its resources. Type the project name to
-						confirm.
-					</p>
-					<div class="flex flex-col gap-3">
-						<Input
-							bind:value={deleteConfirm}
-							placeholder={data.project.projectName}
-							class="border-red-900/50"
-						/>
-						<Button
-							variant="destructive"
-							size="sm"
-							onclick={deleteProject}
-							disabled={deleteConfirm.trim() !== data.project.projectName || deleting}
-							class="w-fit"
-						>
-							{#if deleting}
-								<Loader2 class="h-3 w-3 animate-spin" />
-								Deleting...
-							{:else}
+				{#if isOwner}
+					<!-- Delete Project -->
+					<div class="rounded-xs border border-red-900/30 bg-red-950/10 p-5">
+						<div class="mb-3 flex items-center gap-2 border-b border-red-900/20 pb-2">
+							<Trash2 class="h-4 w-4 text-red-400" />
+							<p class="text-xs font-semibold tracking-wider text-red-400 uppercase">
 								Delete Project
-							{/if}
-						</Button>
+							</p>
+						</div>
+						<p class="mb-3 text-xs text-gray-400">
+							This will permanently delete the project and all its resources. Type the project name
+							to confirm.
+						</p>
+						<div class="flex flex-col gap-3">
+							<Input
+								bind:value={deleteConfirm}
+								placeholder={data.project.projectName}
+								class="border-red-900/50"
+							/>
+							<Button
+								variant="destructive"
+								size="sm"
+								onclick={deleteProject}
+								disabled={deleteConfirm.trim() !== data.project.projectName || deleting}
+								class="w-fit"
+							>
+								{#if deleting}
+									<Loader2 class="h-3 w-3 animate-spin" />
+									Deleting...
+								{:else}
+									Delete Project
+								{/if}
+							</Button>
+						</div>
 					</div>
-				</div>
+				{/if}
 			</div>
 		</div>
 	</div>

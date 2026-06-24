@@ -12,5 +12,5 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 
 	const project = await getProject({ projectId: params.projectid });
 
-	return { project };
+	return { project, viewerRole: projectSummary.role };
 };
