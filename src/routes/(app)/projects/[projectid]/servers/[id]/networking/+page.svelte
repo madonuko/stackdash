@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Input } from '$lib/components/ui/input';
+	import ComingSoon from '$lib/components/coming-soon.svelte';
 	import { Check, Copy, Pencil, Plus, Trash2, X } from '@lucide/svelte';
 
 	let { data }: PageProps = $props();
@@ -86,9 +87,12 @@
 				<p class="text-sm font-medium text-gray-100">IPv6 Subnet</p>
 				<p class="mt-0.5 font-mono text-xs text-gray-400">{selectedServer.ipv6}</p>
 			</div>
-			<Button variant="outline" size="sm" class="h-7 gap-1.5 px-3 text-xs"
-				><Plus class="h-3 w-3" />Add Address</Button
-			>
+			<div class="flex items-center gap-2">
+				<ComingSoon />
+				<Button variant="outline" size="sm" disabled class="h-7 gap-1.5 px-3 text-xs"
+					><Plus class="h-3 w-3" />Add Address</Button
+				>
+			</div>
 		</div>
 	</div>
 	{#each ipv6Entries as entry, idx (entry.ip)}<div

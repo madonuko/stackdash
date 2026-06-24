@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import Icon from '$lib/components/icon.svelte';
+	import ComingSoon from '$lib/components/coming-soon.svelte';
 	import {
 		officialImages,
 		imageTypeColors,
@@ -128,11 +129,12 @@
 				<Button
 					variant="outline"
 					size="sm"
+					disabled
 					class="gap-1.5 border-red-700 px-3 text-xs text-red-400 hover:bg-red-950"
-					disabled={rebuildImageConfirm !== selectedServer.id}
 				>
 					<RotateCw class="h-3 w-3" /> Rebuild
 				</Button>
+				<ComingSoon />
 				<Button
 					variant="ghost"
 					size="sm"
@@ -156,14 +158,12 @@
 				class="h-7 w-44 border border-gray-700 bg-gray-800 pr-2 pl-7 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
 			/>
 		</div>
-		<Button
-			variant="outline"
-			size="sm"
-			class="h-7 gap-1.5 px-3 text-xs"
-			onclick={() => (imgUploadOpen = true)}
-		>
-			<Upload class="h-3 w-3" /> Upload Image
-		</Button>
+		<div class="flex items-center gap-2">
+			<ComingSoon />
+			<Button variant="outline" size="sm" disabled class="h-7 gap-1.5 px-3 text-xs">
+				<Upload class="h-3 w-3" /> Upload Image
+			</Button>
+		</div>
 	</div>
 
 	<div class="flex-1 overflow-auto">
