@@ -80,9 +80,9 @@
 	}
 </script>
 
-<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
-	<div class="flex items-center gap-2">
-		<span class="text-sm font-medium text-gray-200">{selectedServer.name}</span>
+<div class="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-gray-800 px-4">
+	<div class="flex min-w-0 items-center gap-2">
+		<span class="truncate text-sm font-medium text-gray-200">{selectedServer.name}</span>
 		<Badge
 			variant="outline"
 			class="text-[10px] {!selectedServer.liveLoaded
@@ -102,11 +102,12 @@
 					: selectedServer.status}
 		</Badge>
 	</div>
-	<div class="flex items-center gap-1.5">
+	<div class="flex shrink-0 items-center gap-1.5">
 		<Button
 			variant="outline"
 			size="sm"
-			class="h-7 gap-1.5 px-3 text-xs"
+			class="h-7 gap-1.5 px-2.5 text-xs sm:px-3"
+			aria-label="Start"
 			disabled={powerLoading ||
 				selectedServer.status === 'running' ||
 				selectedServer.status === 'restarting' ||
@@ -114,12 +115,13 @@
 			onclick={() => power('start')}
 		>
 			<Play class="h-3 w-3" />
-			Start
+			<span class="hidden sm:inline">Start</span>
 		</Button>
 		<Button
 			variant="outline"
 			size="sm"
-			class="h-7 gap-1.5 px-3 text-xs"
+			class="h-7 gap-1.5 px-2.5 text-xs sm:px-3"
+			aria-label="Restart"
 			disabled={powerLoading ||
 				selectedServer.status === 'stopped' ||
 				selectedServer.status === 'restarting' ||
@@ -127,31 +129,33 @@
 			onclick={() => power('restart')}
 		>
 			<RotateCw class="h-3 w-3 {selectedServer.status === 'restarting' ? 'animate-spin' : ''}" />
-			Restart
+			<span class="hidden sm:inline">Restart</span>
 		</Button>
 		<Button
 			variant="outline"
 			size="sm"
-			class="h-7 gap-1.5 px-3 text-xs"
+			class="h-7 gap-1.5 px-2.5 text-xs sm:px-3"
+			aria-label="Shutdown"
 			disabled={powerLoading ||
 				selectedServer.status === 'stopped' ||
 				selectedServer.status === 'provisioning'}
 			onclick={() => power('shutdown')}
 		>
 			<Power class="h-3 w-3" />
-			Shutdown
+			<span class="hidden sm:inline">Shutdown</span>
 		</Button>
 		<Button
 			variant="outline"
 			size="sm"
-			class="h-7 gap-1.5 border-red-700 px-3 text-xs text-red-400 hover:bg-red-950"
+			class="h-7 gap-1.5 border-red-700 px-2.5 text-xs text-red-400 hover:bg-red-950 sm:px-3"
+			aria-label="Kill"
 			disabled={powerLoading ||
 				selectedServer.status === 'stopped' ||
 				selectedServer.status === 'provisioning'}
 			onclick={() => power('kill')}
 		>
 			<PowerOff class="h-3 w-3" />
-			Kill
+			<span class="hidden sm:inline">Kill</span>
 		</Button>
 	</div>
 </div>
@@ -173,6 +177,6 @@
 	{/each}
 </div>
 
-<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+<div class="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
 	{@render children()}
 </div>

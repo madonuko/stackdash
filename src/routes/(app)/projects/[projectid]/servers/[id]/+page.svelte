@@ -193,9 +193,9 @@
 	}
 </script>
 
-<div class="grid shrink-0 grid-cols-4 divide-x divide-gray-800 border-b border-gray-800">
+<div class="grid shrink-0 grid-cols-2 gap-px border-b border-gray-800 bg-gray-800 lg:grid-cols-4">
 	{#each charts as chart (chart.label)}
-		<div class="relative flex flex-col">
+		<div class="relative flex flex-col bg-gray-900">
 			<div class="flex items-baseline justify-between px-4 pt-3 pb-1">
 				<span class="relative z-10 text-xs font-medium text-gray-400">{chart.label}</span>
 				{#if chart.loaded}
@@ -224,8 +224,8 @@
 	{/each}
 </div>
 
-<div class="grid shrink-0 grid-cols-5 divide-x divide-gray-800 border-b border-gray-800">
-	<div class="col-span-2 divide-y divide-gray-800/50">
+<div class="grid shrink-0 grid-cols-1 gap-px border-b border-gray-800 bg-gray-800 lg:grid-cols-5">
+	<div class="col-span-2 divide-y divide-gray-800/50 bg-gray-900">
 		<div class="px-5 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
 			Server Details
 		</div>
@@ -279,7 +279,7 @@
 		</div>
 	</div>
 
-	<div class="col-span-3 flex flex-col">
+	<div class="col-span-3 flex flex-col bg-gray-900">
 		<div class="flex items-center gap-2 border-b border-gray-800 px-4 py-2.5">
 			<Terminal class="h-3 w-3 text-gray-500" />
 			<span class="text-xs font-semibold text-gray-400">Console</span>
@@ -320,7 +320,7 @@
 	</div>
 </div>
 
-<div class="flex min-h-0 flex-1 flex-col">
+<div class="flex min-h-[22rem] flex-1 flex-col lg:min-h-0">
 	<div class="flex h-8 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 		<div class="flex items-center gap-2">
 			<FileText class="h-3 w-3 text-gray-500" />
