@@ -390,8 +390,8 @@
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 					{#if currentProjectSection}
-						<span class="text-sm text-gray-500">/</span>
-						<p class="text-sm font-medium text-gray-400">{currentProjectSection}</p>
+						<span class="hidden text-sm text-gray-500 lg:inline">/</span>
+						<p class="hidden text-sm font-medium text-gray-400 lg:block">{currentProjectSection}</p>
 					{/if}
 				{/if}
 			</div>
@@ -400,10 +400,11 @@
 				{#if data.isAdmin}
 					<a
 						href={resolve('/admin')}
-						class="flex h-8 items-center gap-1.5 border border-gray-800 bg-gray-800/30 px-2.5 text-xs font-medium text-gray-400 transition-colors hover:border-gray-700 hover:text-gray-100"
+						aria-label="Admin"
+						class="flex h-8 shrink-0 items-center gap-1.5 border border-gray-800 bg-gray-800/30 px-2.5 text-xs font-medium text-gray-400 transition-colors hover:border-gray-700 hover:text-gray-100"
 					>
 						<Settings class="h-3.5 w-3.5" />
-						Admin
+						<span class="hidden sm:inline">Admin</span>
 					</a>
 				{/if}
 

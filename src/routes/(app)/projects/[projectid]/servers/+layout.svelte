@@ -143,9 +143,11 @@
 	);
 </script>
 
-<div class="flex h-full w-full overflow-hidden">
+<div class="flex h-full w-full flex-col overflow-hidden lg:flex-row">
 	<!-- Server list sidebar -->
-	<div class="flex w-64 shrink-0 flex-col border-r border-gray-800">
+	<div
+		class="flex max-h-[38vh] w-full shrink-0 flex-col border-b border-gray-800 lg:max-h-none lg:w-64 lg:border-r lg:border-b-0"
+	>
 		<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex items-center">
 				<span class="text-sm font-semibold text-gray-100">Servers</span>
