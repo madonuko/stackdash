@@ -378,7 +378,7 @@
 					<option value="x86">x86</option>
 				</select>
 			</div>
-			<div class="grid grid-cols-3 gap-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 				<div class="flex flex-col gap-2">
 					<Label>Cores</Label><Input type="number" bind:value={admin.vtCores} min="1" />
 				</div>
@@ -394,7 +394,7 @@
 					<Label>Storage (GB)</Label><Input type="number" bind:value={admin.vtStorage} min="1" />
 				</div>
 			</div>
-			<div class="grid grid-cols-2 gap-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				<div class="flex flex-col gap-2">
 					<Label>Rate ($/hr)</Label><Input bind:value={admin.vtRate} placeholder="0.007" />
 				</div>
@@ -565,7 +565,7 @@
 				</div>
 			{/if}
 
-			<div class="grid grid-cols-2 gap-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				<div class="flex flex-col gap-2">
 					<Label>Name</Label><Input bind:value={admin.imgName} placeholder="Fedora Server" />
 				</div>
@@ -574,7 +574,7 @@
 				</div>
 			</div>
 
-			<div class="grid grid-cols-2 gap-3">
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				<div class="flex flex-col gap-2">
 					<Label>Architecture</Label>
 					<div

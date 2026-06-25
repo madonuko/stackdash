@@ -70,9 +70,11 @@
 {#if colo.selectedUnit}
 	<div class="flex min-h-0 flex-1 flex-col overflow-auto">
 		<div class="shrink-0">
-			<div class="grid shrink-0 grid-cols-4 divide-x divide-gray-800 border-b border-gray-800">
+			<div
+				class="grid shrink-0 grid-cols-2 gap-px border-b border-gray-800 bg-gray-800 lg:grid-cols-4"
+			>
 				{#each charts as chart (chart.label)}
-					<div class="relative flex flex-col">
+					<div class="relative flex flex-col bg-gray-900">
 						<div class="flex items-baseline justify-between px-4 pt-3 pb-1">
 							<span class="relative z-10 text-xs font-medium text-gray-400">{chart.label}</span>
 							<span class="relative z-10 text-xs font-semibold text-gray-200">{chart.value}</span>

@@ -360,7 +360,7 @@
 					<Input id="ipam-gateway-address" bind:value={gatewayAddress} placeholder="203.0.113.1" />
 				</div>
 			{/if}
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="grid gap-2">
 					<Label for="ipam-whitelist-start">Whitelist Start</Label>
 					<Input id="ipam-whitelist-start" bind:value={whitelistStart} placeholder="optional" />

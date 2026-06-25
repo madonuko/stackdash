@@ -294,7 +294,7 @@
 			</div>
 			<div class="flex flex-col gap-2">
 				<Label>Rack Size</Label>
-				<div class="grid grid-cols-4 gap-2">
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 					{#each rackSizes as size (size)}
 						<button
 							class="border px-3 py-2 text-center text-sm transition-colors {newRackSize === size
