@@ -494,9 +494,9 @@
 
 	<!-- Mobile navigation drawer -->
 	<Sheet.Root bind:open={mobileNavOpen}>
-		<Sheet.Content side="left" class="w-64 border-gray-800 bg-gray-900 p-0">
+		<Sheet.Content side="left" class="flex w-64 flex-col gap-0 border-gray-800 bg-gray-900 p-0">
 			<Sheet.Header class="border-b border-gray-800 px-4 py-3 text-left">
-				<Sheet.Title class="text-sm text-gray-100"
+				<Sheet.Title class="truncate text-sm text-gray-100"
 					>{currentProject?.projectName ?? 'Menu'}</Sheet.Title
 				>
 			</Sheet.Header>
@@ -517,6 +517,49 @@
 					</a>
 				{/each}
 			</nav>
+
+			<div class="mt-auto">
+				{#if projects.length > 1}
+					<div class="border-t border-gray-800 p-2">
+						<p class="px-3 py-1 text-[10px] font-medium tracking-wider text-gray-500 uppercase">
+							Projects
+						</p>
+						{#each projects as project (project.id)}
+							<button
+								onclick={() => {
+									mobileNavOpen = false;
+									selectProject(project.id);
+								}}
+								class="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors {selectedProjectId ===
+								project.id
+									? 'text-gray-50'
+									: 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
+							>
+								<FolderOpen
+									class="h-4 w-4 shrink-0 {selectedProjectId === project.id
+										? 'text-red-500'
+										: 'text-gray-500'}"
+								/>
+								<span class="truncate">{project.projectName}</span>
+								{#if selectedProjectId === project.id}
+									<Check class="ml-auto h-3.5 w-3.5 shrink-0 text-red-500" />
+								{/if}
+							</button>
+						{/each}
+					</div>
+				{/if}
+
+				{#if data.isAdmin}
+					<a
+						href={resolve('/admin')}
+						onclick={() => (mobileNavOpen = false)}
+						class="flex items-center gap-3 border-t border-gray-800 px-5 py-3 text-sm text-gray-400 transition-colors hover:bg-gray-800/50 hover:text-gray-200"
+					>
+						<Settings class="h-4 w-4 shrink-0" />
+						Admin
+					</a>
+				{/if}
+			</div>
 		</Sheet.Content>
 	</Sheet.Root>
 
