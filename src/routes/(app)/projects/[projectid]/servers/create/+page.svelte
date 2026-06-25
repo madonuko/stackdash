@@ -361,8 +361,8 @@
 		</div>
 	</div>
 
-	<div class="flex flex-1 overflow-hidden">
-		<div class="flex-1 overflow-y-auto">
+	<div class="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+		<div class="flex-1 lg:overflow-y-auto">
 			<div class="px-6 py-6">
 				<div class="flex flex-col gap-8">
 					<div id="section-name" class="scroll-mt-4">
@@ -833,7 +833,9 @@
 			</div>
 		</div>
 
-		<aside class="sticky top-0 h-full w-72 shrink-0 border-l border-gray-800 bg-gray-900">
+		<aside
+			class="w-full shrink-0 border-t border-gray-800 bg-gray-900 lg:sticky lg:top-0 lg:h-full lg:w-72 lg:border-t-0 lg:border-l"
+		>
 			<div class="flex h-full flex-col">
 				<div class="border-b border-gray-800 px-4 py-3">
 					<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Configure</span
