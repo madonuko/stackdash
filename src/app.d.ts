@@ -1,5 +1,7 @@
 import type { User, Session } from 'better-auth';
 import type { Fetcher, KVNamespace, SendEmail } from '@cloudflare/workers-types';
+import type { Pool } from 'pg';
+import type { Database } from '$lib/server/db';
 
 type AppSession = Session & {
 	activeOrganizationId?: string | null;
@@ -11,6 +13,8 @@ declare global {
 			user?: User;
 			session?: AppSession;
 			activeProjectId?: string | null;
+			db?: Database;
+			dbPool?: Pool;
 		}
 
 		interface Platform {
@@ -40,12 +44,10 @@ declare global {
 				FEATURE_FLAGS?: KVNamespace;
 				PROXMOX_CACHE?: KVNamespace;
 				BILLING_METER_SECRET?: string;
-				// OAuth (set as Cloudflare Worker secrets)
 				GITHUB_CLIENT_ID?: string;
 				GITHUB_CLIENT_SECRET?: string;
 				GOOGLE_CLIENT_ID?: string;
 				GOOGLE_CLIENT_SECRET?: string;
-				// Proxmox VE backend
 				PROXMOX_VPC?: Fetcher;
 				PROXMOX_USE_VPC?: string;
 				PROXMOX_API_URL?: string;
@@ -71,7 +73,6 @@ declare global {
 				volumes: boolean;
 			};
 		}
-		// interface PageState {}
 	}
 }
 
