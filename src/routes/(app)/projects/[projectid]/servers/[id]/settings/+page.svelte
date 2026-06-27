@@ -8,6 +8,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import ComingSoon from '$lib/components/coming-soon.svelte';
+	import { confirmDestructive } from '$lib/confirm.svelte';
 	import { deleteVm } from '$lib/remote/vms.remote';
 
 	let { data }: PageProps = $props();
@@ -18,7 +19,13 @@
 
 	async function handleDelete() {
 		if (deleting) return;
-		if (!window.confirm(`Delete server "${selectedServer.name}"?`)) return;
+		const ok = await confirmDestructive({
+			title: 'Delete server',
+			description: `This permanently deletes ${selectedServer.name} and all of its data. This cannot be undone.`,
+			confirmWord: selectedServer.name,
+			confirmLabel: 'Delete server'
+		});
+		if (!ok) return;
 
 		deleting = true;
 		deleteError = '';

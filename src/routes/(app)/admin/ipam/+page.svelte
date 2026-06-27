@@ -15,6 +15,7 @@
 	} from '$lib/remote/ipam.remote';
 	import { AdminState, type AdminPageData, type IpamPrefix } from '$lib/state/admin.svelte';
 	import { getErrorMessage } from '$lib/utils';
+	import { confirmDestructive } from '$lib/confirm.svelte';
 	import {
 		AlertTriangle,
 		Cpu,
@@ -147,12 +148,13 @@
 	}
 
 	async function removePrefix(prefix: IpamPrefix) {
-		if (
-			!window.confirm(
-				`Delete prefix "${prefix.name}" (${prefix.cidr})? Any live allocations from this pool may be orphaned. This cannot be undone.`
-			)
-		)
-			return;
+		const ok = await confirmDestructive({
+			title: 'Delete prefix',
+			description: `Any live allocations from ${prefix.name} (${prefix.cidr}) may be orphaned. This cannot be undone.`,
+			confirmWord: prefix.name,
+			confirmLabel: 'Delete prefix'
+		});
+		if (!ok) return;
 		try {
 			await deleteIpamPrefix({ prefixId: prefix.id });
 			admin.ipamPrefixes = admin.ipamPrefixes.filter((item) => item.id !== prefix.id);

@@ -24,6 +24,7 @@
 	import { hasPassword } from '$lib/remote/password-change.remote';
 	import { toast } from 'svelte-sonner';
 	import { getErrorMessage } from '$lib/utils';
+	import { confirmDestructive } from '$lib/confirm.svelte';
 
 	import {
 		User,
@@ -275,12 +276,13 @@
 
 	async function removePasskey(id: string) {
 		const passkey = passkeys.find((p) => p.id === id);
-		if (
-			!window.confirm(
-				`Remove passkey${passkey?.name ? ` "${passkey.name}"` : ''}? You will no longer be able to sign in with it.`
-			)
-		)
-			return;
+		const ok = await confirmDestructive({
+			title: 'Remove passkey',
+			description: `You will no longer be able to sign in with ${passkey?.name ?? 'this passkey'}.`,
+			confirmWord: passkey?.name,
+			confirmLabel: 'Remove passkey'
+		});
+		if (!ok) return;
 		removingPasskey = id;
 		try {
 			await authClient.passkey.deletePasskey({ id });
@@ -338,12 +340,13 @@
 	async function removeSshKey(id: string) {
 		if (sshKeyRemoving) return;
 		const key = sshKeys.find((k) => k.id === id);
-		if (
-			!window.confirm(
-				`Delete SSH key${key?.name ? ` "${key.name}"` : ''}? Anything relying on it for access will stop working.`
-			)
-		)
-			return;
+		const ok = await confirmDestructive({
+			title: 'Delete SSH key',
+			description: `Anything relying on ${key?.name ?? 'this key'} for access will stop working.`,
+			confirmWord: key?.name,
+			confirmLabel: 'Delete SSH key'
+		});
+		if (!ok) return;
 		sshKeyRemoving = id;
 		sshKeys = sshKeys.filter((k) => k.id !== id);
 		try {
@@ -413,12 +416,13 @@
 		const idx = tokens.findIndex((t) => t.id === id);
 		if (idx === -1) return;
 		const tokenToRemove = tokens[idx];
-		if (
-			!window.confirm(
-				`Revoke API token "${tokenToRemove.name}"? Any integrations using it will immediately stop working.`
-			)
-		)
-			return;
+		const ok = await confirmDestructive({
+			title: 'Revoke API token',
+			description: `Any integrations using ${tokenToRemove.name} will immediately stop working.`,
+			confirmWord: tokenToRemove.name,
+			confirmLabel: 'Revoke token'
+		});
+		if (!ok) return;
 		tokens = tokens.filter((t) => t.id !== id);
 
 		try {

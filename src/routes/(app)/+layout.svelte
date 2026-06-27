@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import UserSettingsDialog from '$lib/components/dialogs/user-settings-dialog.svelte';
+	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
 	import {
 		clearUserSettingsHref,
 		UserSettingsState,
@@ -569,6 +570,8 @@
 		bind:profileName
 		user={data.user}
 	/>
+
+	<ConfirmDialog />
 
 	<!-- Command Palette -->
 	<Command.Dialog

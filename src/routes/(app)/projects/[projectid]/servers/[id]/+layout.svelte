@@ -10,6 +10,7 @@
 	import { serverTabs, type ServerTab } from './lib/server-detail';
 	import { toast } from 'svelte-sonner';
 	import { getErrorMessage } from '$lib/utils';
+	import { confirmDestructive } from '$lib/confirm.svelte';
 
 	type ServerTabHref =
 		| `/projects/${string}/servers/${string}`
@@ -53,10 +54,12 @@
 		if (!selectedServer || powerLoading) return;
 
 		if (action === 'kill') {
-			const confirmed = window.confirm(
-				`Force power off "${selectedServer.name}"?\n\nThis is the equivalent of pulling the plug and can corrupt the filesystem or lose unsaved data. Use Shutdown for a clean stop.`
-			);
-			if (!confirmed) return;
+			const ok = await confirmDestructive({
+				title: 'Force power off',
+				description: `This forces ${selectedServer.name} off like pulling the plug, which can corrupt the filesystem or lose unsaved data. Use Shutdown for a clean stop.`,
+				confirmLabel: 'Force power off'
+			});
+			if (!ok) return;
 		}
 
 		powerLoading = true;

@@ -13,6 +13,7 @@
 		detachVolume as detachProjectVolume
 	} from '$lib/remote/volumes.remote';
 	import { getErrorMessage } from '$lib/utils';
+	import { confirmDestructive } from '$lib/confirm.svelte';
 	import { untrack } from 'svelte';
 	import { Plus, Trash2, Link, Unlink, HardDrive } from '@lucide/svelte';
 
@@ -159,12 +160,13 @@
 		if (deletingVolumeIds.includes(id)) return;
 		const idx = volumes.findIndex((v) => v.id === id);
 		if (idx === -1) return;
-		if (
-			!window.confirm(
-				`Delete volume "${volumes[idx].name}"? This permanently destroys all data on it and cannot be undone.`
-			)
-		)
-			return;
+		const ok = await confirmDestructive({
+			title: 'Delete volume',
+			description: `This permanently destroys all data on ${volumes[idx].name} and cannot be undone.`,
+			confirmWord: volumes[idx].name,
+			confirmLabel: 'Delete volume'
+		});
+		if (!ok) return;
 		actionError = '';
 		deletingVolumeIds = [...deletingVolumeIds, id];
 		volumes[idx].status = 'deleting';

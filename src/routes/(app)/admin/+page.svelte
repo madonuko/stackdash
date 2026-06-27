@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import Icon from '$lib/components/icon.svelte';
+	import { confirmDestructive } from '$lib/confirm.svelte';
 	import { featureFlagKeys, featureFlagLabels, type FeatureFlagKey } from '$lib/feature-flags';
 	import {
 		Plus,
@@ -241,13 +242,14 @@
 											size="sm"
 											class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
 											aria-label={`Delete ${vt.name}`}
-											onclick={() => {
-												if (
-													window.confirm(
-														`Delete VM type "${vt.name}"? Servers may be billed on this plan. This cannot be undone.`
-													)
-												)
-													admin.vtRemove(vt.id);
+											onclick={async () => {
+												const ok = await confirmDestructive({
+													title: 'Delete VM type',
+													description: `Servers may be billed on the ${vt.name} plan. This cannot be undone.`,
+													confirmWord: vt.name,
+													confirmLabel: 'Delete VM type'
+												});
+												if (ok) admin.vtRemove(vt.id);
 											}}><Trash2 class="h-3 w-3" /></Button
 										>
 									</div>
@@ -317,13 +319,14 @@
 										size="sm"
 										class="h-7 w-7 p-0 text-red-400 hover:text-red-300"
 										aria-label={`Delete ${img.name}`}
-										onclick={() => {
-											if (
-												window.confirm(
-													`Delete image "${img.name}"? It can no longer be used to provision servers. This cannot be undone.`
-												)
-											)
-												admin.imgRemove(img.id);
+										onclick={async () => {
+											const ok = await confirmDestructive({
+												title: 'Delete image',
+												description: `${img.name} can no longer be used to provision servers. This cannot be undone.`,
+												confirmWord: img.name,
+												confirmLabel: 'Delete image'
+											});
+											if (ok) admin.imgRemove(img.id);
 										}}><Trash2 class="h-3 w-3" /></Button
 									>
 								</div>
