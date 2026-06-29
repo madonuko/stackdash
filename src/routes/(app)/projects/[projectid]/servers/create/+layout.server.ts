@@ -23,9 +23,9 @@ export const load: LayoutServerLoad = async ({ locals, params, parent, depends, 
 	}
 
 	const db = initDrizzle();
-	const role = await getProjectMemberRole(db, locals.user.id, params.projectid);
 
 	if (url.searchParams.get('billing_setup') === 'complete') {
+		const role = await getProjectMemberRole(db, locals.user.id, params.projectid);
 		if (role !== 'owner') error(403, 'Project owner permission required');
 
 		const cleanPath = `/projects/${params.projectid}/servers/create`;
@@ -40,13 +40,14 @@ export const load: LayoutServerLoad = async ({ locals, params, parent, depends, 
 	}
 
 	void refreshProjectBilling(params.projectid);
-	const [vmTypes, dbImages, volumes, sshKeys, billing, ipamAvailability] = await Promise.all([
+	const [vmTypes, dbImages, volumes, sshKeys, billing, ipamAvailability, role] = await Promise.all([
 		listVmTypes(),
 		listImages(),
 		featureFlags?.volumes ? listVolumes({ projectId: params.projectid }) : [],
 		listSshKeys(),
 		getProjectBillingOverview(params.projectid),
-		getIpamAvailability(db)
+		getIpamAvailability(db),
+		getProjectMemberRole(db, locals.user.id, params.projectid)
 	]);
 
 	return {
