@@ -2,6 +2,7 @@ import { Renderer, toPlainText } from '@better-svelte-email/server';
 import { dev } from '$app/environment';
 import appStyles from '../../routes/layout.css?raw';
 import { getRuntimeEnv } from '$lib/server/env';
+import { instrument } from '$lib/server/observability';
 
 const renderer = new Renderer({ customCSS: appStyles });
 
@@ -151,21 +152,26 @@ export async function sendRenderedEmail({
 }: SendRenderedEmailParams) {
 	const env = getRuntimeEnv();
 
-	const html = await renderer.render(component, { props });
+	const html = await instrument('email.render', () => renderer.render(component, { props }));
 	const text = toPlainText(html);
 	const fromAddress = env.EMAIL_FROM_ADDRESS;
 	const fromName = env.EMAIL_FROM_NAME;
 	const replyTo = env.EMAIL_REPLY_TO;
 
 	if (env.EMAIL) {
-		await env.EMAIL.send({
-			from: { name: fromName, email: fromAddress },
-			to,
-			subject,
-			replyTo,
-			html,
-			text
-		});
+		await instrument(
+			'email.send',
+			() =>
+				env.EMAIL!.send({
+					from: { name: fromName, email: fromAddress },
+					to,
+					subject,
+					replyTo,
+					html,
+					text
+				}),
+			{ 'email.provider': 'binding' }
+		);
 		return;
 	}
 
@@ -173,17 +179,22 @@ export async function sendRenderedEmail({
 	if (cloudflareApiToken) {
 		const accountId =
 			env.CLOUDFLARE_ACCOUNT_ID ?? (await getCloudflareAccountId(cloudflareApiToken));
-		await sendCloudflareEmail({
-			accountId,
-			apiToken: cloudflareApiToken,
-			fromAddress,
-			fromName,
-			replyTo,
-			to,
-			subject,
-			html,
-			text
-		});
+		await instrument(
+			'email.send',
+			() =>
+				sendCloudflareEmail({
+					accountId,
+					apiToken: cloudflareApiToken,
+					fromAddress,
+					fromName,
+					replyTo,
+					to,
+					subject,
+					html,
+					text
+				}),
+			{ 'email.provider': 'rest' }
+		);
 		return;
 	}
 

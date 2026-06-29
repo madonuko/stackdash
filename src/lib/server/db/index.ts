@@ -5,6 +5,7 @@ import { dev } from '$app/environment';
 import * as schema from './schema';
 import { getRequestEvent } from '$app/server';
 import { getRuntimeEnv } from '$lib/server/env';
+import { instrument, summarizeStatement } from '$lib/server/observability';
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -24,6 +25,24 @@ function createPool(connectionString: string) {
 	pool.on('error', (error) => {
 		console.error('Unexpected error on idle PostgreSQL client', error);
 	});
+
+	return withQueryTracing(pool);
+}
+
+function withQueryTracing(pool: Pool): Pool {
+	const runQuery = pool.query.bind(pool) as (...args: unknown[]) => unknown;
+
+	pool.query = function instrumentedQuery(...args: unknown[]) {
+		if (typeof args[args.length - 1] === 'function') return runQuery(...args);
+
+		const first = args[0];
+		const statement =
+			typeof first === 'string' ? first : (first as { text?: string } | undefined)?.text;
+
+		return instrument('db.query', () => runQuery(...args) as Promise<unknown>, {
+			'db.statement': summarizeStatement(statement)
+		});
+	} as typeof pool.query;
 
 	return pool;
 }

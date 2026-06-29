@@ -2,6 +2,7 @@ import { redirect, type Handle } from '@sveltejs/kit';
 import { building } from '$app/environment';
 import { initAuth } from '$lib/server/auth';
 import { closeRequestDb } from '$lib/server/db';
+import { instrument } from '$lib/server/observability';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 
 const publicRoutes = ['/login', '/register', '/signup', '/accept-invitation', '/api/'];
@@ -9,7 +10,9 @@ const publicRoutes = ['/login', '/register', '/signup', '/accept-invitation', '/
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	try {
 		const auth = initAuth();
-		const session = await auth.api.getSession({ headers: event.request.headers });
+		const session = await instrument('auth.getSession', () =>
+			auth.api.getSession({ headers: event.request.headers })
+		);
 
 		if (session) {
 			event.locals.session = session.session;
