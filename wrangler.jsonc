@@ -47,8 +47,15 @@
 			"remote": true
 		}
 	],
+	"placement": {
+		"mode": "smart"
+	},
 	"observability": {
-		"enabled": true
+		"enabled": true,
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 1
+		}
 	},
 	"env": {
 		"preview": {
@@ -106,7 +113,17 @@
 					"service_id": "019ef777-604a-7a52-8fc2-e7827c6abd78",
 					"remote": true
 				}
-			]
+			],
+			"placement": {
+				"mode": "smart"
+			},
+			"observability": {
+				"enabled": true,
+				"traces": {
+					"enabled": true,
+					"head_sampling_rate": 1
+				}
+			}
 		}
 	}
 }
