@@ -15,6 +15,7 @@ declare global {
 			activeProjectId?: string | null;
 			db?: Database;
 			dbPool?: Pool;
+			accessCache?: Map<string, Promise<unknown>>;
 		}
 
 		interface Platform {

@@ -1,7 +1,7 @@
 import { command, getRequestEvent, query } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
-import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray } from 'drizzle-orm';
 import AdminUserDeletionCodeEmail from '$lib/emails/admin-user-deletion-code.svelte';
 import { hasAdminRole, requireAdmin } from '$lib/server/auth-context';
 import { initAuth } from '$lib/server/auth';
@@ -298,11 +298,11 @@ async function deleteOrganizationResources(
 	await db.delete(organization).where(eq(organization.id, organizationId));
 }
 
-function makeCountMap(rows: { userId: string | null }[]) {
+function makeCountMap(rows: { userId: string | null; count: number }[]) {
 	const map = new Map<string, number>();
 	for (const row of rows) {
 		if (!row.userId) continue;
-		map.set(row.userId, (map.get(row.userId) ?? 0) + 1);
+		map.set(row.userId, row.count);
 	}
 	return map;
 }
@@ -328,11 +328,14 @@ export const listAdminUsers = query(async (): Promise<AdminUser[]> => {
 		.orderBy(desc(user.createdAt));
 
 	const [sessions, accounts, members, sshKeysData, apiTokensData] = await Promise.all([
-		db.select({ userId: session.userId }).from(session),
-		db.select({ userId: account.userId }).from(account),
-		db.select({ userId: member.userId }).from(member),
-		db.select({ userId: sshKeys.userId }).from(sshKeys),
-		db.select({ userId: apiTokens.userId }).from(apiTokens)
+		db.select({ userId: session.userId, count: count() }).from(session).groupBy(session.userId),
+		db.select({ userId: account.userId, count: count() }).from(account).groupBy(account.userId),
+		db.select({ userId: member.userId, count: count() }).from(member).groupBy(member.userId),
+		db.select({ userId: sshKeys.userId, count: count() }).from(sshKeys).groupBy(sshKeys.userId),
+		db
+			.select({ userId: apiTokens.userId, count: count() })
+			.from(apiTokens)
+			.groupBy(apiTokens.userId)
 	]);
 
 	const sessionMap = makeCountMap(sessions);
