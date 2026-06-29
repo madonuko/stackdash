@@ -45,10 +45,13 @@
 		WithElementRef<HTMLAnchorAttributes> & {
 			variant?: ButtonVariant;
 			size?: ButtonSize;
+			loading?: boolean;
 		};
 </script>
 
 <script lang="ts">
+	import { Loader2 } from '@lucide/svelte';
+
 	let {
 		class: className,
 		variant = 'default',
@@ -57,9 +60,12 @@
 		href = undefined,
 		type = 'button',
 		disabled,
+		loading = false,
 		children,
 		...restProps
 	}: ButtonProps = $props();
+
+	const isDisabled = $derived(disabled || loading);
 </script>
 
 {#if href}
@@ -67,12 +73,16 @@
 		bind:this={ref}
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
-		href={disabled ? undefined : href}
-		aria-disabled={disabled}
-		role={disabled ? 'link' : undefined}
-		tabindex={disabled ? -1 : undefined}
+		href={isDisabled ? undefined : href}
+		aria-disabled={isDisabled}
+		aria-busy={loading}
+		role={isDisabled ? 'link' : undefined}
+		tabindex={isDisabled ? -1 : undefined}
 		{...restProps}
 	>
+		{#if loading}
+			<Loader2 class="animate-spin" />
+		{/if}
 		{@render children?.()}
 	</a>
 {:else}
@@ -81,9 +91,13 @@
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
 		{type}
-		{disabled}
+		disabled={isDisabled}
+		aria-busy={loading}
 		{...restProps}
 	>
+		{#if loading}
+			<Loader2 class="animate-spin" />
+		{/if}
 		{@render children?.()}
 	</button>
 {/if}

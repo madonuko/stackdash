@@ -9,6 +9,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { authClient } from '$lib/auth-client';
 	import TotpOnboardingDialog from './totp-onboarding-dialog.svelte';
 	import PasskeyOnboardingDialog from './passkey-onboarding-dialog.svelte';
@@ -60,7 +61,6 @@
 		user
 	}: Props = $props();
 
-	// ── Profile ──
 	let profileSaving = $state(false);
 	let profileSaved = $state(false);
 	let profileEmail = $state('');
@@ -141,7 +141,6 @@
 		profileEmailChangePending = Boolean(pendingProfileEmail);
 	}
 
-	// ── Password ──
 	let currentPassword = $state('');
 	let newPassword = $state('');
 	let confirmPassword = $state('');
@@ -195,9 +194,9 @@
 		setTimeout(() => (passwordSaved = false), 1500);
 	}
 
-	// ── Two-Factor ──
 	let twoFactorEnabled = $state(false);
 	let passkeys = $state<{ id: string; name: string; createdAt?: string }[]>([]);
+	let passkeysLoading = $state(false);
 	let hasPasskey = $derived(passkeys.length > 0);
 	let totpDialogOpen = $state(false);
 	let passkeyDialogOpen = $state(false);
@@ -225,6 +224,7 @@
 		if (session?.user) {
 			twoFactorEnabled = session.user.twoFactorEnabled ?? false;
 		}
+		passkeysLoading = true;
 		try {
 			const { data } = await authClient.passkey.listUserPasskeys();
 			passkeys = (Array.isArray(data) ? data : []) as unknown as {
@@ -234,6 +234,8 @@
 			}[];
 		} catch {
 			passkeys = [];
+		} finally {
+			passkeysLoading = false;
 		}
 	}
 
@@ -294,9 +296,9 @@
 		}
 	}
 
-	// ── SSH Keys ──
 	let sshKeys = $state<{ id: string; name: string; fingerprint: string }[]>([]);
 	let sshKeysLoaded = $state(false);
+	let sshKeysLoading = $state(false);
 	let sshKeyAdding = $state(false);
 	let sshKeyRemoving = $state<string | null>(null);
 	let newKeyName = $state('');
@@ -309,12 +311,15 @@
 	});
 
 	async function loadSshKeys() {
-		if (sshKeysLoaded) return;
+		if (sshKeysLoaded || sshKeysLoading) return;
+		sshKeysLoading = true;
 		try {
 			sshKeys = await listSshKeys();
 			sshKeysLoaded = true;
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Failed to load SSH keys'));
+		} finally {
+			sshKeysLoading = false;
 		}
 	}
 
@@ -360,7 +365,6 @@
 		}
 	}
 
-	// ── API Tokens ──
 	type ApiTokenState = {
 		id: string;
 		name: string;
@@ -445,7 +449,6 @@
 		goto(resolve('/login'));
 	}
 
-	// Lazy-load on open
 	$effect(() => {
 		if (!open) return;
 		untrack(() => {
@@ -481,9 +484,7 @@
 			orientation="vertical"
 			class="flex min-h-0 flex-1 flex-col gap-0 sm:flex-row"
 		>
-			<!-- Sidebar -->
 			<div class="flex w-full flex-col border-b border-gray-800 sm:w-52 sm:border-r sm:border-b-0">
-				<!-- User info -->
 				<div class="px-5 pt-5 pb-4">
 					<div class="flex items-center gap-3">
 						<Avatar.Root class="h-9 w-9 rounded-xs border border-gray-700">
@@ -503,7 +504,6 @@
 					</div>
 				</div>
 
-				<!-- Navigation -->
 				<Tabs.List variant="line" class="flex-col items-start gap-0 bg-transparent px-3">
 					<Tabs.Trigger
 						value="profile"
@@ -536,12 +536,9 @@
 				</Tabs.List>
 			</div>
 
-			<!-- Right content -->
 			<div class="relative flex min-h-0 flex-1 flex-col">
-				<!-- bump sidebar below close button -->
 				<div class="h-4 shrink-0"></div>
 				<div class="settings-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto">
-					<!-- Profile -->
 					<Tabs.Content value="profile" class="mt-0 px-6 py-6">
 						<div class="rounded-xs border border-gray-800/60 p-4">
 							<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
@@ -584,9 +581,7 @@
 						</div>
 					</Tabs.Content>
 
-					<!-- Security -->
 					<Tabs.Content value="security" class="mt-0 space-y-4 px-6 py-6">
-						<!-- Password -->
 						<div class="rounded-xs border border-gray-800/60 p-4">
 							<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
 								<Lock class="h-3.5 w-3.5 text-red-400" />
@@ -651,7 +646,6 @@
 							</div>
 						</div>
 
-						<!-- Two-Factor Authentication -->
 						<div class="rounded-xs border border-gray-800/60 p-4">
 							<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
 								<ShieldCheck class="h-3.5 w-3.5 text-red-400" />
@@ -660,7 +654,6 @@
 								</p>
 							</div>
 
-							<!-- TOTP -->
 							<div class="flex items-center justify-between py-2.5">
 								<div class="flex items-center gap-2.5">
 									<ShieldCheck class="h-4 w-4 text-gray-500" />
@@ -701,7 +694,6 @@
 							</div>
 							<div class="border-t border-gray-800/50"></div>
 
-							<!-- Passkeys -->
 							<div class="py-2.5">
 								<div class="flex items-center justify-between">
 									<div class="flex items-center gap-2.5">
@@ -724,7 +716,21 @@
 									</Button>
 								</div>
 
-								{#if passkeys.length > 0}
+								{#if passkeysLoading && passkeys.length === 0}
+									<div class="mt-2 flex flex-col gap-2">
+										{#each Array.from({ length: 2 }) as _, index (index)}
+											<div
+												class="flex items-center gap-2.5 rounded-xs border border-gray-800/60 bg-gray-900 px-3 py-2"
+											>
+												<Skeleton class="size-4 shrink-0 rounded-full" />
+												<div class="min-w-0 flex-1 space-y-1.5">
+													<Skeleton class="h-3 w-32" />
+													<Skeleton class="h-2.5 w-20" />
+												</div>
+											</div>
+										{/each}
+									</div>
+								{:else if passkeys.length > 0}
 									<div class="mt-2 flex flex-col gap-2">
 										{#each passkeys as pk (pk.id)}
 											<div
@@ -773,7 +779,6 @@
 						</div>
 					</Tabs.Content>
 
-					<!-- Keys -->
 					<Tabs.Content value="keys" class="mt-0 space-y-4 px-6 py-6">
 						<div class="rounded-xs border border-gray-800/60 p-4">
 							<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
@@ -781,7 +786,19 @@
 								<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">SSH Keys</p>
 							</div>
 
-							{#if sshKeys.length > 0}
+							{#if sshKeysLoading}
+								<div class="divide-y divide-gray-800/50">
+									{#each Array.from({ length: 2 }) as _, index (index)}
+										<div class="flex items-center justify-between py-2.5">
+											<div class="min-w-0 flex-1 space-y-1.5">
+												<Skeleton class="h-3.5 w-28" />
+												<Skeleton class="h-2.5 w-44" />
+											</div>
+											<Skeleton class="h-7 w-7 shrink-0" />
+										</div>
+									{/each}
+								</div>
+							{:else if sshKeys.length > 0}
 								<div class="max-h-48 overflow-y-auto">
 									<div class="divide-y divide-gray-800/50">
 										{#each sshKeys as key (key.id)}
@@ -836,7 +853,6 @@
 						</div>
 					</Tabs.Content>
 
-					<!-- API Tokens -->
 					<Tabs.Content value="api" class="mt-0 flex-1 overflow-y-auto px-6 py-6">
 						<div class="rounded-xs border border-gray-800/60 p-4">
 							<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
@@ -872,7 +888,19 @@
 								</div>
 							{/if}
 
-							{#if tokens.length > 0}
+							{#if tokensLoading}
+								<div class="divide-y divide-gray-800/50">
+									{#each Array.from({ length: 2 }) as _, index (index)}
+										<div class="flex items-center justify-between py-2.5">
+											<div class="min-w-0 flex-1 space-y-1.5">
+												<Skeleton class="h-3.5 w-24" />
+												<Skeleton class="h-2.5 w-40" />
+											</div>
+											<Skeleton class="h-7 w-14 shrink-0" />
+										</div>
+									{/each}
+								</div>
+							{:else if tokens.length > 0}
 								<div class="max-h-48 overflow-y-auto">
 									<div class="divide-y divide-gray-800/50">
 										{#each tokens as token (token.id)}

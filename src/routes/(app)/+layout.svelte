@@ -38,18 +38,20 @@
 		Check,
 		ChevronDown,
 		FolderOpen,
-		Menu
+		Menu,
+		Loader2
 	} from '@lucide/svelte';
 
 	let { children, data } = $props();
 	let mobileNavOpen = $state(false);
 	const featureFlags = $derived((data.featureFlags ?? {}) as FeatureFlags);
 
-	// Projects — from server
 	type ProjectRole = 'owner' | 'admin' | 'read_write' | 'read';
 	type Project = { id: string; projectName: string; role: ProjectRole };
 	let projects = $state<Project[]>([]);
 	let selectedProjectId = $state('');
+	let switchingProjectId = $state<string | null>(null);
+	let projectMenuOpen = $state(false);
 	let currentProject = $derived(
 		projects.find((project) => project.id === selectedProjectId) ??
 			(data.currentProject
@@ -116,7 +118,6 @@
 	}
 
 	$effect(() => {
-		// Sync selectedProjectId from URL when on a project route
 		if (isOnProjectRoute) {
 			const match = page.url.pathname.match(/^\/projects\/([^/]+)/);
 			if (match) {
@@ -126,10 +127,18 @@
 	});
 
 	async function selectProject(projectId: string) {
-		if (!projectId || projectId === selectedProjectId) return;
-		selectedProjectId = projectId;
-		await authClient.organization.setActive({ organizationId: projectId });
-		await goto(resolve(`/projects/${projectId}/servers`));
+		if (!projectId || projectId === selectedProjectId || switchingProjectId) return;
+		switchingProjectId = projectId;
+		try {
+			selectedProjectId = projectId;
+			await authClient.organization.setActive({ organizationId: projectId });
+			await goto(resolve(`/projects/${projectId}/servers`));
+		} catch (error) {
+			toast.error(getErrorMessage(error, 'Failed to switch project'));
+		} finally {
+			switchingProjectId = null;
+			projectMenuOpen = false;
+		}
 	}
 
 	const userSettings = new UserSettingsState();
@@ -158,7 +167,6 @@
 		}
 	});
 
-	// Command palette
 	let commandOpen = $state(false);
 	let commandSearch = $state('');
 	type CmdFilter = 'all' | 'navigate' | 'servers' | 'account';
@@ -344,7 +352,6 @@
 	{@render children()}
 {:else}
 	<div class="flex h-screen flex-col overflow-hidden bg-gray-900">
-		<!-- Top bar -->
 		<header class="flex h-12 shrink-0 items-center justify-between border-b border-gray-800 px-4">
 			<div class="flex min-w-0 items-center gap-2">
 				{#if navItems.length > 0}
@@ -362,7 +369,7 @@
 				</a>
 				{#if isOnProjectRoute}
 					<span class="text-sm text-gray-500">/</span>
-					<DropdownMenu.Root>
+					<DropdownMenu.Root bind:open={projectMenuOpen}>
 						<DropdownMenu.Trigger
 							class="flex min-w-0 items-center gap-1 px-1.5 py-0.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 hover:text-gray-50"
 						>
@@ -374,7 +381,12 @@
 								>Projects</DropdownMenu.Label
 							>
 							{#each projects as project (project.id)}
-								<DropdownMenu.Item class="gap-2" onclick={() => selectProject(project.id)}>
+								<DropdownMenu.Item
+									class="gap-2"
+									closeOnSelect={false}
+									disabled={switchingProjectId !== null}
+									onclick={() => selectProject(project.id)}
+								>
 									<FolderOpen
 										class="h-3.5 w-3.5 {selectedProjectId === project.id
 											? 'text-red-500'
@@ -383,7 +395,9 @@
 									<span class={selectedProjectId === project.id ? 'text-gray-50' : ''}
 										>{project.projectName}</span
 									>
-									{#if selectedProjectId === project.id}
+									{#if switchingProjectId === project.id}
+										<Loader2 class="ml-auto h-3 w-3 animate-spin text-red-500" />
+									{:else if selectedProjectId === project.id}
 										<Check class="ml-auto h-3 w-3 text-red-500" />
 									{/if}
 								</DropdownMenu.Item>
@@ -409,7 +423,6 @@
 					</a>
 				{/if}
 
-				<!-- Search trigger -->
 				<button
 					class="flex shrink-0 items-center gap-2 border border-gray-800 bg-gray-800/30 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:border-gray-700 hover:text-gray-400"
 					aria-label="Search"
@@ -423,7 +436,6 @@
 					>
 				</button>
 
-				<!-- Avatar button — opens user settings -->
 				<button
 					class="flex min-w-0 items-center gap-2.5 rounded-xs px-2 py-1 transition-colors hover:bg-gray-800"
 					aria-label={`Account settings for ${profileName || data.user?.email}`}
@@ -448,14 +460,12 @@
 			</div>
 		</header>
 
-		<!-- Body -->
 		{#if isRootPage || isAdminPage}
 			<div class="flex flex-1 overflow-hidden">
 				{@render children()}
 			</div>
 		{:else}
 			<div class="flex flex-1 overflow-hidden">
-				<!-- Icon sidebar -->
 				<aside
 					class="hidden w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-800 py-3 lg:flex"
 				>
@@ -485,7 +495,6 @@
 					{/each}
 				</aside>
 
-				<!-- Page content -->
 				<div class="flex flex-1 overflow-hidden">
 					{@render children()}
 				</div>
@@ -493,7 +502,6 @@
 		{/if}
 	</div>
 
-	<!-- Mobile navigation drawer -->
 	<Sheet.Root bind:open={mobileNavOpen}>
 		<Sheet.Content side="left" class="flex w-64 flex-col gap-0 border-gray-800 bg-gray-900 p-0">
 			<Sheet.Header class="border-b border-gray-800 px-4 py-3 text-left">
@@ -573,7 +581,6 @@
 
 	<ConfirmDialog />
 
-	<!-- Command Palette -->
 	<Command.Dialog
 		bind:open={commandOpen}
 		class="top-1/2! max-w-xl! -translate-y-1/2! border-gray-800 bg-gray-900"
@@ -583,7 +590,6 @@
 			placeholder="Search resources, actions..."
 			class="border-b border-gray-800"
 		/>
-		<!-- Filter buttons -->
 		<div class="flex gap-1 border-b border-gray-800 px-3 py-2">
 			{#each cmdFilters as f (f.id)}
 				<button

@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Play, Power, PowerOff, RotateCw } from '@lucide/svelte';
+	import { Play, Power, PowerOff, RotateCw, Loader2 } from '@lucide/svelte';
 	import type { FeatureFlags } from '$lib/feature-flags';
 	import { killVm, rebootVm, startVm, stopVm } from '$lib/remote/vms.remote';
 	import { getServerWithFallback } from '$lib/state/servers.svelte';
@@ -25,8 +25,11 @@
 		| `/projects/${string}/servers/${string}/settings`
 		| `/projects/${string}/servers/${string}/snapshots`;
 
+	type PowerAction = 'start' | 'shutdown' | 'kill' | 'restart';
+
 	let { data, children } = $props();
-	let powerLoading = $state(false);
+	let powerAction = $state<PowerAction | null>(null);
+	const powerLoading = $derived(powerAction !== null);
 	const featureFlags = $derived((data.featureFlags ?? {}) as FeatureFlags);
 	const visibleServerTabs = $derived(
 		serverTabs.filter((tab) => !tab.featureFlag || featureFlags[tab.featureFlag])
@@ -50,7 +53,7 @@
 		kill: { success: 'Server powered off', error: 'Failed to power off server' }
 	} as const;
 
-	async function power(action: 'start' | 'shutdown' | 'kill' | 'restart') {
+	async function power(action: PowerAction) {
 		if (!selectedServer || powerLoading) return;
 
 		if (action === 'kill') {
@@ -62,7 +65,7 @@
 			if (!ok) return;
 		}
 
-		powerLoading = true;
+		powerAction = action;
 
 		try {
 			if (action === 'start') {
@@ -78,7 +81,7 @@
 		} catch (error) {
 			toast.error(getErrorMessage(error, powerMessages[action].error));
 		} finally {
-			powerLoading = false;
+			powerAction = null;
 		}
 	}
 </script>
@@ -117,7 +120,11 @@
 				selectedServer.status === 'provisioning'}
 			onclick={() => power('start')}
 		>
-			<Play class="h-3 w-3" />
+			{#if powerAction === 'start'}
+				<Loader2 class="h-3 w-3 animate-spin" />
+			{:else}
+				<Play class="h-3 w-3" />
+			{/if}
 			<span class="hidden sm:inline">Start</span>
 		</Button>
 		<Button
@@ -131,7 +138,11 @@
 				selectedServer.status === 'provisioning'}
 			onclick={() => power('restart')}
 		>
-			<RotateCw class="h-3 w-3 {selectedServer.status === 'restarting' ? 'animate-spin' : ''}" />
+			{#if powerAction === 'restart'}
+				<Loader2 class="h-3 w-3 animate-spin" />
+			{:else}
+				<RotateCw class="h-3 w-3 {selectedServer.status === 'restarting' ? 'animate-spin' : ''}" />
+			{/if}
 			<span class="hidden sm:inline">Restart</span>
 		</Button>
 		<Button
@@ -144,7 +155,11 @@
 				selectedServer.status === 'provisioning'}
 			onclick={() => power('shutdown')}
 		>
-			<Power class="h-3 w-3" />
+			{#if powerAction === 'shutdown'}
+				<Loader2 class="h-3 w-3 animate-spin" />
+			{:else}
+				<Power class="h-3 w-3" />
+			{/if}
 			<span class="hidden sm:inline">Shutdown</span>
 		</Button>
 		<Button
@@ -157,7 +172,11 @@
 				selectedServer.status === 'provisioning'}
 			onclick={() => power('kill')}
 		>
-			<PowerOff class="h-3 w-3" />
+			{#if powerAction === 'kill'}
+				<Loader2 class="h-3 w-3 animate-spin" />
+			{:else}
+				<PowerOff class="h-3 w-3" />
+			{/if}
 			<span class="hidden sm:inline">Kill</span>
 		</Button>
 	</div>

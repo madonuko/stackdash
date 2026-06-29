@@ -25,6 +25,23 @@
 	let error = $state('');
 	let loading = $state(false);
 	let passkeyLoading = $state(false);
+	let socialLoading = $state<'github' | 'google' | null>(null);
+
+	async function signInWithSocial(provider: 'github' | 'google') {
+		if (socialLoading) return;
+		error = '';
+		socialLoading = provider;
+		try {
+			const { error: err } = await authClient.signIn.social({ provider, callbackURL: redirectTo });
+			if (err) {
+				error = err.message ?? 'Unable to sign in.';
+				socialLoading = null;
+			}
+		} catch {
+			error = 'Unable to sign in.';
+			socialLoading = null;
+		}
+	}
 
 	function twoFactorHref(method: 'passkey' | 'totp') {
 		const path = `/login/two-factor/${method}`;
@@ -158,18 +175,26 @@
 					variant="outline"
 					size="sm"
 					class="flex-1 gap-1.5"
-					onclick={() => authClient.signIn.social({ provider: 'github', callbackURL: redirectTo })}
+					loading={socialLoading === 'github'}
+					disabled={socialLoading !== null}
+					onclick={() => signInWithSocial('github')}
 				>
-					<SiGithub class="h-3.5 w-3.5" color="currentColor" />
+					{#if socialLoading !== 'github'}
+						<SiGithub class="h-3.5 w-3.5" color="currentColor" />
+					{/if}
 					GitHub
 				</Button>
 				<Button
 					variant="outline"
 					size="sm"
 					class="flex-1 gap-1.5"
-					onclick={() => authClient.signIn.social({ provider: 'google', callbackURL: redirectTo })}
+					loading={socialLoading === 'google'}
+					disabled={socialLoading !== null}
+					onclick={() => signInWithSocial('google')}
 				>
-					<GoogleIcon class="h-3.5 w-3.5" />
+					{#if socialLoading !== 'google'}
+						<GoogleIcon class="h-3.5 w-3.5" />
+					{/if}
 					Google
 				</Button>
 			</div>

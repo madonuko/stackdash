@@ -206,8 +206,8 @@
 			</div>
 			<div>
 				<svg viewBox="0 0 240 80" class="block h-28 w-full" preserveAspectRatio="none">
-					<polygon points="{chart.points} 240,80 0,80" fill={chart.color} opacity="0.08" />
 					{#if chart.loaded}
+						<polygon points="{chart.points} 240,80 0,80" fill={chart.color} opacity="0.08" />
 						<polyline
 							points={chart.points}
 							fill="none"
@@ -216,6 +216,19 @@
 							stroke-linejoin="round"
 							stroke-linecap="round"
 							vector-effect="non-scaling-stroke"
+						/>
+					{:else}
+						<line
+							x1="0"
+							y1="50"
+							x2="240"
+							y2="50"
+							stroke="var(--gray-700)"
+							stroke-width="2"
+							stroke-dasharray="4 5"
+							stroke-linecap="round"
+							vector-effect="non-scaling-stroke"
+							class="animate-pulse"
 						/>
 					{/if}
 				</svg>
