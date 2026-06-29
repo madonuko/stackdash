@@ -7,6 +7,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { getProjectMemberRole } from '$lib/server/auth-context';
 import { attachDefaultProjectPlan } from '$lib/server/billing/autumn';
 import { getProjectBillingOverview, refreshProjectBilling } from '$lib/server/billing/overview';
+import { runInBackground } from '$lib/server/background';
 import { initDrizzle } from '$lib/server/db';
 import { getIpamAvailability } from '$lib/server/ipam';
 
@@ -39,7 +40,7 @@ export const load: LayoutServerLoad = async ({ locals, params, parent, depends, 
 		redirect(303, cleanPath);
 	}
 
-	void refreshProjectBilling(params.projectid);
+	runInBackground(refreshProjectBilling(params.projectid), 'refreshProjectBilling');
 	const [vmTypes, dbImages, volumes, sshKeys, billing, ipamAvailability, role] = await Promise.all([
 		listVmTypes(),
 		listImages(),

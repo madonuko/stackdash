@@ -1,5 +1,9 @@
 import { and, eq } from 'drizzle-orm';
-import { ensureProjectCustomer, getProjectBillingState } from './autumn';
+import {
+	ensureProjectCustomer,
+	getProjectBillingState,
+	invalidateProjectBillingState
+} from './autumn';
 import { meterProjectActiveResources, syncProjectUsage } from './metering';
 import { initDrizzle } from '$lib/server/db';
 import { billingMeters } from '$lib/server/db/schema';
@@ -18,6 +22,7 @@ export async function refreshProjectBilling(projectId: string) {
 	});
 	await meterProjectActiveResources(projectId);
 	await syncProjectUsage(projectId);
+	invalidateProjectBillingState(projectId);
 }
 
 export async function getProjectBillingOverview(projectId: string) {

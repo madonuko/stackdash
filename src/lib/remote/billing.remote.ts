@@ -4,6 +4,7 @@ import { type } from 'arktype';
 import { requireProjectAccess } from '$lib/server/auth-context';
 import { openProjectBillingPortal, setupProjectPayment } from '$lib/server/billing/autumn';
 import { getProjectBillingOverview, refreshProjectBilling } from '$lib/server/billing/overview';
+import { runInBackground } from '$lib/server/background';
 import { initDrizzle } from '$lib/server/db';
 
 const projectParams = type({ projectId: 'string' });
@@ -21,7 +22,7 @@ export const getProjectBilling = query(projectParams, async (params) => {
 
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'admin');
-	void refreshProjectBilling(params.projectId);
+	runInBackground(refreshProjectBilling(params.projectId), 'refreshProjectBilling');
 
 	return getProjectBillingOverview(params.projectId);
 });

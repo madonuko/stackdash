@@ -156,6 +156,7 @@ export async function attachDefaultProjectPlan(projectId: string, successUrl?: s
 			...(successUrl ? { successUrl } : {})
 		});
 
+		invalidateProjectBillingState(projectId);
 		return response.paymentUrl;
 	} catch (err) {
 		if (autumnStatus(err) === 409) return null;
@@ -180,7 +181,7 @@ export async function setupProjectPayment(projectId: string, successUrl: string)
 	return response.url;
 }
 
-export async function getProjectBillingState(projectId: string) {
+async function computeProjectBillingState(projectId: string) {
 	const db = initDrizzle();
 	const localCustomer = await db.query.projectBillingCustomers.findFirst({
 		where: eq(projectBillingCustomers.projectId, projectId)
@@ -257,8 +258,32 @@ export async function getProjectBillingState(projectId: string) {
 	}
 }
 
+type ProjectBillingState = Awaited<ReturnType<typeof computeProjectBillingState>>;
+
+const BILLING_STATE_TTL_MS = 60_000;
+const billingStateCache = new Map<string, { state: ProjectBillingState; expiresAt: number }>();
+
+export function invalidateProjectBillingState(projectId: string) {
+	billingStateCache.delete(projectId);
+}
+
+export async function getProjectBillingState(
+	projectId: string,
+	options: { live?: boolean } = {}
+): Promise<ProjectBillingState> {
+	const now = Date.now();
+	if (!options.live) {
+		const cached = billingStateCache.get(projectId);
+		if (cached && now < cached.expiresAt) return cached.state;
+	}
+
+	const state = await computeProjectBillingState(projectId);
+	billingStateCache.set(projectId, { state, expiresAt: now + BILLING_STATE_TTL_MS });
+	return state;
+}
+
 export async function requireProjectBillingActive(projectId: string) {
-	const state = await getProjectBillingState(projectId);
+	const state = await getProjectBillingState(projectId, { live: true });
 
 	if (state.status !== 'active') {
 		error(402, 'Set up billing before creating servers.');
