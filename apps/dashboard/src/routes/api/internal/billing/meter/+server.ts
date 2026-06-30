@@ -15,7 +15,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	const metered = await meterActiveResources();
 	const synced = await syncPendingUsage();
 	const cancellations = await retryOrphanedProjectBillingCancellations();
-	const enforcement = await enforceProjectBillingGrace();
+	const enforcement = await enforceProjectBillingGrace().catch((err) => {
+		console.error('Billing grace enforcement failed', err);
+		return { checked: 0, suspended: 0, failed: true };
+	});
 
 	return json({ metered, synced, cancellations, enforcement });
 };

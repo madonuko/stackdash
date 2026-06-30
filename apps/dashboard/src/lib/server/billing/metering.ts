@@ -37,25 +37,35 @@ async function recordMeterUsage(meter: BillingMeter, now: number) {
 		periodEnd: now
 	});
 
-	const [event] = await db
-		.insert(billingUsageEvents)
-		.values({
-			projectId: meter.projectId,
-			resourceType: meter.resourceType,
-			resourceId: meter.resourceId,
-			featureId: meter.featureId,
-			quantity: quantity.toString(),
-			periodStart: meter.lastMeteredAt,
-			periodEnd: now,
-			idempotencyKey,
-			createdAt: now
-		})
-		.onConflictDoNothing({ target: billingUsageEvents.idempotencyKey })
-		.returning();
+	return db.transaction(async (tx) => {
+		const claimed = await tx
+			.update(billingMeters)
+			.set({ lastMeteredAt: now })
+			.where(
+				and(eq(billingMeters.id, meter.id), eq(billingMeters.lastMeteredAt, meter.lastMeteredAt))
+			)
+			.returning({ id: billingMeters.id });
 
-	await db.update(billingMeters).set({ lastMeteredAt: now }).where(eq(billingMeters.id, meter.id));
+		if (claimed.length === 0) return null;
 
-	return event ?? null;
+		const [event] = await tx
+			.insert(billingUsageEvents)
+			.values({
+				projectId: meter.projectId,
+				resourceType: meter.resourceType,
+				resourceId: meter.resourceId,
+				featureId: meter.featureId,
+				quantity: quantity.toString(),
+				periodStart: meter.lastMeteredAt,
+				periodEnd: now,
+				idempotencyKey,
+				createdAt: now
+			})
+			.onConflictDoNothing({ target: billingUsageEvents.idempotencyKey })
+			.returning();
+
+		return event ?? null;
+	});
 }
 
 export async function createBillingMeter(input: {
@@ -137,11 +147,52 @@ export async function meterResourceThrough(
 
 	if (!meter) return null;
 
-	const event = await recordMeterUsage(meter, now);
-	await db
-		.update(billingMeters)
-		.set({ active: false, endedAt: now })
-		.where(eq(billingMeters.id, meter.id));
+	const event = await db.transaction(async (tx) => {
+		const [locked] = await tx
+			.select()
+			.from(billingMeters)
+			.where(and(eq(billingMeters.id, meter.id), eq(billingMeters.active, true)))
+			.for('update');
+
+		if (!locked) return null;
+
+		let inserted: BillingUsageEvent | null = null;
+		const quantity = usageQuantity(locked.units, locked.lastMeteredAt, now);
+		if (now > locked.lastMeteredAt && quantity > 0) {
+			const idempotencyKey = usageIdempotencyKey({
+				resourceType: locked.resourceType,
+				resourceId: locked.resourceId,
+				featureId: locked.featureId,
+				units: locked.units,
+				periodStart: locked.lastMeteredAt,
+				periodEnd: now
+			});
+
+			const rows = await tx
+				.insert(billingUsageEvents)
+				.values({
+					projectId: locked.projectId,
+					resourceType: locked.resourceType,
+					resourceId: locked.resourceId,
+					featureId: locked.featureId,
+					quantity: quantity.toString(),
+					periodStart: locked.lastMeteredAt,
+					periodEnd: now,
+					idempotencyKey,
+					createdAt: now
+				})
+				.onConflictDoNothing({ target: billingUsageEvents.idempotencyKey })
+				.returning();
+			inserted = rows[0] ?? null;
+		}
+
+		await tx
+			.update(billingMeters)
+			.set({ lastMeteredAt: now, active: false, endedAt: now })
+			.where(eq(billingMeters.id, meter.id));
+
+		return inserted;
+	});
 
 	const syncStatus = event ? await syncUsageEvent(event.id) : null;
 

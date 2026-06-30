@@ -1,10 +1,12 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { projectBillingCustomers, vms } from '$lib/server/db/schema';
 import { getBackend } from '$lib/server/backends';
 import { getProjectBillingState } from './autumn';
+import { sendProjectPastDueEmail, sendProjectSuspendedEmail } from '$lib/server/email-notifications';
 
 const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
+const GRACE_PERIOD_DAYS = 7;
 const PAST_DUE_STATUSES = new Set(['past_due', 'payment_required']);
 
 async function suspendProjectVms(projectId: string) {
@@ -27,13 +29,13 @@ async function suspendProjectVms(projectId: string) {
 	return stopped;
 }
 
-export async function enforceProjectBillingGrace(now = Date.now(), limit = 100) {
+export async function enforceProjectBillingGrace(now = Date.now()) {
 	const db = initDrizzle();
 	const projects = await db
 		.selectDistinct({ projectId: vms.ownerProjectId })
 		.from(vms)
 		.where(eq(vms.active, true))
-		.limit(limit);
+		.orderBy(asc(vms.ownerProjectId));
 
 	let suspended = 0;
 	for (const { projectId } of projects) {
@@ -46,23 +48,52 @@ export async function enforceProjectBillingGrace(now = Date.now(), limit = 100) 
 
 		if (PAST_DUE_STATUSES.has(state.status)) {
 			if (customer?.pastDueSince == null) {
-				await db
+				const claimed = await db
 					.update(projectBillingCustomers)
 					.set({ pastDueSince: now, updatedAt: now })
-					.where(eq(projectBillingCustomers.projectId, projectId));
+					.where(
+						and(
+							eq(projectBillingCustomers.projectId, projectId),
+							isNull(projectBillingCustomers.pastDueSince)
+						)
+					)
+					.returning({ projectId: projectBillingCustomers.projectId });
+				if (claimed.length > 0) {
+					await sendProjectPastDueEmail(projectId, GRACE_PERIOD_DAYS).catch((err) => {
+						console.warn(`Failed to send past-due email for project ${projectId}`, err);
+					});
+				}
 				continue;
 			}
 
 			if (now - customer.pastDueSince >= GRACE_PERIOD_MS) {
 				suspended += await suspendProjectVms(projectId);
+				const claimed = await db
+					.update(projectBillingCustomers)
+					.set({ suspendedAt: now, updatedAt: now })
+					.where(
+						and(
+							eq(projectBillingCustomers.projectId, projectId),
+							isNull(projectBillingCustomers.suspendedAt)
+						)
+					)
+					.returning({ projectId: projectBillingCustomers.projectId });
+				if (claimed.length > 0) {
+					await sendProjectSuspendedEmail(projectId).catch((err) => {
+						console.warn(`Failed to send suspension email for project ${projectId}`, err);
+					});
+				}
 			}
 			continue;
 		}
 
-		if (state.status === 'active' && customer?.pastDueSince != null) {
+		if (
+			state.status === 'active' &&
+			(customer?.pastDueSince != null || customer?.suspendedAt != null)
+		) {
 			await db
 				.update(projectBillingCustomers)
-				.set({ pastDueSince: null, updatedAt: now })
+				.set({ pastDueSince: null, suspendedAt: null, updatedAt: now })
 				.where(eq(projectBillingCustomers.projectId, projectId));
 		}
 	}
