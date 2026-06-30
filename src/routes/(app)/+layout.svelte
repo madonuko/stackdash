@@ -158,13 +158,10 @@
 	}
 
 	$effect(() => {
-		userSettings.syncFromUrl(page.url);
-	});
-
-	$effect(() => {
-		if (!userSettings.open && userSettings.urlHasSettingsTab(page.url)) {
-			replaceState(resolve(clearUserSettingsHref(page.url) as any), page.state);
-		}
+		const url = page.url;
+		if (!userSettings.urlHasSettingsTab(url)) return;
+		userSettings.syncFromUrl(url);
+		untrack(() => replaceState(resolve(clearUserSettingsHref(url) as any), page.state));
 	});
 
 	let commandOpen = $state(false);
@@ -290,6 +287,7 @@
 		commandSearch = '';
 		cmdFilter = 'all';
 		commandOpen = true;
+		void loadCommandServers();
 	}
 
 	$effect(() => {
@@ -301,11 +299,6 @@
 			commandServersRequestId += 1;
 			commandServersLoading = false;
 		});
-	});
-
-	$effect(() => {
-		if (!commandOpen || !selectedProjectId) return;
-		untrack(() => loadCommandServers(selectedProjectId));
 	});
 
 	$effect(() => {
