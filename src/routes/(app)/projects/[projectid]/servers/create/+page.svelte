@@ -87,6 +87,34 @@
 	const dbImages = $derived(data.dbImages ?? []);
 	const officialDbImages = $derived(dbImages.filter((image) => image.isOfficial));
 	const customDbImages = $derived(dbImages.filter((image) => !image.isOfficial));
+	type ImageGroup = {
+		name: string;
+		description: string;
+		accentColor: string;
+		logoSvg: string | null;
+		imageType: string;
+		versions: DbImage[];
+	};
+	const officialImageGroups = $derived.by(() => {
+		const groups = new Map<string, DbImage[]>();
+		for (const image of officialDbImages) {
+			const existing = groups.get(image.name);
+			if (existing) existing.push(image);
+			else groups.set(image.name, [image]);
+		}
+		return Array.from(groups.values(), (versions) => {
+			const sorted = [...versions].sort((a, b) => compareVersionsDesc(a.version, b.version));
+			const [representative] = sorted;
+			return {
+				name: representative.name,
+				description: representative.description,
+				accentColor: representative.accentColor,
+				logoSvg: representative.logoSvg,
+				imageType: representative.imageType,
+				versions: sorted
+			} satisfies ImageGroup;
+		});
+	});
 	const volumesEnabled = $derived(!!data.featureFlags?.volumes);
 	const projectId = $derived(data.currentProject?.id ?? page.params.projectid ?? '');
 	const billingReady = $derived(data.billing?.status === 'active');
@@ -210,23 +238,38 @@
 		return Array.from({ length: 24 }, () => chars[randomIndex(chars.length)]).join('');
 	}
 
-	function filteredOfficialImages(): DbImage[] {
-		if (!imagesSearch.trim()) return officialDbImages;
+	function compareVersionsDesc(a: string, b: string): number {
+		const na = Number.parseFloat(a);
+		const nb = Number.parseFloat(b);
+		if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return nb - na;
+		return b.localeCompare(a, undefined, { numeric: true });
+	}
+
+	function filteredOfficialGroups(): ImageGroup[] {
+		if (!imagesSearch.trim()) return officialImageGroups;
 		const q = imagesSearch.toLowerCase();
-		return officialDbImages.filter(
-			(i) => i.name.toLowerCase().includes(q) || i.version.toLowerCase().includes(q)
+		return officialImageGroups.filter(
+			(g) =>
+				g.name.toLowerCase().includes(q) ||
+				g.versions.some((v) => v.version.toLowerCase().includes(q))
 		);
 	}
 
-	function selectImage(imageId: string) {
-		if (selectedImageId === imageId) {
+	function selectImageGroup(group: ImageGroup) {
+		if (group.versions.some((v) => v.id === selectedImageId)) {
 			selectedImageId = null;
 			selectedImageVersion = null;
 		} else {
-			selectedImageId = imageId;
-			const img = dbImages.find((i) => i.id === imageId);
-			selectedImageVersion = img?.version ?? null;
+			selectedImageId = group.versions[0].id;
+			selectedImageVersion = group.versions[0].version;
 		}
+	}
+
+	function selectImageVersion(imageId: string) {
+		const img = dbImages.find((i) => i.id === imageId);
+		if (!img) return;
+		selectedImageId = img.id;
+		selectedImageVersion = img.version;
 	}
 
 	function scrollTosSection(sectionId: string) {
@@ -401,38 +444,40 @@
 									/>
 								</div>
 								<div class="mt-3 grid grid-cols-1 gap-px bg-gray-900 sm:grid-cols-2">
-									{#each filteredOfficialImages() as img (img.id)}
-										{@const isSelected = selectedImageId === img.id}
+									{#each filteredOfficialGroups() as group (group.name)}
+										{@const isSelected = group.versions.some((v) => v.id === selectedImageId)}
 										<div class="flex flex-col">
 											<button
 												aria-pressed={isSelected}
-												aria-label={`${img.name} ${img.version}`}
+												aria-label={group.name}
 												class="relative flex gap-4 overflow-hidden bg-gray-900 p-5 text-left transition-colors hover:bg-gray-800/40 {isSelected
 													? 'ring-2 ring-red-500 ring-inset'
 													: ''}"
-												onclick={() => selectImage(img.id)}
+												onclick={() => selectImageGroup(group)}
 											>
 												<div
 													class="pointer-events-none absolute inset-0 opacity-[0.08]"
-													style="background: linear-gradient(135deg, {img.accentColor} 0%, transparent 60%)"
+													style="background: linear-gradient(135deg, {group.accentColor} 0%, transparent 60%)"
 												></div>
 												<div class="relative shrink-0">
-													{#if img.logoSvg}
+													{#if group.logoSvg}
 														<span
 															class="flex h-12 w-12 items-center justify-center text-foreground [&_svg]:fill-current"
-															>{@html img.logoSvg}</span
+															>{@html group.logoSvg}</span
 														>
 													{:else}
 														<HardDrive class="h-12 w-12 text-gray-300" />
 													{/if}
 												</div>
 												<div class="relative flex min-w-0 flex-1 flex-col">
-													<span class="text-sm font-semibold text-gray-50">{img.name}</span>
+													<span class="text-sm font-semibold text-gray-50">{group.name}</span>
 													<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
-														{img.description}
+														{group.description}
 													</p>
 													<p class="mt-auto pt-2 text-[10px] leading-none text-gray-500">
-														x86 | {img.version} | {img.imageType}
+														x86 | {group.versions.length > 1
+															? `${group.versions.length} versions`
+															: group.versions[0].version} | {group.imageType}
 													</p>
 												</div>
 											</button>
@@ -440,17 +485,20 @@
 												<div class="border-t border-gray-800 bg-gray-900/50 px-5 py-3">
 													<span class="text-xs text-gray-400">Version</span>
 													<select
-														bind:value={selectedImageVersion}
+														value={selectedImageId}
+														onchange={(e) => selectImageVersion(e.currentTarget.value)}
 														class="mt-1.5 h-8 w-full border border-gray-700 bg-gray-800 px-2 text-xs text-gray-100 focus:border-red-500 focus:outline-none"
 													>
-														<option value={img.version}>{img.version} (x86)</option>
+														{#each group.versions as v (v.id)}
+															<option value={v.id}>{v.version} (x86)</option>
+														{/each}
 													</select>
 												</div>
 											{/if}
 										</div>
 									{/each}
 								</div>
-								{#if filteredOfficialImages().length === 0 && imagesSearch.trim()}
+								{#if filteredOfficialGroups().length === 0 && imagesSearch.trim()}
 									<div class="py-6 text-center text-xs text-gray-500">
 										No images match "{imagesSearch}"
 									</div>
