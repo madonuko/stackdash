@@ -11,6 +11,8 @@
 		"cf:dev:remote": "bun run build && wrangler dev --remote",
 		"cf:deploy": "wrangler deploy --env=\"\"",
 		"cf:deploy:preview": "bun run build && wrangler deploy --env preview",
+		"deploy": "wrangler deploy --env=\"\"",
+		"deploy:preview": "wrangler deploy --env preview",
 		"email:dev": "bse dev -c src/routes/layout.css",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -72,6 +74,7 @@
 		"ky": "^2.0.0",
 		"qrcode-svg": "^1.1.0",
 		"ulid": "^3.0.2",
+		"undici": "^7.24.4",
 		"yaml": "^2.9.0"
 	}
 }
