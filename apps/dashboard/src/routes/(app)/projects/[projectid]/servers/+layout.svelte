@@ -6,6 +6,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { HardDrive, Plus } from '@lucide/svelte';
 	import { listVmStatuses } from '$lib/remote/vms.remote';
+	import { runQuery } from '$lib/utils';
 	import { serversState, sortServers } from '$lib/state/servers.svelte';
 
 	let { data, children } = $props();
@@ -69,7 +70,7 @@
 		serversState.statusRefreshing = true;
 
 		try {
-			const statuses = await listVmStatuses({ projectId }).run();
+			const statuses = await runQuery(listVmStatuses({ projectId }));
 			const byId = new Map(statuses.map((server) => [server.id, server]));
 
 			untrack(() => {

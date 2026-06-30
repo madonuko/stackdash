@@ -15,7 +15,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { toast } from 'svelte-sonner';
-	import { getErrorMessage } from '$lib/utils';
+	import { getErrorMessage, runQuery } from '$lib/utils';
 	import { goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
@@ -254,7 +254,7 @@
 		commandServersLoading = true;
 
 		try {
-			const vms = await listVms({ projectId }).run();
+			const vms = await runQuery(listVms({ projectId }));
 			if (requestId !== commandServersRequestId) return;
 			commandServers = vms
 				.filter((vm) => vm.active)

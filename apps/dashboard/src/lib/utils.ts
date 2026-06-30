@@ -1,8 +1,14 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { RemoteQuery } from '@sveltejs/kit';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
+}
+
+export async function runQuery<T>(query: RemoteQuery<T>): Promise<T> {
+	await query.refresh();
+	return await query;
 }
 
 export function getErrorMessage(err: unknown, fallback: string): string {

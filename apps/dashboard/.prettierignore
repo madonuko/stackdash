@@ -5,6 +5,10 @@ yarn.lock
 bun.lock
 bun.lockb
 
+# Build output
+.svelte-kit/
+.wrangler/
+
 # Miscellaneous
 /static/
 /drizzle/

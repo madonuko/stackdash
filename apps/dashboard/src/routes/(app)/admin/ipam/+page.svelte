@@ -14,7 +14,7 @@
 		updateIpamPrefix
 	} from '$lib/remote/ipam.remote';
 	import { AdminState, type AdminPageData, type IpamPrefix } from '$lib/state/admin.svelte';
-	import { getErrorMessage } from '$lib/utils';
+	import { getErrorMessage, runQuery } from '$lib/utils';
 	import { confirmDestructive } from '$lib/confirm.svelte';
 	import {
 		AlertTriangle,
@@ -97,7 +97,7 @@
 	}
 
 	async function refreshPrefixes() {
-		admin.ipamPrefixes = await listIpamPrefixes().run();
+		admin.ipamPrefixes = await runQuery(listIpamPrefixes());
 		await invalidate('app:ipam-prefixes');
 	}
 

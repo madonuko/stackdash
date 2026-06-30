@@ -18,7 +18,7 @@ export const load: LayoutLoad = async ({ params, parent, url }) => {
 		error(404, 'Project not found');
 	}
 
-	const vm = await getVm({ vmId: params.id }).run();
+	const vm = await getVm({ vmId: params.id });
 
 	if (vm.ownerProjectId !== projectId) error(404, `VM "${params.id}" not found`);
 

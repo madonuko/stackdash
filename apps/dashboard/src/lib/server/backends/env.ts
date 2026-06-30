@@ -21,8 +21,7 @@ export interface BackendEnv {
 
 export function getBackendEnv(): BackendEnv {
 	const platformEnv = getRequestEvent().platform?.env as
-		| (App.Platform['env'] & { PROXMOX_API_SECRET?: string })
-		| undefined;
+		(App.Platform['env'] & { PROXMOX_API_SECRET?: string }) | undefined;
 
 	if (platformEnv) {
 		return {

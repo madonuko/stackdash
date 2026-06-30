@@ -27,7 +27,7 @@ import {
 import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
 import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
 import { toast } from 'svelte-sonner';
-import { getErrorMessage } from '$lib/utils';
+import { getErrorMessage, runQuery } from '$lib/utils';
 import { untrack } from 'svelte';
 import {
 	defaultFeatureFlags,
@@ -234,7 +234,7 @@ export class AdminState {
 		);
 		try {
 			await setUserAdmin({ userId, isAdmin });
-			this.adminUsers = await listAdminUsers().run();
+			this.adminUsers = await runQuery(listAdminUsers());
 			await invalidate('app:admin-users');
 		} catch (err) {
 			this.adminUsers = previousUsers;
@@ -366,7 +366,7 @@ export class AdminState {
 		this.userResourcesLoading = true;
 		this.userResourcesOpen = type;
 		try {
-			const result = await getUserResources({ userId }).run();
+			const result = await runQuery(getUserResources({ userId }));
 			this.userSessions = result.sessions;
 			this.userAccounts = result.accounts;
 			this.userOrgs = result.members;
@@ -388,7 +388,7 @@ export class AdminState {
 		this.orgResourcesLoading = true;
 		this.orgResourcesOpen = true;
 		try {
-			const result = await getOrganizationResources({ orgId: org.id }).run();
+			const result = await runQuery(getOrganizationResources({ orgId: org.id }));
 			this.orgVms = result.vms;
 			this.orgVolumes = result.volumes;
 		} catch (err) {
@@ -499,8 +499,8 @@ export class AdminState {
 		this.isoError = '';
 		try {
 			const [images, targets] = await Promise.all([
-				listProxmoxImages().run(),
-				listProxmoxImageImportTargets().run()
+				runQuery(listProxmoxImages()),
+				runQuery(listProxmoxImageImportTargets())
 			]);
 			this.pveImages = images;
 			this.pveImageImportTargets = targets;
@@ -574,7 +574,9 @@ export class AdminState {
 				const statuses = await Promise.all(
 					this.importTasks.map(async (task) => {
 						if (task.status === 'stopped') return task;
-						const status = await getProxmoxTaskStatus({ node: task.node, upid: task.upid }).run();
+						const status = await runQuery(
+							getProxmoxTaskStatus({ node: task.node, upid: task.upid })
+						);
 						return { ...task, status: status.status, exitstatus: status.exitstatus };
 					})
 				);

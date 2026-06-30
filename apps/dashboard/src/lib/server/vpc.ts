@@ -1,4 +1,5 @@
 import type { Fetcher } from '@cloudflare/workers-types';
+import ky from 'ky';
 import { Agent } from 'undici';
 import { instrument } from '$lib/server/observability';
 
@@ -6,8 +7,11 @@ export type VpcFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise
 
 const tlsTolerantAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
-export const insecureDirectFetch: VpcFetch = (input, init) =>
+const insecureFetch: typeof globalThis.fetch = (input, init) =>
 	fetch(input, { ...init, dispatcher: tlsTolerantAgent } as RequestInit);
+
+export const insecureDirectFetch: VpcFetch = (input, init) =>
+	ky(input, { ...init, retry: 0, fetch: insecureFetch });
 
 async function toUrlAndInit(
 	input: RequestInfo | URL,
