@@ -168,6 +168,7 @@ export const projectBillingCustomers = pgTable(
 		syncStatus: billingSyncStatusEnum('sync_status').notNull().default('pending'),
 		syncError: text('sync_error'),
 		lastSyncedAt: bigint('last_synced_at', { mode: 'number' }),
+		pastDueSince: bigint('past_due_since', { mode: 'number' }),
 		createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 		updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
 	},

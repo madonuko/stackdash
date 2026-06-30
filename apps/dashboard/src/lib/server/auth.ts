@@ -14,9 +14,10 @@ import OrganizationInvitationEmail from '$lib/emails/organization-invitation.sve
 import ResetPasswordEmail from '$lib/emails/reset-password.svelte';
 import VerifyEmail from '$lib/emails/verify-email.svelte';
 import { initDrizzle, type Database } from '$lib/server/db';
-import { user as userTable, verification } from '$lib/server/db/schema';
+import { member, user as userTable, verification } from '$lib/server/db/schema';
 import { sendRenderedEmail } from '$lib/server/email';
 import { sendSecurityAlertEmail } from '$lib/server/email-notifications';
+import { updateProjectCustomer } from '$lib/server/billing/autumn';
 import { getRuntimeEnv } from '$lib/server/env';
 import { ulid } from '$lib/server/id';
 
@@ -99,6 +100,20 @@ const lazyDb = new Proxy({} as Database, {
 		return prop in initDrizzle();
 	}
 });
+
+async function resyncOwnedProjectBilling(userId: string) {
+	const db = initDrizzle();
+	const owned = await db
+		.select({ organizationId: member.organizationId })
+		.from(member)
+		.where(and(eq(member.userId, userId), eq(member.role, 'owner')));
+
+	for (const { organizationId } of owned) {
+		await updateProjectCustomer(organizationId).catch((err) => {
+			console.warn(`Failed to sync Autumn customer email for project ${organizationId}`, err);
+		});
+	}
+}
 
 function buildAuth() {
 	const env = getRuntimeEnv();
@@ -192,6 +207,7 @@ function buildAuth() {
 							eq(verification.value, user.email.toLowerCase())
 						)
 					);
+				await resyncOwnedProjectBilling(user.id);
 			},
 			sendOnSignUp: true
 		},

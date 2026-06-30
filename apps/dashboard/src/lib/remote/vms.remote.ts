@@ -542,6 +542,9 @@ async function powerAction(vmId: string, action: 'startVm' | 'stopVm' | 'killVm'
 	if (!row) error(404, `VM "${vmId}" not found`);
 	if (row.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, row.ownerProjectId, 'read_write');
+		if (action === 'startVm' || action === 'rebootVm') {
+			await requireProjectBillingActive(row.ownerProjectId);
+		}
 	}
 
 	const backend = getBackend(row.backend);

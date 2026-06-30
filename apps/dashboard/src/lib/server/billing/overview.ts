@@ -13,6 +13,7 @@ function statusLabel(status: Awaited<ReturnType<typeof getProjectBillingState>>[
 	if (status === 'past_due') return 'Past due';
 	if (status === 'failed') return 'Needs attention';
 	if (status === 'payment_required') return 'Payment method required';
+	if (status === 'provider_unavailable') return 'Billing temporarily unavailable';
 	return 'Not set up';
 }
 
@@ -50,7 +51,8 @@ export async function getProjectBillingOverview(projectId: string) {
 		status: billingState.status,
 		statusLabel: statusLabel(billingState.status),
 		planLabel: 'Project billing',
-		setupRequired: billingState.status !== 'active',
+		setupRequired:
+			billingState.status !== 'active' && billingState.status !== 'provider_unavailable',
 		syncError: billingState.syncError,
 		lastUpdatedAt: Date.now(),
 		activeResourceCount: activeResourceRows.length,

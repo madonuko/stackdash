@@ -17,6 +17,7 @@ import { requireProjectAccess } from '$lib/server/auth-context';
 import { initAuth } from '$lib/server/auth';
 import { getBackend } from '$lib/server/backends';
 import {
+	cancelProjectBilling,
 	deleteLocalProjectBillingCustomer,
 	deleteProjectServerEntity,
 	ensureLocalProjectBillingCustomer,
@@ -203,7 +204,13 @@ export const deleteProject = command(deleteParams, async (params) => {
 	await db.delete(vms).where(eq(vms.ownerProjectId, params.projectId));
 	await db.delete(invitation).where(eq(invitation.organizationId, params.projectId));
 	await db.delete(member).where(eq(member.organizationId, params.projectId));
-	await deleteLocalProjectBillingCustomer(params.projectId);
+	const billingCancelled = await cancelProjectBilling(params.projectId).catch((err) => {
+		console.warn(`Failed to cancel Autumn billing for project ${params.projectId}`, err);
+		return false;
+	});
+	if (billingCancelled) {
+		await deleteLocalProjectBillingCustomer(params.projectId);
+	}
 	await db.delete(organization).where(eq(organization.id, params.projectId));
 });
 

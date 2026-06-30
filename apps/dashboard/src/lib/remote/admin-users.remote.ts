@@ -25,8 +25,10 @@ import {
 } from '$lib/server/db/schema';
 import { getBackend } from '$lib/server/backends';
 import {
+	cancelProjectBilling,
 	deleteLocalProjectBillingCustomer,
-	deleteProjectServerEntity
+	deleteProjectServerEntity,
+	updateProjectCustomer
 } from '$lib/server/billing/autumn';
 import { meterResourceThrough, syncProjectUsage } from '$lib/server/billing/metering';
 import { sendRenderedEmail } from '$lib/server/email';
@@ -241,6 +243,12 @@ async function settleUserOrganizations(db: ReturnType<typeof initDrizzle>, targe
 
 		if (oldestRemainingMember) {
 			await db.update(member).set({ role: 'owner' }).where(eq(member.id, oldestRemainingMember.id));
+			await updateProjectCustomer(membership.organizationId).catch((err) => {
+				console.warn(
+					`Failed to sync Autumn customer after ownership transfer for project ${membership.organizationId}`,
+					err
+				);
+			});
 			continue;
 		}
 
@@ -294,7 +302,13 @@ async function deleteOrganizationResources(
 	await db.delete(vms).where(eq(vms.ownerProjectId, organizationId));
 	await db.delete(invitation).where(eq(invitation.organizationId, organizationId));
 	await db.delete(member).where(eq(member.organizationId, organizationId));
-	await deleteLocalProjectBillingCustomer(organizationId);
+	const billingCancelled = await cancelProjectBilling(organizationId).catch((err) => {
+		console.warn(`Failed to cancel Autumn billing for project ${organizationId}`, err);
+		return false;
+	});
+	if (billingCancelled) {
+		await deleteLocalProjectBillingCustomer(organizationId);
+	}
 	await db.delete(organization).where(eq(organization.id, organizationId));
 }
 

@@ -117,7 +117,7 @@
 	});
 	const volumesEnabled = $derived(!!data.featureFlags?.volumes);
 	const projectId = $derived(data.currentProject?.id ?? page.params.projectid ?? '');
-	const billingReady = $derived(data.billing?.status === 'active');
+	const billingReady = $derived(data.billing?.setupRequired === false);
 	const canManageBilling = $derived(Boolean(data.canManageBilling));
 	const ipv4Available = $derived(Boolean(data.ipamAvailability?.ipv4.available));
 	const ipv6Available = $derived(Boolean(data.ipamAvailability?.ipv6.available));

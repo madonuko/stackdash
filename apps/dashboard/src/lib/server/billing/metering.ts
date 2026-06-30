@@ -18,7 +18,7 @@ type BillingUsageEvent = typeof billingUsageEvents.$inferSelect;
 function autumnClient() {
 	const env = getRuntimeEnv();
 
-	return new Autumn({ secretKey: env.AUTUMN_SECRET });
+	return new Autumn({ secretKey: env.AUTUMN_SECRET, failOpen: false });
 }
 
 async function recordMeterUsage(meter: BillingMeter, now: number) {

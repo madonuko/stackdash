@@ -1,5 +1,5 @@
 import { Autumn } from 'autumn-js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { initDrizzle } from '$lib/server/db';
 import { member, organization, projectBillingCustomers, user } from '$lib/server/db/schema';
@@ -8,7 +8,7 @@ import { getRuntimeEnv } from '$lib/server/env';
 function createAutumnClient() {
 	const env = getRuntimeEnv();
 
-	return new Autumn({ secretKey: env.AUTUMN_SECRET });
+	return new Autumn({ secretKey: env.AUTUMN_SECRET, failOpen: false });
 }
 
 function errorMessage(err: unknown) {
@@ -170,6 +170,48 @@ export async function attachDefaultProjectPlan(projectId: string, successUrl?: s
 	}
 }
 
+export async function cancelProjectBilling(projectId: string) {
+	const planId = defaultPlanId();
+
+	try {
+		await createAutumnClient().billing.update({
+			customerId: projectId,
+			...(planId ? { planId } : {}),
+			cancelAction: 'cancel_end_of_cycle'
+		});
+		return true;
+	} catch (err) {
+		if (autumnStatus(err) === 404) return true;
+
+		const db = initDrizzle();
+		await db
+			.update(projectBillingCustomers)
+			.set({ syncStatus: 'failed', syncError: errorMessage(err), updatedAt: Date.now() })
+			.where(eq(projectBillingCustomers.projectId, projectId));
+		return false;
+	}
+}
+
+export async function retryOrphanedProjectBillingCancellations(limit = 100) {
+	const db = initDrizzle();
+	const orphans = await db
+		.select({ projectId: projectBillingCustomers.projectId })
+		.from(projectBillingCustomers)
+		.leftJoin(organization, eq(organization.id, projectBillingCustomers.projectId))
+		.where(isNull(organization.id))
+		.limit(limit);
+
+	let cancelled = 0;
+	for (const { projectId } of orphans) {
+		if (await cancelProjectBilling(projectId)) {
+			await deleteLocalProjectBillingCustomer(projectId);
+			cancelled += 1;
+		}
+	}
+
+	return { orphaned: orphans.length, cancelled };
+}
+
 export async function setupProjectPayment(projectId: string, successUrl: string) {
 	await ensureProjectCustomer(projectId);
 
@@ -240,12 +282,22 @@ async function computeProjectBillingState(projectId: string) {
 			syncError: null
 		};
 	} catch (err) {
-		if (autumnStatus(err) === 404) {
+		const statusCode = autumnStatus(err);
+		if (statusCode === 404) {
 			return {
 				status: 'not_setup' as const,
 				customer: { autumnCustomerId: localCustomer.autumnCustomerId },
 				planId,
 				syncError: null
+			};
+		}
+
+		if (statusCode === null || statusCode >= 500) {
+			return {
+				status: 'provider_unavailable' as const,
+				customer: { autumnCustomerId: localCustomer.autumnCustomerId },
+				planId,
+				syncError: errorMessage(err)
 			};
 		}
 
@@ -285,8 +337,8 @@ export async function getProjectBillingState(
 export async function requireProjectBillingActive(projectId: string) {
 	const state = await getProjectBillingState(projectId, { live: true });
 
-	if (state.status !== 'active') {
-		error(402, 'Set up billing before creating servers.');
+	if (state.status !== 'active' && state.status !== 'provider_unavailable') {
+		error(402, 'This project does not have active billing.');
 	}
 }
 

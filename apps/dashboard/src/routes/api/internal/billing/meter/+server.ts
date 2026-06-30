@@ -1,6 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { meterActiveResources, syncPendingUsage } from '$lib/server/billing/metering';
+import { retryOrphanedProjectBillingCancellations } from '$lib/server/billing/autumn';
+import { enforceProjectBillingGrace } from '$lib/server/billing/enforcement';
 import { getRuntimeEnv } from '$lib/server/env';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -12,6 +14,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const metered = await meterActiveResources();
 	const synced = await syncPendingUsage();
+	const cancellations = await retryOrphanedProjectBillingCancellations();
+	const enforcement = await enforceProjectBillingGrace();
 
-	return json({ metered, synced });
+	return json({ metered, synced, cancellations, enforcement });
 };
