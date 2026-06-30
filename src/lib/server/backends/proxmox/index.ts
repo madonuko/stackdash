@@ -471,6 +471,7 @@ export class ProxmoxBackend implements VmBackend {
 			pool: `stack-tenants`,
 			boot: `order=${bootDisk}`,
 			cicustom: `network=${cloudInitNetworkConfigVolid},vendor=${cloudInitVendorConfigVolid}`,
+			ciupgrade: 0,
 			...cloudInitAuth,
 			serial0: 'socket',
 			agent: '1',

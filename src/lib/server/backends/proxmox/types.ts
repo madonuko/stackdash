@@ -135,6 +135,7 @@ export interface PveCreateQemuParams {
 	ipconfig0?: string;
 	ciuser?: string;
 	sshkeys?: string;
+	ciupgrade?: 0 | 1;
 	start?: 0 | 1;
 	[key: string]: unknown;
 }
