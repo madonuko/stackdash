@@ -403,7 +403,7 @@
 								<div class="mt-3 grid grid-cols-1 gap-px bg-gray-900 sm:grid-cols-2">
 									{#each filteredOfficialImages() as img (img.id)}
 										{@const isSelected = selectedImageId === img.id}
-										<div class="contents">
+										<div class="flex flex-col">
 											<button
 												aria-pressed={isSelected}
 												aria-label={`${img.name} ${img.version}`}
@@ -437,7 +437,7 @@
 												</div>
 											</button>
 											{#if isSelected}
-												<div class="col-span-2 border-t border-gray-800 bg-gray-900/50 px-5 py-3">
+												<div class="border-t border-gray-800 bg-gray-900/50 px-5 py-3">
 													<span class="text-xs text-gray-400">Version</span>
 													<select
 														bind:value={selectedImageVersion}
