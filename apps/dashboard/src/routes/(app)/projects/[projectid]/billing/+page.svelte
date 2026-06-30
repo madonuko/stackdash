@@ -3,6 +3,7 @@
 	import { openBillingPortal } from '$lib/remote/billing.remote';
 	import { getErrorMessage } from '$lib/utils';
 	import { CreditCard, Server, HardDrive, Cpu } from '@lucide/svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 
 	type DateValue = Date | number | string | null | undefined;
 
@@ -163,12 +164,23 @@
 
 				<div class="mt-6 flex flex-col gap-4">
 					<div class="rounded-md border border-gray-800/60 bg-gray-900/40 p-3.5">
-						<div class="flex items-center gap-2">
-							<Cpu class="size-3.5 text-blue-400" />
-							<p class="text-[0.625rem] font-medium tracking-wide text-gray-500 uppercase">
-								Compute units
-							</p>
-						</div>
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<div {...props} class="flex w-fit cursor-help items-center gap-2">
+										<Cpu class="size-3.5 text-blue-400" />
+										<p class="text-[0.625rem] font-medium tracking-wide text-gray-500 uppercase">
+											Compute units
+										</p>
+									</div>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="top">
+								<p class="max-w-[16rem]">
+									Active servers currently counting toward your compute usage this billing period.
+								</p>
+							</Tooltip.Content>
+						</Tooltip.Root>
 						<p class="mt-1 text-sm font-semibold text-gray-100 tabular-nums">{computeUnits}</p>
 					</div>
 					<div class="rounded-md border border-gray-800/60 bg-gray-900/40 p-3.5">

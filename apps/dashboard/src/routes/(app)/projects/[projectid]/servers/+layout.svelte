@@ -34,6 +34,7 @@
 		if (s.status === 'running') return 'Running';
 		if (s.status === 'provisioning') return 'Provisioning';
 		if (s.status === 'restarting') return 'Restarting';
+		if (s.status === 'unknown') return 'Unknown';
 		return 'Stopped';
 	}
 
@@ -238,7 +239,9 @@
 									? 'animate-pulse bg-blue-500'
 									: server.status === 'restarting'
 										? 'animate-pulse bg-amber-500'
-										: 'bg-red-500'
+										: server.status === 'unknown'
+											? 'bg-gray-600'
+											: 'bg-red-500'
 							: 'bg-gray-600'}"
 					></span>
 				</a>

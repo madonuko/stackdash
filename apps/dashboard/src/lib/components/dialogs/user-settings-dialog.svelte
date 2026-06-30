@@ -468,11 +468,11 @@
 		class="flex h-[80dvh] w-full max-w-[calc(100%-2rem)] flex-col overflow-hidden border-gray-800 bg-gray-900 p-0 sm:h-[28rem] sm:max-w-4xl"
 		showCloseButton={false}
 	>
-		<DialogPrimitive.Close data-slot="dialog-close" class="absolute top-0 right-0 z-50">
+		<DialogPrimitive.Close data-slot="dialog-close" class="absolute top-3 right-3 z-50">
 			{#snippet child({ props })}
 				<button
 					type="button"
-					class="flex h-6 w-6 items-center justify-center bg-gray-900 text-gray-400 hover:text-gray-200 focus:outline-none"
+					class="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-200 focus:outline-none"
 					{...props}
 				>
 					<X class="h-4 w-4" />

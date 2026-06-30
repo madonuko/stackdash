@@ -242,7 +242,7 @@
 		<div class="px-5 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
 			Server Details
 		</div>
-		{#each [['Plan', selectedServer.plan], ['OS', selectedServer.os], ['Region', selectedServer.region], ['vCPU', `${selectedServer.vcpu} cores`], ['RAM', selectedServer.ram], ['Disk', selectedServer.disk], ['Created', selectedServer.created], ['Uptime', selectedServer.uptime]] as [label, value] (label)}
+		{#each [['Plan', selectedServer.plan], ['Region', selectedServer.region], ['vCPU', `${selectedServer.vcpu}`], ['RAM', selectedServer.ram], ['Disk', selectedServer.disk], ['Created', selectedServer.created], ['Uptime', selectedServer.uptime]] as [label, value] (label)}
 			<div class="flex items-center justify-between px-5 py-2">
 				<span class="text-xs text-gray-500">{label}</span>
 				{#if !liveLoaded && isLiveDetail(label)}
@@ -307,6 +307,21 @@
 						<p class="text-sm font-medium text-gray-300">Coming soon</p>
 						<p class="mt-1 text-xs text-gray-500">Console access is not available yet.</p>
 					</div>
+					{#if selectedServer.ip}
+						<div class="flex items-center gap-2 border border-gray-800 bg-gray-900 px-3 py-1.5">
+							<span class="text-xs text-gray-300">ssh root@{selectedServer.ip}</span>
+							<button
+								class="text-gray-500 hover:text-gray-300"
+								aria-label="Copy SSH command"
+								onclick={() => copyToClipboard(`ssh root@${selectedServer.ip}`, 'ssh-console')}
+							>
+								{#if copied === 'ssh-console'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy
+										class="h-3 w-3"
+									/>{/if}
+							</button>
+						</div>
+						<p class="text-[11px] text-gray-500">Connect over SSH in the meantime.</p>
+					{/if}
 				</div>
 			{:else if selectedServer.status === 'running'}
 				{#each terminalLines as line (line.type + line.text)}
@@ -326,6 +341,8 @@
 				{/each}
 			{:else if selectedServer.status === 'restarting'}
 				<div class="text-amber-500">Restarting server...</div>
+			{:else if selectedServer.status === 'unknown'}
+				<div class="text-gray-500">Server status unavailable. Reconnecting...</div>
 			{:else}
 				<div class="text-gray-500">Server is offline. Start the server to connect.</div>
 			{/if}
@@ -361,6 +378,22 @@
 					<p class="text-sm font-medium text-gray-300">Coming soon</p>
 					<p class="mt-1 text-xs text-gray-500">Log streaming is not available yet.</p>
 				</div>
+				{#if selectedServer.ip}
+					<div class="flex items-center gap-2 border border-gray-800 bg-gray-900 px-3 py-1.5">
+						<span class="text-gray-300">ssh root@{selectedServer.ip} journalctl -f</span>
+						<button
+							class="text-gray-500 hover:text-gray-300"
+							aria-label="Copy logs command"
+							onclick={() =>
+								copyToClipboard(`ssh root@${selectedServer.ip} journalctl -f`, 'ssh-logs')}
+						>
+							{#if copied === 'ssh-logs'}<Check class="h-3 w-3 text-emerald-500" />{:else}<Copy
+									class="h-3 w-3"
+								/>{/if}
+						</button>
+					</div>
+					<p class="text-gray-500">Tail logs over SSH in the meantime.</p>
+				{/if}
 			</div>
 		{:else if selectedServer.status !== 'running'}
 			<div class="flex h-full flex-col items-center justify-center gap-3">

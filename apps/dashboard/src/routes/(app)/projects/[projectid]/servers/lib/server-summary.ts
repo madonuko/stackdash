@@ -1,4 +1,4 @@
-type ServerStatus = 'running' | 'stopped' | 'restarting' | 'provisioning';
+type ServerStatus = 'running' | 'stopped' | 'restarting' | 'provisioning' | 'unknown';
 
 type VmSummary = {
 	id: string;
@@ -59,7 +59,6 @@ export type ServerInfo = {
 	ipv6: string;
 	status: ServerStatus;
 	agentConnected: boolean;
-	os: string;
 	region: string;
 	created: string;
 	uptime: string;
@@ -98,7 +97,7 @@ function getFirstIp(
 }
 
 export function toServerInfo(vm: VmSummary): ServerInfo {
-	const liveLoaded = Boolean(vm.live);
+	const liveLoaded = Boolean(vm.live) && vm.live?.status !== 'unknown';
 
 	return {
 		id: vm.id,
@@ -119,9 +118,10 @@ export function toServerInfo(vm: VmSummary): ServerInfo {
 					? 'restarting'
 					: vm.status === 'provisioning'
 						? 'provisioning'
-						: 'stopped',
+						: vm.live?.status === 'stopped'
+							? 'stopped'
+							: 'unknown',
 		agentConnected: vm.live?.status === 'running',
-		os: vm.vmType?.name ?? 'Unknown',
 		region: 'Chicago',
 		created: vm.creationDate,
 		uptime: formatUptime(vm.live?.uptime ?? 0),

@@ -145,10 +145,6 @@
 						<h1 class="text-3xl font-semibold tracking-tight text-balance text-gray-50">
 							Projects
 						</h1>
-						<p class="mt-2 max-w-[60ch] text-sm text-pretty text-gray-500">
-							Select a project to manage compute, storage, networking, images, and security
-							resources.
-						</p>
 					</div>
 				</div>
 
@@ -170,7 +166,7 @@
 										<h2 class="truncate text-base font-semibold text-gray-50">
 											{project.projectName}
 										</h2>
-										<p class="mt-1 text-sm text-gray-500 capitalize">{project.role} project</p>
+										<p class="mt-1 text-sm text-gray-500 capitalize">{project.role}</p>
 									</div>
 								</div>
 								<div class="flex items-center gap-3 text-sm text-gray-500">

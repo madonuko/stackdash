@@ -2,7 +2,7 @@ import { query, command, getRequestEvent } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
 import { and, eq, sql } from 'drizzle-orm';
-import { initDrizzle, closeRequestDb } from '$lib/server/db';
+import { initDrizzle, closeRequestDb, type Database } from '$lib/server/db';
 import { runInBackground } from '$lib/server/background';
 import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
 import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
@@ -87,11 +87,36 @@ function mapVmRow(row: VmRow, live: VmInfo | null) {
 function toDashboardStatus(
 	status: VmRow['status'],
 	liveStatus: VmInfo['status'] | null | undefined
-): 'running' | 'stopped' | 'restarting' | 'provisioning' {
+): 'running' | 'stopped' | 'restarting' | 'provisioning' | 'unknown' {
 	if (liveStatus === 'running') return 'running';
 	if (liveStatus === 'paused') return 'restarting';
 	if (status === 'provisioning') return 'provisioning';
-	return 'stopped';
+	if (liveStatus === 'stopped') return 'stopped';
+	return 'unknown';
+}
+
+const persistableStatuses: VmInfo['status'][] = ['running', 'stopped', 'paused'];
+
+function persistLiveState(db: Database, entries: { id: string; live: VmInfo }[]): void {
+	const persistable = entries.filter((entry) => persistableStatuses.includes(entry.live.status));
+	if (persistable.length === 0) return;
+
+	const now = Date.now();
+	runInBackground(
+		Promise.all(
+			persistable.map((entry) =>
+				db
+					.update(vms)
+					.set({
+						lastKnownStatus: entry.live.status,
+						lastKnownUptime: Math.round(entry.live.uptime ?? 0),
+						lastKnownAt: now
+					})
+					.where(eq(vms.id, entry.id))
+			)
+		),
+		'persist vm live state'
+	);
 }
 
 const listParams = type({ projectId: 'string' });
@@ -179,6 +204,8 @@ export const getVm = query(getParams, async (params) => {
 		console.warn(`Failed to load live VM state for ${row.id}`, err);
 	}
 
+	if (live) persistLiveState(db, [{ id: row.id, live }]);
+
 	return mapVmRow(row, live);
 });
 
@@ -256,11 +283,13 @@ export const listVmStatuses = query(statusParams, async (params) => {
 	);
 	const liveById = new Map(liveVms.map((vm) => [vm.id, vm]));
 
-	return rows.map((row) => {
+	const persistable: { id: string; live: VmInfo }[] = [];
+	const statuses = rows.map((row) => {
 		const live =
 			(row.proxmoxId != null ? liveByProxmoxId.get(row.proxmoxId) : null) ??
 			liveById.get(row.id) ??
 			null;
+		if (live) persistable.push({ id: row.id, live });
 		const mapped = mapVmRow(row, live);
 		return {
 			id: mapped.id,
@@ -273,6 +302,10 @@ export const listVmStatuses = query(statusParams, async (params) => {
 			metrics: mapped.live?.metrics ?? null
 		};
 	});
+
+	persistLiveState(db, persistable);
+
+	return statuses;
 });
 
 const createParams = type({
