@@ -303,9 +303,10 @@
 	let sshKeyRemoving = $state<string | null>(null);
 	let newKeyName = $state('');
 	let newKeyValue = $state('');
+	let newKeyNameFocused = $state(false);
 
 	$effect(() => {
-		if (newKeyValue != '' && newKeyName == '') {
+		if (!newKeyNameFocused && newKeyValue != '' && newKeyName == '') {
 			newKeyName = newKeyValue.split(' ')[2] ?? '';
 		}
 	});
@@ -827,7 +828,13 @@
 							{/if}
 
 							<div class="mt-3 flex flex-col gap-2 border-t border-gray-800/50 pt-3">
-								<Input bind:value={newKeyName} placeholder="Key name" class="h-8 text-xs" />
+								<Input
+									bind:value={newKeyName}
+									placeholder="Key name"
+									class="h-8 text-xs"
+									onfocus={() => (newKeyNameFocused = true)}
+									onblur={() => (newKeyNameFocused = false)}
+								/>
 								<textarea
 									bind:value={newKeyValue}
 									placeholder="ssh-ed25519 AAAA..."
