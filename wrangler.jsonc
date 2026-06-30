@@ -67,6 +67,7 @@
 				"AUTUMN_DEFAULT_PLAN_ID": "stack",
 				"AUTUMN_SERVER_ENTITY_FEATURE_ID": "active_servers",
 				"VYOS_USE_VPC": "true",
+				"PROXMOX_API_URL": "https://pxmx-01.barking-kokanue.ts.net:8006",
 				"PROXMOX_USE_VPC": "true",
 				"PROXMOX_VM_FIREWALL_SECURITY_GROUP": "public_vms_tenant",
 				"PROXMOX_TOKEN_ID": "addison@pve!cf-preview",

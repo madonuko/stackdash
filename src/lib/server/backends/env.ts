@@ -24,7 +24,7 @@ export function getBackendEnv(): BackendEnv {
 		| (App.Platform['env'] & { PROXMOX_API_SECRET?: string })
 		| undefined;
 
-	if (platformEnv?.PROXMOX_API_URL) {
+	if (platformEnv) {
 		return {
 			PROXMOX_VPC: platformEnv.PROXMOX_VPC,
 			PROXMOX_USE_VPC: platformEnv.PROXMOX_USE_VPC,
