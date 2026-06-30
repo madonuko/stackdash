@@ -2,7 +2,8 @@ import { query, command, getRequestEvent } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
 import { and, eq, sql } from 'drizzle-orm';
-import { initDrizzle } from '$lib/server/db';
+import { initDrizzle, closeRequestDb } from '$lib/server/db';
+import { runInBackground } from '$lib/server/background';
 import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
 import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
@@ -400,14 +401,24 @@ export const createVm = command(createParams, async (params) => {
 			},
 			sshKeys: publicKeys,
 			password: params.password,
-			onProvisionSettled: ({ ok, error: err }) => {
-				const db = initDrizzle();
-				db.update(vms)
-					.set(ok ? { status: 'ready' } : { status: 'error', statusError: err ?? 'Unknown error' })
-					.where(and(eq(vms.id, vmId), eq(vms.active, true)))
-					.then(() => console.log(`VM ${vmId} provision ${ok ? 'succeeded' : 'failed'}`))
-					.catch((err) => console.error(`VM ${vmId} status update failed:`, err));
+			onProvisionSettled: async ({ ok, error: err }) => {
+				const settledEvent = getRequestEvent();
+				const settledDb = initDrizzle();
+				try {
+					await settledDb
+						.update(vms)
+						.set(
+							ok ? { status: 'ready' } : { status: 'error', statusError: err ?? 'Unknown error' }
+						)
+						.where(and(eq(vms.id, vmId), eq(vms.active, true)));
+					console.log(`VM ${vmId} provision ${ok ? 'succeeded' : 'failed'}`);
+				} catch (updateErr) {
+					console.error(`VM ${vmId} status update failed:`, updateErr);
+				} finally {
+					closeRequestDb(settledEvent);
+				}
 			},
+			registerBackground: runInBackground,
 			userId: event.locals.user.id,
 			projectId: params.projectId
 		});

@@ -78,8 +78,8 @@ export interface VmCreateParams {
 	networkConfig?: VmNetworkConfig;
 	sshKeys?: string[];
 	password?: string;
-	/** Called when async provisioning (e.g. image import) finishes or fails. */
-	onProvisionSettled?: (result: { ok: boolean; error?: string }) => void;
+	onProvisionSettled?: (result: { ok: boolean; error?: string }) => void | Promise<void>;
+	registerBackground?: (work: Promise<unknown>, label?: string) => void;
 	projectId: string;
 	userId: string;
 }

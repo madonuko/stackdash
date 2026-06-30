@@ -453,7 +453,6 @@ export class ProxmoxBackend implements VmBackend {
 
 		const firewallIpSetEntries = uniqueFirewallIpSetEntries(params);
 
-		// Phase 1 — create the VM shell (no boot disk yet, returns instantly)
 		await this.client.createQemuVm(node.node, {
 			vmid,
 			name: params.name,
@@ -467,9 +466,12 @@ export class ProxmoxBackend implements VmBackend {
 			efidisk0: `${pvePool}:0,efitype=4m,pre-enrolled-keys=1`,
 			scsihw: 'virtio-scsi-single',
 			...(params.imageSource ? {} : { virtio0: `${pvePool}:${params.diskGb}` }),
+			ide2: `${pvePool}:cloudinit`,
 			net0: `virtio=${macAddress},bridge=public,firewall=1`,
 			pool: `stack-tenants`,
 			boot: `order=${bootDisk}`,
+			cicustom: `network=${cloudInitNetworkConfigVolid},vendor=${cloudInitVendorConfigVolid}`,
+			...cloudInitAuth,
 			serial0: 'socket',
 			agent: '1',
 			tags: `vmid-${params.id};projectid-${params.projectId};userid-${params.userId}`,
@@ -502,40 +504,38 @@ export class ProxmoxBackend implements VmBackend {
 			);
 		}
 
-		// Phase 2 — import cloud image as boot disk (runs in background)
 		if (params.imageSource) {
 			const importUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
 				virtio0: `${pvePool}:0,import-from=${params.imageSource}`
 			});
 
-			this.client
+			const provisioning = this.client
 				.waitForTask(node.node, importUpid)
 				.then(async () => {
-					const cloudInitUpid = await this.client.updateQemuConfigAsync(node.node, vmid, {
-						ide2: `${pvePool}:cloudinit`,
-						boot: `order=${bootDisk}`,
-						cicustom: `network=${cloudInitNetworkConfigVolid},vendor=${cloudInitVendorConfigVolid}`,
-						...cloudInitAuth
-					});
-					await this.client.waitForTask(node.node, cloudInitUpid);
 					if (params.diskGb > 0) {
 						await this.client.resizeDisk(node.node, vmid, 'virtio0', `${params.diskGb}G`);
 					}
 					const startUpid = await this.client.startVm(node.node, vmid);
 					await this.client.waitForTask(node.node, startUpid);
-					params.onProvisionSettled?.({ ok: true });
+					await params.onProvisionSettled?.({ ok: true });
 				})
-				.catch((err) => {
+				.catch(async (err) => {
 					console.error(`VM ${params.id} image import failed:`, err);
-					params.onProvisionSettled?.({
+					await params.onProvisionSettled?.({
 						ok: false,
 						error: err instanceof Error ? err.message : String(err)
 					});
 				});
+
+			if (params.registerBackground) {
+				params.registerBackground(provisioning, `vm-provision-${params.id}`);
+			} else {
+				await provisioning;
+			}
 		} else {
 			const startUpid = await this.client.startVm(node.node, vmid);
 			await this.client.waitForTask(node.node, startUpid);
-			params.onProvisionSettled?.({ ok: true });
+			await params.onProvisionSettled?.({ ok: true });
 		}
 
 		return { id: params.id, proxmoxId: vmid, macAddress, taskId: String(vmid) };
