@@ -15,6 +15,7 @@ declare global {
 			activeProjectId?: string | null;
 			db?: Database;
 			dbPool?: Pool;
+			backgroundTasks?: Promise<unknown>[];
 			accessCache?: Map<string, Promise<unknown>>;
 		}
 
@@ -33,6 +34,7 @@ declare global {
 				EMAIL_FROM_ADDRESS: string;
 				EMAIL_FROM_NAME: string;
 				EMAIL_REPLY_TO: string;
+				STACK_TIMING_SPAM?: string;
 				CLOUDFLARE_ACCOUNT_ID?: string;
 				CLOUDFLARE_API_TOKEN?: string;
 				CLOUDFLARE_EMAIL_API_TOKEN?: string;

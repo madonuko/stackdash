@@ -17,6 +17,9 @@
 		productName?: string;
 		resourceType?: string;
 		type?: string;
+		count?: number;
+		hours?: number;
+		cost?: number | null;
 		quantity?: number | string;
 		unit?: string;
 	};
@@ -39,32 +42,33 @@
 	const projectId = $derived(data.projectId ?? '');
 	const canManageBilling = $derived(Boolean(data.canManageBilling));
 	const billing = $derived(data.billing as BillingDetails | null | undefined);
-	const billingReady = $derived(billing?.status === 'active');
+	const billingReady = $derived(billing?.setupRequired === false);
 	const activeResources = $derived((billing?.activeResources ?? []) as ActiveResource[]);
 	const activeResourceCount = $derived(activeResources.length || billing?.activeResourceCount || 0);
-	const computeUnits = $derived(
-		activeResources
-			.filter((r) => (r.resourceType ?? r.type ?? '').toLowerCase() === 'vm')
-			.reduce((sum, r) => sum + (typeof r.quantity === 'number' ? r.quantity : 0), 0)
+	const activeServers = $derived(
+		activeResources.reduce((total, r) => total + (typeof r.count === 'number' ? r.count : 0), 0)
 	);
-	const storageGiB = $derived(
-		activeResources
-			.filter((r) => (r.resourceType ?? r.type ?? '').toLowerCase() === 'volume')
-			.reduce((sum, r) => sum + (typeof r.quantity === 'number' ? r.quantity : 0), 0)
+	const totalHours = $derived(
+		activeResources.reduce((total, r) => total + (typeof r.hours === 'number' ? r.hours : 0), 0)
 	);
+	const totalCost = $derived(
+		activeResources.reduce((total, r) => total + (typeof r.cost === 'number' ? r.cost : 0), 0)
+	);
+	const hasCost = $derived(activeResources.some((r) => typeof r.cost === 'number'));
 
 	function readString(source: Record<string, unknown> | null | undefined, key: string) {
 		const value = source?.[key];
 		return typeof value === 'string' && value.trim() ? value : undefined;
 	}
 
-	function formatQuantity(value: number | string | undefined, unit?: string) {
-		if (typeof value === 'number') {
-			const formatted = new Intl.NumberFormat('en').format(value);
-			return unit ? `${formatted} ${unit}` : formatted;
-		}
-		if (typeof value === 'string' && value.trim()) return unit ? `${value} ${unit}` : value;
-		return unit ?? '—';
+	function formatHours(value: number | undefined) {
+		const hours = typeof value === 'number' ? value : 0;
+		return `${new Intl.NumberFormat('en', { maximumFractionDigits: 2 }).format(hours)} hrs`;
+	}
+
+	function formatCost(value: number | null | undefined) {
+		if (typeof value !== 'number') return null;
+		return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD' }).format(value);
 	}
 
 	function friendlyLabel(value: unknown, fallback: string) {
@@ -77,13 +81,13 @@
 	}
 
 	function resourceLabel(resource: ActiveResource) {
-		return friendlyLabel(
-			resource.label ?? resource.name ?? resource.productLabel ?? resource.productName,
-			'Resource'
-		);
+		const label = resource.label ?? resource.name ?? resource.productLabel ?? resource.productName;
+		return typeof label === 'string' && label.trim() ? label : 'Resource';
 	}
 
 	function resourceTypeLabel(resource: ActiveResource) {
+		const type = (resource.resourceType ?? resource.type ?? '').toLowerCase();
+		if (type === 'vm') return 'VPS';
 		return friendlyLabel(resource.resourceType ?? resource.type, 'Resource');
 	}
 
@@ -168,39 +172,53 @@
 							<Tooltip.Trigger>
 								{#snippet child({ props })}
 									<div {...props} class="flex w-fit cursor-help items-center gap-2">
-										<Cpu class="size-3.5 text-blue-400" />
+										<Server class="size-3.5 text-blue-400" />
 										<p class="text-[0.625rem] font-medium tracking-wide text-gray-500 uppercase">
-											Compute units
+											Active servers
 										</p>
 									</div>
 								{/snippet}
 							</Tooltip.Trigger>
 							<Tooltip.Content side="top">
 								<p class="max-w-[16rem]">
-									Active servers currently counting toward your compute usage this billing period.
+									Servers currently running and contributing to this project's bill.
 								</p>
 							</Tooltip.Content>
 						</Tooltip.Root>
-						<p class="mt-1 text-sm font-semibold text-gray-100 tabular-nums">{computeUnits}</p>
+						<p class="mt-1 text-sm font-semibold text-gray-100 tabular-nums">{activeServers}</p>
 					</div>
 					<div class="rounded-md border border-gray-800/60 bg-gray-900/40 p-3.5">
 						<div class="flex items-center gap-2">
-							<HardDrive class="size-3.5 text-violet-400" />
+							<Cpu class="size-3.5 text-violet-400" />
 							<p class="text-[0.625rem] font-medium tracking-wide text-gray-500 uppercase">
-								Storage
-							</p>
-						</div>
-						<p class="mt-1 text-sm font-semibold text-gray-100 tabular-nums">{storageGiB} GiB</p>
-					</div>
-					<div class="rounded-md border border-gray-800/60 bg-gray-900/40 p-3.5">
-						<div class="flex items-center gap-2">
-							<Server class="size-3.5 text-gray-500" />
-							<p class="text-[0.625rem] font-medium tracking-wide text-gray-500 uppercase">
-								Total resources
+								Compute hours
 							</p>
 						</div>
 						<p class="mt-1 text-sm font-semibold text-gray-100 tabular-nums">
-							{activeResourceCount}
+							{formatHours(totalHours)}
+						</p>
+					</div>
+					<div class="rounded-md border border-gray-800/60 bg-gray-900/40 p-3.5">
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<div {...props} class="flex w-fit cursor-help items-center gap-2">
+										<CreditCard class="size-3.5 text-emerald-400" />
+										<p class="text-[0.625rem] font-medium tracking-wide text-gray-500 uppercase">
+											Est. cost
+										</p>
+									</div>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="top">
+								<p class="max-w-[16rem]">
+									Estimated from the listed hourly rate. Your final invoice is calculated by the
+									billing provider.
+								</p>
+							</Tooltip.Content>
+						</Tooltip.Root>
+						<p class="mt-1 text-sm font-semibold text-gray-100 tabular-nums">
+							{hasCost ? formatCost(totalCost) : '—'}
 						</p>
 					</div>
 				</div>
@@ -234,6 +252,7 @@
 						{#each activeResources as resource, index (activeResourceKey(resource, index))}
 							{@const Icon = resourceIcon(resource.resourceType ?? resource.type)}
 							{@const stripe = resourceStripe(resource)}
+							{@const costLabel = formatCost(resource.cost)}
 							<div
 								class="flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-gray-800/20 {stripe}"
 							>
@@ -248,9 +267,12 @@
 										<p class="text-xs text-gray-500">{resourceTypeLabel(resource)}</p>
 									</div>
 								</div>
-								<span class="text-sm text-gray-300 tabular-nums"
-									>{formatQuantity(resource.quantity, resource.unit)}</span
-								>
+								<div class="text-right">
+									<p class="text-sm text-gray-200 tabular-nums">{resource.count ?? 0} active</p>
+									<p class="text-xs text-gray-500 tabular-nums">
+										{formatHours(resource.hours)}{#if costLabel} · {costLabel} est.{/if}
+									</p>
+								</div>
 							</div>
 						{/each}
 					</div>

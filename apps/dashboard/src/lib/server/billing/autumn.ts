@@ -357,8 +357,11 @@ export async function ensureProjectServerEntity(input: {
 	projectId: string;
 	serverId: string;
 	name?: string | null;
+	customerEnsured?: boolean;
 }) {
-	await ensureProjectCustomer(input.projectId);
+	if (!input.customerEnsured) {
+		await ensureProjectCustomer(input.projectId);
+	}
 	const client = createAutumnClient();
 
 	try {

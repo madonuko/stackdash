@@ -1,3 +1,6 @@
+import { dev } from '$app/environment';
+import { getRequestEvent } from '$app/server';
+
 type SpanAttributes = Record<string, string | number | boolean | undefined>;
 
 type TraceSpan = {
@@ -9,6 +12,34 @@ type TracingApi = {
 };
 
 let tracingLoader: Promise<TracingApi | null> | undefined;
+
+function roundMs(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+function timingLogsEnabled(): boolean {
+	if (dev) return true;
+
+	try {
+		const env = getRequestEvent().platform?.env as { STACK_TIMING_SPAM?: string } | undefined;
+		return env?.STACK_TIMING_SPAM === 'true';
+	} catch {
+		return false;
+	}
+}
+
+export function timingLog(name: string, attributes?: SpanAttributes) {
+	if (!timingLogsEnabled()) return;
+
+	console.info({
+		message: `[timing] ${name}`,
+		timing: {
+			name,
+			timestamp: new Date().toISOString(),
+			...attributes
+		}
+	});
+}
 
 function loadTracing(): Promise<TracingApi | null> {
 	if (tracingLoader === undefined) {
@@ -29,16 +60,43 @@ function applyAttributes(span: TraceSpan, attributes?: SpanAttributes) {
 
 export async function instrument<T>(
 	name: string,
-	operation: () => Promise<T>,
+	operation: () => T | Promise<T>,
 	attributes?: SpanAttributes
 ): Promise<T> {
+	const tracingStart = performance.now();
 	const tracing = await loadTracing();
-	if (!tracing) return operation();
+	const tracingMs = roundMs(performance.now() - tracingStart);
+	if (tracingMs > 5) {
+		timingLog('observability.loadTracing', {
+			'observability.span': name,
+			duration_ms: tracingMs
+		});
+	}
 
-	return tracing.enterSpan(name, (span) => {
-		applyAttributes(span, attributes);
-		return operation();
-	});
+	const started = performance.now();
+	timingLog(`${name}.start`, attributes);
+
+	try {
+		const run = () => operation();
+		const result = tracing
+			? await tracing.enterSpan(name, (span) => {
+					applyAttributes(span, attributes);
+					return run();
+				})
+			: await run();
+		timingLog(`${name}.end`, {
+			...attributes,
+			duration_ms: roundMs(performance.now() - started)
+		});
+		return result;
+	} catch (error) {
+		timingLog(`${name}.error`, {
+			...attributes,
+			duration_ms: roundMs(performance.now() - started),
+			'error.name': error instanceof Error ? error.name : typeof error
+		});
+		throw error;
+	}
 }
 
 export function summarizeStatement(statement: string | undefined): string | undefined {

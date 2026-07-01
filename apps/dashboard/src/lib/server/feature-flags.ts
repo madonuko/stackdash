@@ -1,5 +1,7 @@
 import { dev } from '$app/environment';
+import { getRequestEvent } from '$app/server';
 import { error } from '@sveltejs/kit';
+import type { KVNamespace } from '@cloudflare/workers-types';
 import {
 	defaultFeatureFlags,
 	developmentFeatureFlags,
@@ -8,11 +10,20 @@ import {
 	type FeatureFlags
 } from '$lib/feature-flags';
 import { getRuntimeEnv } from '$lib/server/env';
+import { instrument, timingLog } from '$lib/server/observability';
 
 const FEATURE_FLAGS_KEY = 'feature-flags';
-const FLAGS_CACHE_TTL_MS = 30_000;
+const FLAGS_FRESH_TTL_MS = 60_000;
+const FLAGS_STALE_TTL_MS = 15 * 60_000;
 
-let flagsCache: { flags: FeatureFlags; expiresAt: number } | null = null;
+type FlagsCache = {
+	flags: FeatureFlags;
+	freshUntil: number;
+	staleUntil: number;
+};
+
+let flagsCache: FlagsCache | null = null;
+let flagsRefresh: Promise<FeatureFlags> | null = null;
 
 function normalizeFeatureFlags(
 	value: Partial<Record<FeatureFlagKey, unknown>> | null | undefined
@@ -25,7 +36,47 @@ function normalizeFeatureFlags(
 	) as FeatureFlags;
 }
 
-export async function getFeatureFlags(): Promise<FeatureFlags> {
+function cacheFlags(flags: FeatureFlags): FeatureFlags {
+	const now = Date.now();
+	flagsCache = {
+		flags,
+		freshUntil: now + FLAGS_FRESH_TTL_MS,
+		staleUntil: now + FLAGS_STALE_TTL_MS
+	};
+	return flags;
+}
+
+async function loadFeatureFlagsFromKv(kv: KVNamespace): Promise<FeatureFlags> {
+	return instrument('featureFlags.kv.get', async () => {
+		const storedFlags = await kv.get(FEATURE_FLAGS_KEY, 'json');
+		return cacheFlags(
+			normalizeFeatureFlags(storedFlags as Partial<Record<FeatureFlagKey, unknown>> | null)
+		);
+	});
+}
+
+function scheduleFeatureFlagRefresh(kv: KVNamespace): Promise<FeatureFlags> {
+	if (!flagsRefresh) {
+		flagsRefresh = loadFeatureFlagsFromKv(kv)
+			.catch((err) => {
+				console.warn('Failed to refresh feature flags from KV', err);
+				return flagsCache?.flags ?? defaultFeatureFlags;
+			})
+			.finally(() => {
+				flagsRefresh = null;
+			});
+	}
+
+	try {
+		getRequestEvent().platform?.ctx?.waitUntil(flagsRefresh.then(() => undefined));
+	} catch {
+		// getFeatureFlags can be imported in non-request contexts during local tooling.
+	}
+
+	return flagsRefresh;
+}
+
+export async function getFeatureFlags(options?: { fresh?: boolean }): Promise<FeatureFlags> {
 	const runtimeEnv = getRuntimeEnv();
 	const kv = runtimeEnv.FEATURE_FLAGS;
 
@@ -38,16 +89,23 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
 	}
 
 	const now = Date.now();
-	if (flagsCache && now < flagsCache.expiresAt) {
+	if (flagsCache && now < flagsCache.freshUntil) {
 		return flagsCache.flags;
 	}
 
-	const storedFlags = await kv.get(FEATURE_FLAGS_KEY, 'json');
-	const flags = normalizeFeatureFlags(
-		storedFlags as Partial<Record<FeatureFlagKey, unknown>> | null
-	);
-	flagsCache = { flags, expiresAt: now + FLAGS_CACHE_TTL_MS };
-	return flags;
+	if (options?.fresh) {
+		timingLog('featureFlags.freshRead');
+		return loadFeatureFlagsFromKv(kv);
+	}
+
+	if (flagsCache && now < flagsCache.staleUntil) {
+		void scheduleFeatureFlagRefresh(kv);
+		timingLog('featureFlags.cache.stale');
+		return flagsCache.flags;
+	}
+
+	timingLog(flagsCache ? 'featureFlags.cache.expiredRead' : 'featureFlags.cache.coldRead');
+	return scheduleFeatureFlagRefresh(kv);
 }
 
 export async function setFeatureFlag(
@@ -68,23 +126,20 @@ export async function setFeatureFlag(
 		throw new Error('Feature flag KV binding is unavailable');
 	}
 
-	const storedFlags = await kv.get(FEATURE_FLAGS_KEY, 'json');
-	const currentFlags = normalizeFeatureFlags(
-		storedFlags as Partial<Record<FeatureFlagKey, unknown>> | null
-	);
+	const currentFlags = await getFeatureFlags({ fresh: true });
 	const nextFlags = {
 		...currentFlags,
 		[flag]: enabled
 	};
 
 	await kv.put(FEATURE_FLAGS_KEY, JSON.stringify(nextFlags));
-	flagsCache = { flags: nextFlags, expiresAt: Date.now() + FLAGS_CACHE_TTL_MS };
+	cacheFlags(nextFlags);
 
 	return nextFlags;
 }
 
 export async function requireFeatureFlag(flag: FeatureFlagKey): Promise<void> {
-	const flags = await getFeatureFlags();
+	const flags = await getFeatureFlags({ fresh: true });
 
 	if (!flags[flag]) {
 		error(404, 'Not found');

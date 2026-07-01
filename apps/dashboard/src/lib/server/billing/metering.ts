@@ -1,10 +1,11 @@
-import { and, asc, eq, inArray, lt } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { Autumn } from 'autumn-js';
 import { initDrizzle } from '$lib/server/db';
 import {
 	billingMeters,
 	billingUsageEvents,
 	vms,
+	vmTypes,
 	type billingResourceTypeEnum
 } from '$lib/server/db/schema';
 import { getRuntimeEnv } from '$lib/server/env';
@@ -97,21 +98,30 @@ export async function reconcileMissingMeters(now = Date.now(), limit = 100, proj
 	const db = initDrizzle();
 	let created = 0;
 
-	const activeVms = await db.query.vms.findMany({
-		where: projectId
-			? and(eq(vms.active, true), eq(vms.ownerProjectId, projectId))
-			: eq(vms.active, true),
-		with: { vmType: true },
-		limit
-	});
+	const missing = await db
+		.select({
+			id: vms.id,
+			ownerProjectId: vms.ownerProjectId,
+			createdAt: vms.createdAt,
+			vmType: { name: vmTypes.name, autumnFeatureId: vmTypes.autumnFeatureId }
+		})
+		.from(vms)
+		.innerJoin(vmTypes, eq(vmTypes.id, vms.vmTypeId))
+		.leftJoin(
+			billingMeters,
+			and(eq(billingMeters.resourceType, 'vm'), eq(billingMeters.resourceId, vms.id))
+		)
+		.where(
+			and(
+				eq(vms.active, true),
+				isNull(billingMeters.id),
+				projectId ? eq(vms.ownerProjectId, projectId) : undefined
+			)
+		)
+		.limit(limit);
 
-	for (const vm of activeVms) {
-		if (!vm.ownerProjectId || !vm.vmType) continue;
-
-		const existing = await db.query.billingMeters.findFirst({
-			where: and(eq(billingMeters.resourceType, 'vm'), eq(billingMeters.resourceId, vm.id))
-		});
-		if (existing) continue;
+	for (const vm of missing) {
+		if (!vm.ownerProjectId) continue;
 
 		try {
 			await createBillingMeter({
@@ -217,65 +227,62 @@ export async function meterActiveResources(now = Date.now(), limit = 100) {
 		.limit(limit);
 
 	const events: BillingUsageEvent[] = [];
-	for (const meter of meters) {
+	await runBounded(meters, METER_CONCURRENCY, async (meter) => {
 		const event = await recordMeterUsage(meter, now);
 		if (event) events.push(event);
-	}
-
-	for (const event of events) {
-		await syncUsageEvent(event.id);
-	}
+	});
 
 	return { meters: meters.length, events: events.length };
 }
 
-export async function meterProjectActiveResources(
-	projectId: string,
-	now = Date.now(),
-	limit = 100
-) {
-	const db = initDrizzle();
-	await reconcileMissingMeters(now, limit, projectId);
+type EnsureCaches = {
+	projects: Map<string, Promise<boolean>>;
+	entities: Map<string, Promise<boolean>>;
+};
 
-	const meters = await db
-		.select()
-		.from(billingMeters)
-		.where(
-			and(
-				eq(billingMeters.resourceType, 'vm'),
-				eq(billingMeters.projectId, projectId),
-				eq(billingMeters.active, true),
-				lt(billingMeters.lastMeteredAt, now)
-			)
-		)
-		.orderBy(asc(billingMeters.lastMeteredAt))
-		.limit(limit);
+const SYNC_CONCURRENCY = 6;
+const METER_CONCURRENCY = 5;
 
-	const events: BillingUsageEvent[] = [];
-	for (const meter of meters) {
-		const event = await recordMeterUsage(meter, now);
-		if (event) events.push(event);
-	}
-
-	for (const event of events) {
-		await syncUsageEvent(event.id);
-	}
-
-	return { resources: meters.length, usage: events.length };
+async function runBounded<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
+	let index = 0;
+	const runner = async () => {
+		while (index < items.length) {
+			await worker(items[index++]);
+		}
+	};
+	await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
 }
 
-export async function syncUsageEvent(id: string) {
+async function markUsageEventFailed(eventId: string, error: string) {
 	const db = initDrizzle();
-	const event = await db.query.billingUsageEvents.findFirst({
-		where: eq(billingUsageEvents.id, id)
-	});
+	await db
+		.update(billingUsageEvents)
+		.set({ syncStatus: 'failed', syncError: error })
+		.where(eq(billingUsageEvents.id, eventId));
+}
 
-	if (!event) return null;
-	if (event.syncStatus === 'synced') return 'synced' as const;
+function ensureProjectTarget(projectId: string, caches: EnsureCaches) {
+	let ensured = caches.projects.get(projectId);
+	if (!ensured) {
+		ensured = ensureProjectCustomer(projectId)
+			.then(() => true)
+			.catch(() => false);
+		caches.projects.set(projectId, ensured);
+	}
 
-	try {
-		await ensureProjectCustomer(event.projectId);
-		if (event.resourceType === 'vm') {
+	return ensured;
+}
+
+function ensureEntityTarget(
+	event: BillingUsageEvent,
+	caches: EnsureCaches,
+	customerEnsured: boolean
+) {
+	const db = initDrizzle();
+	const entityKey = `${event.projectId}:${event.resourceId}`;
+	let ensured = caches.entities.get(entityKey);
+	if (!ensured) {
+		ensured = (async () => {
 			const vm = await db.query.vms.findFirst({
 				where: eq(vms.id, event.resourceId),
 				columns: { name: true }
@@ -283,9 +290,38 @@ export async function syncUsageEvent(id: string) {
 			await ensureProjectServerEntity({
 				projectId: event.projectId,
 				serverId: event.resourceId,
-				name: vm?.name
+				name: vm?.name,
+				customerEnsured
 			});
+			return true;
+		})().catch(() => false);
+		caches.entities.set(entityKey, ensured);
+	}
+
+	return ensured;
+}
+
+async function ensureEventTarget(event: BillingUsageEvent, caches: EnsureCaches) {
+	const customerEnsured = await ensureProjectTarget(event.projectId, caches);
+	if (!customerEnsured) {
+		await markUsageEventFailed(event.id, 'Failed to ensure Autumn customer');
+		return false;
+	}
+
+	if (event.resourceType === 'vm') {
+		const entityEnsured = await ensureEntityTarget(event, caches, customerEnsured);
+		if (!entityEnsured) {
+			await markUsageEventFailed(event.id, 'Failed to ensure Autumn entity');
+			return false;
 		}
+	}
+
+	return true;
+}
+
+async function trackUsageEvent(event: BillingUsageEvent) {
+	const db = initDrizzle();
+	try {
 		const payload = {
 			customerId: event.projectId,
 			featureId: event.featureId,
@@ -307,35 +343,68 @@ export async function syncUsageEvent(id: string) {
 			.where(eq(billingUsageEvents.id, event.id));
 		return 'synced' as const;
 	} catch (err) {
-		await db
-			.update(billingUsageEvents)
-			.set({ syncStatus: 'failed', syncError: formatAutumnError(err) })
-			.where(eq(billingUsageEvents.id, event.id));
+		await markUsageEventFailed(event.id, formatAutumnError(err));
 		return 'failed' as const;
 	}
 }
 
-export async function syncPendingUsage(limit = 100) {
+async function syncUsageEvents(events: BillingUsageEvent[]) {
+	const caches: EnsureCaches = { projects: new Map(), entities: new Map() };
+	const ready: BillingUsageEvent[] = [];
+	let synced = 0;
+	let failed = 0;
+
+	await runBounded(events, SYNC_CONCURRENCY, async (event) => {
+		if (event.syncStatus === 'synced') {
+			synced += 1;
+			return;
+		}
+		if (await ensureEventTarget(event, caches)) ready.push(event);
+		else failed += 1;
+	});
+
+	await runBounded(ready, SYNC_CONCURRENCY, async (event) => {
+		const status = await trackUsageEvent(event);
+		if (status === 'synced') synced += 1;
+		else failed += 1;
+	});
+
+	return { synced, failed };
+}
+
+export async function syncUsageEvent(id: string) {
+	const db = initDrizzle();
+	const event = await db.query.billingUsageEvents.findFirst({
+		where: eq(billingUsageEvents.id, id)
+	});
+
+	if (!event) return null;
+	if (event.syncStatus === 'synced') return 'synced' as const;
+
+	const caches: EnsureCaches = { projects: new Map(), entities: new Map() };
+	if (!(await ensureEventTarget(event, caches))) return 'failed' as const;
+
+	return trackUsageEvent(event);
+}
+
+export async function syncPendingUsage(limit = 50) {
 	const db = initDrizzle();
 	const events = await db
 		.select()
 		.from(billingUsageEvents)
 		.where(inArray(billingUsageEvents.syncStatus, ['pending', 'failed']))
-		.orderBy(asc(billingUsageEvents.createdAt))
+		.orderBy(
+			sql`case when ${billingUsageEvents.syncStatus} = 'pending' then 0 else 1 end`,
+			asc(billingUsageEvents.createdAt)
+		)
 		.limit(limit);
 
-	let synced = 0;
-	let failed = 0;
-	for (const event of events) {
-		const status = await syncUsageEvent(event.id);
-		if (status === 'synced') synced += 1;
-		if (status === 'failed') failed += 1;
-	}
+	const { synced, failed } = await syncUsageEvents(events);
 
 	return { attempted: events.length, synced, failed };
 }
 
-export async function syncProjectUsage(projectId: string, limit = 100) {
+export async function syncProjectUsage(projectId: string, limit = 50) {
 	const db = initDrizzle();
 	const events = await db
 		.select()
@@ -346,16 +415,13 @@ export async function syncProjectUsage(projectId: string, limit = 100) {
 				inArray(billingUsageEvents.syncStatus, ['pending', 'failed'])
 			)
 		)
-		.orderBy(asc(billingUsageEvents.createdAt))
+		.orderBy(
+			sql`case when ${billingUsageEvents.syncStatus} = 'pending' then 0 else 1 end`,
+			asc(billingUsageEvents.createdAt)
+		)
 		.limit(limit);
 
-	let synced = 0;
-	let failed = 0;
-	for (const event of events) {
-		const status = await syncUsageEvent(event.id);
-		if (status === 'synced') synced += 1;
-		if (status === 'failed') failed += 1;
-	}
+	const { synced, failed } = await syncUsageEvents(events);
 
 	return { attempted: events.length, synced, failed };
 }

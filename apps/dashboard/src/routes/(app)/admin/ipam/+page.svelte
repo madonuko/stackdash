@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Badge } from '$lib/components/ui/badge';
@@ -35,7 +36,7 @@
 	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'ipam' as AdminTab;
-	const admin = new AdminState();
+	const admin = new AdminState(untrack(() => data));
 
 	$effect(() => {
 		admin.sync(data);

@@ -5,7 +5,12 @@ import { and, eq, sql } from 'drizzle-orm';
 import { initDrizzle, closeRequestDb, type Database } from '$lib/server/db';
 import { runInBackground } from '$lib/server/background';
 import { vms, vmTypes, sshKeys, baseImages } from '$lib/server/db/schema';
-import { getBackend, type VmInfo, type VmMetricsTimeframe } from '$lib/server/backends';
+import {
+	getBackend,
+	type VmBackend,
+	type VmInfo,
+	type VmMetricsTimeframe
+} from '$lib/server/backends';
 import { requireProjectAccess } from '$lib/server/auth-context';
 import {
 	deleteProjectServerEntity,
@@ -14,11 +19,13 @@ import {
 } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
 import { allocateVmNetworking, generateMacAddress, releaseVmNetworking } from '$lib/server/ipam';
+import { instrument, timingLog } from '$lib/server/observability';
 
 type VmRow = {
 	id: string;
 	name: string;
 	proxmoxId: number | null;
+	proxmoxNode: string | null;
 	active: boolean;
 	ownerProjectId: string | null;
 	vmTypeId: string;
@@ -37,27 +44,50 @@ type VmRow = {
 	vmTypeStorageAmount: number | null;
 };
 
+function getKnownNetworkInterfaces(row: VmRow): VmInfo['networkInterfaces'] | undefined {
+	if (!row.lastKnownIpv4 && !row.lastKnownIpv6) return undefined;
+
+	return {
+		cached: {
+			ipAddresses: [row.lastKnownIpv4, row.lastKnownIpv6].filter(Boolean) as string[]
+		}
+	};
+}
+
 function getKnownLive(row: VmRow): VmInfo | null {
 	if (!row.lastKnownStatus && !row.lastKnownIpv4 && !row.lastKnownIpv6) return null;
 
 	return {
 		id: row.name,
 		proxmoxId: row.proxmoxId ?? undefined,
+		proxmoxNode: row.proxmoxNode ?? undefined,
 		name: row.name,
 		status: row.lastKnownStatus ?? 'unknown',
 		cores: row.vmTypeCores ?? 0,
 		memory: (row.vmTypeRamCapacity ?? 0) * 1024 * 1024,
 		disk: (row.vmTypeStorageAmount ?? 0) * 1024 * 1024 * 1024,
 		uptime: row.lastKnownUptime ?? 0,
-		networkInterfaces:
-			row.lastKnownIpv4 || row.lastKnownIpv6
-				? {
-						cached: {
-							ipAddresses: [row.lastKnownIpv4, row.lastKnownIpv6].filter(Boolean) as string[]
-						}
-					}
-				: undefined,
+		networkInterfaces: getKnownNetworkInterfaces(row),
 		metrics: undefined
+	};
+}
+
+function mergeKnownLive(row: VmRow, live: VmInfo | null): VmInfo | null {
+	if (!live) return getKnownLive(row);
+	if (live.networkInterfaces) return live;
+
+	const networkInterfaces = getKnownNetworkInterfaces(row);
+	return networkInterfaces ? { ...live, networkInterfaces } : live;
+}
+
+function getNetworkIpSnapshot(networkInterfaces: VmInfo['networkInterfaces'] | undefined) {
+	const addresses = Object.values(networkInterfaces ?? {})
+		.flatMap((iface) => iface.ipAddresses ?? [])
+		.filter((address) => !address.startsWith('127.') && address !== '::1');
+
+	return {
+		ipv4: addresses.find((address) => !address.includes(':')) ?? null,
+		ipv6: addresses.find((address) => address.includes(':')) ?? null
 	};
 }
 
@@ -80,7 +110,7 @@ function mapVmRow(row: VmRow, live: VmInfo | null) {
 					storageAmount: row.vmTypeStorageAmount ?? 0
 				}
 			: null,
-		live: live ?? getKnownLive(row)
+		live: mergeKnownLive(row, live)
 	};
 }
 
@@ -102,21 +132,56 @@ function persistLiveState(db: Database, entries: { id: string; live: VmInfo }[])
 	if (persistable.length === 0) return;
 
 	const now = Date.now();
-	runInBackground(
-		Promise.all(
-			persistable.map((entry) =>
-				db
-					.update(vms)
-					.set({
-						lastKnownStatus: entry.live.status,
-						lastKnownUptime: Math.round(entry.live.uptime ?? 0),
-						lastKnownAt: now
-					})
-					.where(eq(vms.id, entry.id))
-			)
-		),
-		'persist vm live state'
+	const work = instrument(
+		'vm.persistLiveState',
+		() =>
+			Promise.all(
+				persistable.map((entry) => {
+					const ips = getNetworkIpSnapshot(entry.live.networkInterfaces);
+					return db
+						.update(vms)
+						.set({
+							lastKnownStatus: entry.live.status,
+							lastKnownUptime: Math.round(entry.live.uptime ?? 0),
+							lastKnownAt: now,
+							...(entry.live.proxmoxNode ? { proxmoxNode: entry.live.proxmoxNode } : {}),
+							...(ips.ipv4 ? { lastKnownIpv4: ips.ipv4 } : {}),
+							...(ips.ipv6 ? { lastKnownIpv6: ips.ipv6 } : {})
+						})
+						.where(eq(vms.id, entry.id));
+				})
+			).then(() => undefined),
+		{ 'vm.persist.count': persistable.length }
 	);
+	runInBackground(work, 'persist vm live state');
+}
+
+function refreshVmNetworkInterfaces(db: Database, row: VmRow, backend: VmBackend): void {
+	if (!backend.getVmNetworkInterfaces || row.proxmoxId == null) return;
+
+	const work = instrument(
+		'vm.refreshNetworkInterfaces',
+		async () => {
+			const networkInterfaces = await backend.getVmNetworkInterfaces?.(
+				row.id,
+				row.proxmoxId ?? undefined,
+				{ proxmoxNode: row.proxmoxNode ?? undefined }
+			);
+			const ips = getNetworkIpSnapshot(networkInterfaces);
+			if (!ips.ipv4 && !ips.ipv6) return;
+
+			await db
+				.update(vms)
+				.set({
+					...(ips.ipv4 ? { lastKnownIpv4: ips.ipv4 } : {}),
+					...(ips.ipv6 ? { lastKnownIpv6: ips.ipv6 } : {}),
+					lastKnownAt: Date.now()
+				})
+				.where(eq(vms.id, row.id));
+		},
+		{ 'vm.id': row.id, 'vm.proxmox_id': row.proxmoxId ?? undefined }
+	);
+	runInBackground(work, `refresh vm network interfaces ${row.id}`);
 }
 
 const listParams = type({ projectId: 'string' });
@@ -132,6 +197,7 @@ export const listVms = query(listParams, async (params) => {
 			${vms.id} as id,
 			${vms.name} as name,
 			${vms.proxmoxId} as "proxmoxId",
+			${vms.proxmoxNode} as "proxmoxNode",
 			${vms.active} as active,
 			${vms.ownerProjectId} as "ownerProjectId",
 			${vms.vmTypeId} as "vmTypeId",
@@ -159,6 +225,8 @@ export const listVms = query(listParams, async (params) => {
 
 const getParams = type({ vmId: 'string' });
 export const getVm = query(getParams, async (params) => {
+	const started = performance.now();
+	timingLog('remote.vms.getVm.enter', { 'vm.id': params.vmId });
 	const event = getRequestEvent();
 	if (!event?.locals.user) error(401, 'Authentication required');
 
@@ -168,6 +236,7 @@ export const getVm = query(getParams, async (params) => {
 			${vms.id} as id,
 			${vms.name} as name,
 			${vms.proxmoxId} as "proxmoxId",
+			${vms.proxmoxNode} as "proxmoxNode",
 			${vms.active} as active,
 			${vms.ownerProjectId} as "ownerProjectId",
 			${vms.vmTypeId} as "vmTypeId",
@@ -190,6 +259,10 @@ export const getVm = query(getParams, async (params) => {
 		limit 1
 	`);
 	const row = (result.rows as VmRow[])[0];
+	timingLog('remote.vms.getVm.db.end', {
+		'vm.id': params.vmId,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
 
 	if (!row) error(404, `VM "${params.vmId}" not found`);
 	if (row.ownerProjectId) {
@@ -199,13 +272,30 @@ export const getVm = query(getParams, async (params) => {
 	let live: VmInfo | null = null;
 	try {
 		const backend = getBackend(row.backend);
-		live = await backend.getVm(row.id, row.proxmoxId ?? undefined);
+		live = await instrument(
+			'remote.vms.getVm.backend',
+			() =>
+				backend.getVm(row.id, row.proxmoxId ?? undefined, {
+					proxmoxNode: row.proxmoxNode ?? undefined,
+					includeNetworkInterfaces: false
+				}),
+			{
+				'vm.backend': row.backend,
+				'vm.proxmox_id': row.proxmoxId ?? undefined,
+				'proxmox.node_hint': row.proxmoxNode ?? undefined
+			}
+		);
+		if (live.status === 'running') refreshVmNetworkInterfaces(db, row, backend);
 	} catch (err) {
 		console.warn(`Failed to load live VM state for ${row.id}`, err);
 	}
 
 	if (live) persistLiveState(db, [{ id: row.id, live }]);
 
+	timingLog('remote.vms.getVm.exit', {
+		'vm.id': params.vmId,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
 	return mapVmRow(row, live);
 });
 
@@ -214,30 +304,63 @@ const metricsHistoryParams = type({
 	timeframe: "'hour' | 'day' | 'week' | 'month' | 'year'?"
 });
 export const getVmMetricsHistory = query(metricsHistoryParams, async (params) => {
+	const started = performance.now();
+	timingLog('remote.vms.getVmMetricsHistory.enter', {
+		'vm.id': params.vmId,
+		'vm.metrics.timeframe': params.timeframe ?? 'hour'
+	});
 	const event = getRequestEvent();
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
 	const row = await db.query.vms.findFirst({ where: eq(vms.id, params.vmId) });
+	timingLog('remote.vms.getVmMetricsHistory.db.end', {
+		'vm.id': params.vmId,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
 	if (!row) error(404, `VM "${params.vmId}" not found`);
 	if (row.ownerProjectId) {
 		await requireProjectAccess(db, event.locals.user.id, row.ownerProjectId);
 	}
 
 	try {
-		return await getBackend(row.backend).getVmMetricsHistory(
-			row.id,
-			row.proxmoxId ?? undefined,
-			(params.timeframe ?? 'hour') as VmMetricsTimeframe
+		const backend = getBackend(row.backend);
+		const samples = await instrument(
+			'remote.vms.getVmMetricsHistory.backend',
+			() =>
+				backend.getVmMetricsHistory(
+					row.id,
+					row.proxmoxId ?? undefined,
+					(params.timeframe ?? 'hour') as VmMetricsTimeframe,
+					{ proxmoxNode: row.proxmoxNode ?? undefined }
+				),
+			{
+				'vm.backend': row.backend,
+				'vm.proxmox_id': row.proxmoxId ?? undefined,
+				'proxmox.node_hint': row.proxmoxNode ?? undefined,
+				'vm.metrics.timeframe': params.timeframe ?? 'hour'
+			}
 		);
+		timingLog('remote.vms.getVmMetricsHistory.exit', {
+			'vm.id': params.vmId,
+			'vm.metrics.count': samples.length,
+			duration_ms: Math.round((performance.now() - started) * 100) / 100
+		});
+		return samples;
 	} catch (err) {
 		console.warn(`Failed to load VM metrics history for ${row.id}`, err);
+		timingLog('remote.vms.getVmMetricsHistory.error', {
+			'vm.id': params.vmId,
+			duration_ms: Math.round((performance.now() - started) * 100) / 100
+		});
 		return [];
 	}
 });
 
 const statusParams = type({ projectId: 'string' });
 export const listVmStatuses = query(statusParams, async (params) => {
+	const started = performance.now();
+	timingLog('remote.vms.listVmStatuses.enter', { 'project.id': params.projectId });
 	const event = getRequestEvent();
 	if (!event?.locals.user) error(401, 'Authentication required');
 
@@ -249,6 +372,7 @@ export const listVmStatuses = query(statusParams, async (params) => {
 			${vms.id} as id,
 			${vms.name} as name,
 			${vms.proxmoxId} as "proxmoxId",
+			${vms.proxmoxNode} as "proxmoxNode",
 			${vms.active} as active,
 			${vms.ownerProjectId} as "ownerProjectId",
 			${vms.vmTypeId} as "vmTypeId",
@@ -270,10 +394,18 @@ export const listVmStatuses = query(statusParams, async (params) => {
 		where ${vms.ownerProjectId} = ${params.projectId}
 	`);
 	const rows = (result.rows as VmRow[]).filter((row) => row.active);
+	timingLog('remote.vms.listVmStatuses.db.end', {
+		'project.id': params.projectId,
+		'vm.status.project_active_count': rows.length,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
 
 	let liveVms: VmInfo[] = [];
 	try {
-		liveVms = await getBackend('proxmox').listVms();
+		const backend = getBackend('proxmox');
+		liveVms = await instrument('remote.vms.listVmStatuses.backend', () => backend.listVms(), {
+			'vm.status.project_active_count': rows.length
+		});
 	} catch (err) {
 		console.warn('Failed to load live Proxmox VM statuses', err);
 	}
@@ -305,6 +437,11 @@ export const listVmStatuses = query(statusParams, async (params) => {
 
 	persistLiveState(db, persistable);
 
+	timingLog('remote.vms.listVmStatuses.exit', {
+		'project.id': params.projectId,
+		'vm.status.count': statuses.length,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
 	return statuses;
 });
 
@@ -483,6 +620,7 @@ export const createVm = command(createParams, async (params) => {
 		.update(vms)
 		.set({
 			proxmoxId: result.proxmoxId ?? null,
+			proxmoxNode: result.proxmoxNode ?? null,
 			lastKnownIpv4: ipv4Allocation?.address ?? null,
 			lastKnownIpv6: ipv6Allocation?.address ?? null
 		})

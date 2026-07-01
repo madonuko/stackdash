@@ -4,6 +4,7 @@ import { Address6 } from 'ip-address';
 import type { Fetcher } from '@cloudflare/workers-types';
 
 import { createVpcFetch, insecureDirectFetch } from '$lib/server/vpc';
+import { instrument } from '$lib/server/observability';
 import { ProxmoxClient } from './client';
 import type { PveClusterResource } from './types';
 import type {
@@ -16,12 +17,50 @@ import type {
 	VmCreateResult,
 	VmStatus,
 	VmMetricsHistorySample,
-	VmMetricsTimeframe
+	VmMetricsTimeframe,
+	VmLookupOptions
 } from '../types';
 
 interface ResolvedVm {
 	node: string;
 	vmid: number;
+}
+
+type CacheEntry<T> = {
+	expiresAt: number;
+	promise: Promise<T>;
+};
+
+const CLUSTER_RESOURCES_TTL_MS = 2_000;
+const VM_STATUS_TTL_MS = 1_000;
+const clusterResourcesCache = new Map<string, CacheEntry<PveClusterResource[]>>();
+const vmStatusCache = new Map<
+	string,
+	CacheEntry<Awaited<ReturnType<ProxmoxClient['getQemuVm']>>>
+>();
+
+function getCached<T>(
+	cache: Map<string, CacheEntry<T>>,
+	key: string,
+	ttlMs: number,
+	load: () => Promise<T>
+): Promise<T> {
+	const now = Date.now();
+	const existing = cache.get(key);
+	if (existing && existing.expiresAt > now) return existing.promise;
+
+	let promise: Promise<T>;
+	promise = load().catch((error) => {
+		if (cache.get(key)?.promise === promise) cache.delete(key);
+		throw error;
+	});
+	cache.set(key, { expiresAt: now + ttlMs, promise });
+	return promise;
+}
+
+function clearProxmoxReadCaches() {
+	clusterResourcesCache.clear();
+	vmStatusCache.clear();
 }
 
 type ProxmoxBackendOptions = {
@@ -150,7 +189,11 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	private async resolve(id: string, proxmoxId?: number): Promise<ResolvedVm> {
-		const resources = await this.client.getClusterResources('vm');
+		const resources = await instrument(
+			'proxmox.resolveVm.clusterResources',
+			() => this.getClusterResources('vm'),
+			{ 'vm.proxmox_id': proxmoxId ?? undefined }
+		);
 		const match = resources.find(
 			(r) => r.type === 'qemu' && (proxmoxId != null ? r.vmid === proxmoxId : r.name === id)
 		);
@@ -166,6 +209,26 @@ export class ProxmoxBackend implements VmBackend {
 		return { node: match.node, vmid: match.vmid };
 	}
 
+	private resolveFromHint(
+		proxmoxId: number | undefined,
+		proxmoxNode: string | undefined
+	): ResolvedVm | null {
+		if (proxmoxNode && proxmoxId != null) return { node: proxmoxNode, vmid: proxmoxId };
+		return null;
+	}
+
+	private async getClusterResources(type?: 'vm' | 'storage' | 'node') {
+		return getCached(clusterResourcesCache, type ?? 'all', CLUSTER_RESOURCES_TTL_MS, () =>
+			this.client.getClusterResources(type)
+		);
+	}
+
+	private async getCachedQemuVm(node: string, vmid: number) {
+		return getCached(vmStatusCache, `${node}:${vmid}`, VM_STATUS_TTL_MS, () =>
+			this.client.getQemuVm(node, vmid)
+		);
+	}
+
 	private resourceToInfo(r: PveClusterResource): VmInfo {
 		const memoryUsage = r.mem != null && r.maxmem ? r.mem / r.maxmem : undefined;
 		const diskUsage = r.disk != null && r.maxdisk ? r.disk / r.maxdisk : undefined;
@@ -173,6 +236,7 @@ export class ProxmoxBackend implements VmBackend {
 		return {
 			id: r.name ?? String(r.vmid),
 			proxmoxId: r.vmid,
+			proxmoxNode: r.node,
 			name: r.name ?? `VM ${r.vmid}`,
 			status: this.mapStatus(r.status ?? 'unknown'),
 			cores: r.maxcpu ?? 0,
@@ -264,7 +328,9 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async listVms(): Promise<VmInfo[]> {
-		const resources = await this.client.getClusterResources('vm');
+		const resources = await instrument('proxmox.listVms.clusterResources', () =>
+			this.getClusterResources('vm')
+		);
 		return resources.filter((r) => r.type === 'qemu').map((r) => this.resourceToInfo(r));
 	}
 
@@ -344,20 +410,33 @@ export class ProxmoxBackend implements VmBackend {
 		return { status: status.status, exitstatus: status.exitstatus };
 	}
 
-	async getVm(id: string, proxmoxId?: number): Promise<VmInfo> {
-		const { node, vmid } = await this.resolve(id, proxmoxId);
-		const status = await this.client.getQemuVm(node, vmid);
+	async getVm(id: string, proxmoxId?: number, options: VmLookupOptions = {}): Promise<VmInfo> {
+		let { node, vmid } =
+			this.resolveFromHint(proxmoxId, options.proxmoxNode) ?? (await this.resolve(id, proxmoxId));
+		const status = await instrument(
+			'proxmox.getVm.status',
+			async () => {
+				try {
+					return await this.getCachedQemuVm(node, vmid);
+				} catch (error) {
+					if (!options.proxmoxNode || proxmoxId == null) throw error;
+					const resolved = await this.resolve(id, proxmoxId);
+					node = resolved.node;
+					vmid = resolved.vmid;
+					return await this.getCachedQemuVm(node, vmid);
+				}
+			},
+			{
+				'proxmox.node': node,
+				'proxmox.vmid': vmid,
+				'proxmox.node_hint': options.proxmoxNode ?? undefined
+			}
+		);
 
 		let networkInterfaces: VmInfo['networkInterfaces'] | undefined;
-		if (status.status === 'running') {
+		if (options.includeNetworkInterfaces !== false && status.status === 'running') {
 			try {
-				const ifaces = await this.client.getNetworkInterfaces(node, vmid);
-				networkInterfaces = {};
-				for (const iface of ifaces) {
-					networkInterfaces[iface.name] = {
-						ipAddresses: iface['ip-addresses']?.map((a) => a['ip-address'])
-					};
-				}
+				networkInterfaces = await this.getVmNetworkInterfaces(id, proxmoxId, { proxmoxNode: node });
 			} catch {
 				// guest agent may not be installed
 			}
@@ -371,6 +450,7 @@ export class ProxmoxBackend implements VmBackend {
 		return {
 			id,
 			proxmoxId: vmid,
+			proxmoxNode: node,
 			name: status.name ?? `VM ${status.vmid}`,
 			status: this.mapStatus(status.status),
 			cores: status.cpus ?? 0,
@@ -390,13 +470,40 @@ export class ProxmoxBackend implements VmBackend {
 		};
 	}
 
+	async getVmNetworkInterfaces(
+		id: string,
+		proxmoxId?: number,
+		options: Pick<VmLookupOptions, 'proxmoxNode'> = {}
+	): Promise<VmInfo['networkInterfaces']> {
+		const { node, vmid } =
+			this.resolveFromHint(proxmoxId, options.proxmoxNode) ?? (await this.resolve(id, proxmoxId));
+		const ifaces = await instrument(
+			'proxmox.getVm.agentNetworkInterfaces',
+			() => this.client.getNetworkInterfaces(node, vmid),
+			{ 'proxmox.node': node, 'proxmox.vmid': vmid }
+		);
+		const networkInterfaces: VmInfo['networkInterfaces'] = {};
+		for (const iface of ifaces) {
+			networkInterfaces[iface.name] = {
+				ipAddresses: iface['ip-addresses']?.map((a) => a['ip-address'])
+			};
+		}
+		return networkInterfaces;
+	}
+
 	async getVmMetricsHistory(
 		id: string,
 		proxmoxId: number | undefined,
-		timeframe: VmMetricsTimeframe
+		timeframe: VmMetricsTimeframe,
+		options: Pick<VmLookupOptions, 'proxmoxNode'> = {}
 	): Promise<VmMetricsHistorySample[]> {
-		const { node, vmid } = await this.resolve(id, proxmoxId);
-		const samples = await this.client.getQemuRrdData(node, vmid, { timeframe });
+		const { node, vmid } =
+			this.resolveFromHint(proxmoxId, options.proxmoxNode) ?? (await this.resolve(id, proxmoxId));
+		const samples = await instrument(
+			'proxmox.getVmMetricsHistory.rrdData',
+			() => this.client.getQemuRrdData(node, vmid, { timeframe }),
+			{ 'proxmox.node': node, 'proxmox.vmid': vmid, 'vm.metrics.timeframe': timeframe }
+		);
 
 		return samples.map((sample) => ({
 			time: sample.time,
@@ -414,6 +521,7 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async createVm(params: VmCreateParams): Promise<VmCreateResult> {
+		clearProxmoxReadCaches();
 		const [nodes, vmid] = await Promise.all([this.client.listNodes(), this.client.getNextVmId()]);
 
 		// Pick the online node with the most free memory
@@ -539,10 +647,18 @@ export class ProxmoxBackend implements VmBackend {
 			await params.onProvisionSettled?.({ ok: true });
 		}
 
-		return { id: params.id, proxmoxId: vmid, macAddress, taskId: String(vmid) };
+		clearProxmoxReadCaches();
+		return {
+			id: params.id,
+			proxmoxId: vmid,
+			proxmoxNode: node.node,
+			macAddress,
+			taskId: String(vmid)
+		};
 	}
 
 	async deleteVm(id: string, proxmoxId?: number): Promise<void> {
+		clearProxmoxReadCaches();
 		let resolved: ResolvedVm;
 		try {
 			resolved = await this.resolve(id, proxmoxId);
@@ -578,24 +694,28 @@ export class ProxmoxBackend implements VmBackend {
 	}
 
 	async startVm(id: string, proxmoxId?: number): Promise<void> {
+		clearProxmoxReadCaches();
 		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.startVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
 
 	async stopVm(id: string, proxmoxId?: number): Promise<void> {
+		clearProxmoxReadCaches();
 		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.shutdownVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
 
 	async killVm(id: string, proxmoxId?: number): Promise<void> {
+		clearProxmoxReadCaches();
 		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.stopVm(node, vmid);
 		await this.client.waitForTask(node, upid);
 	}
 
 	async rebootVm(id: string, proxmoxId?: number): Promise<void> {
+		clearProxmoxReadCaches();
 		const { node, vmid } = await this.resolve(id, proxmoxId);
 		const upid = await this.client.rebootVm(node, vmid);
 		await this.client.waitForTask(node, upid);

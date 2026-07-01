@@ -207,6 +207,12 @@ export class AdminState {
 	imgFilePath = $state('');
 	imgIsa = $state<VmIsa>('x86');
 
+	constructor(data?: AdminPageData) {
+		if (data) {
+			this.sync(data);
+		}
+	}
+
 	sync(data: AdminPageData) {
 		this.vmTypes = [...(data.vmTypes ?? [])];
 		this.images = [...(data.images ?? [])];

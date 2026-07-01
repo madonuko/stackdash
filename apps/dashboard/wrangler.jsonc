@@ -4,9 +4,21 @@
 	"main": ".svelte-kit/cloudflare/_worker.js",
 	"compatibility_date": "2026-04-05",
 	"compatibility_flags": ["nodejs_compat"],
+	"minify": true,
 	"assets": {
 		"binding": "ASSETS",
-		"directory": ".svelte-kit/cloudflare"
+		"directory": ".svelte-kit/cloudflare",
+		"run_worker_first": [
+			"/",
+			"/_app/remote/*",
+			"/api/*",
+			"/admin/*",
+			"/projects/*",
+			"/login*",
+			"/register*",
+			"/signup*",
+			"/accept-invitation/*"
+		]
 	},
 	"hyperdrive": [
 		{
@@ -48,7 +60,8 @@
 		}
 	],
 	"placement": {
-		"mode": "smart"
+		"mode": "targeted",
+		"region": "azure:northcentralus"
 	},
 	"observability": {
 		"enabled": true,
@@ -59,11 +72,13 @@
 	},
 	"env": {
 		"preview": {
+			"minify": true,
 			"vars": {
 				"ORIGIN": "https://stack-dashboard-preview.fyralabs.workers.dev",
 				"EMAIL_FROM_ADDRESS": "no-reply@fyrastack.com",
 				"EMAIL_FROM_NAME": "Fyra Stack",
 				"EMAIL_REPLY_TO": "support@fyralabs.com",
+				"STACK_TIMING_SPAM": "true",
 				"AUTUMN_DEFAULT_PLAN_ID": "stack",
 				"AUTUMN_SERVER_ENTITY_FEATURE_ID": "active_servers",
 				"VYOS_API_URL": "https://vyos-01.example",
@@ -117,7 +132,8 @@
 				}
 			],
 			"placement": {
-				"mode": "smart"
+				"mode": "targeted",
+				"region": "azure:northcentralus"
 			},
 			"observability": {
 				"enabled": true,

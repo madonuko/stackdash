@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { authClient } from '$lib/auth-client';
 	import { Badge } from '$lib/components/ui/badge';
@@ -52,7 +53,7 @@
 	type DeletionVerificationMethod = 'passkey' | 'totp' | 'email';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'users' as AdminTab;
-	const admin = new AdminState();
+	const admin = new AdminState(untrack(() => data));
 	$effect(() => {
 		admin.sync(data);
 	});

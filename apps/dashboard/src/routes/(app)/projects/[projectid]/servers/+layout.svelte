@@ -6,7 +6,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { HardDrive, Plus } from '@lucide/svelte';
 	import { listVmStatuses } from '$lib/remote/vms.remote';
-	import { runQuery } from '$lib/utils';
+	import { clientTimingLog, runQuery } from '$lib/utils';
 	import { serversState, sortServers } from '$lib/state/servers.svelte';
 
 	let { data, children } = $props();
@@ -46,6 +46,11 @@
 	let refreshTimeout: number | null = null;
 
 	function scheduleRefreshStatuses() {
+		clientTimingLog('vm.status.scheduleRefreshStatuses', {
+			'project.id': projectId ?? undefined,
+			'vm.status.delay_ms': 500,
+			'vm.status.had_pending_timeout': Boolean(refreshTimeout)
+		});
 		if (refreshTimeout) window.clearTimeout(refreshTimeout);
 		refreshTimeout = window.setTimeout(() => {
 			refreshTimeout = null;
@@ -67,10 +72,21 @@
 
 	async function refreshStatuses() {
 		if (!projectId) return;
+		const started = performance.now();
+		clientTimingLog('vm.status.refresh.start', {
+			'project.id': projectId,
+			'vm.status.server_count': serversState.servers.length
+		});
 		serversState.statusRefreshing = true;
 
 		try {
-			const statuses = await runQuery(listVmStatuses({ projectId }));
+			clientTimingLog('vm.status.refresh.remote.start', { 'project.id': projectId });
+			const statuses = await runQuery(listVmStatuses({ projectId }), 'listVmStatuses');
+			clientTimingLog('vm.status.refresh.remote.end', {
+				'project.id': projectId,
+				'vm.status.count': statuses.length,
+				duration_ms: Math.round((performance.now() - started) * 100) / 100
+			});
 			const byId = new Map(statuses.map((server) => [server.id, server]));
 
 			untrack(() => {
@@ -104,29 +120,50 @@
 				});
 			});
 		} catch {
+			clientTimingLog('vm.status.refresh.error', {
+				'project.id': projectId,
+				duration_ms: Math.round((performance.now() - started) * 100) / 100
+			});
 		} finally {
 			serversState.statusRefreshing = false;
 			serversState.firstStatusRefreshComplete = true;
+			clientTimingLog('vm.status.refresh.end', {
+				'project.id': projectId,
+				duration_ms: Math.round((performance.now() - started) * 100) / 100
+			});
 		}
 	}
 
 	$effect(() => {
 		if (!projectId) return;
+		clientTimingLog('vm.status.polling.effect.start', {
+			'project.id': projectId,
+			'vm.status.initial_count': initialServers.length
+		});
 
 		let interval: number | null = null;
 
 		function startPolling() {
 			if (interval !== null) return;
+			clientTimingLog('vm.status.polling.start', {
+				'project.id': projectId,
+				'vm.status.interval_ms': REFRESH_INTERVAL_MS
+			});
 			interval = window.setInterval(scheduleRefreshStatuses, REFRESH_INTERVAL_MS);
 		}
 
 		function stopPolling() {
 			if (interval === null) return;
+			clientTimingLog('vm.status.polling.stop', { 'project.id': projectId });
 			window.clearInterval(interval);
 			interval = null;
 		}
 
 		function handleVisibilityChange() {
+			clientTimingLog('vm.status.visibilityChange', {
+				'project.id': projectId,
+				'document.visibility_state': document.visibilityState
+			});
 			if (document.visibilityState === 'visible') {
 				scheduleRefreshStatuses();
 				startPolling();

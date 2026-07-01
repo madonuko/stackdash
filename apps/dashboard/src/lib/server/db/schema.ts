@@ -59,6 +59,7 @@ export const vms = pgTable(
 		id: ulidPk(),
 		name: text('name').notNull(),
 		proxmoxId: integer('proxmox_id'),
+		proxmoxNode: text('proxmox_node'),
 		lastKnownIpv4: inet('last_known_ipv4'),
 		lastKnownIpv6: inet('last_known_ipv6'),
 		lastKnownStatus: text('last_known_status'),

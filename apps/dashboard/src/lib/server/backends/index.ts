@@ -3,6 +3,7 @@ import type { VmBackend } from './types';
 import { ProxmoxBackend } from './proxmox';
 import { ProxmoxClient } from './proxmox/client';
 import { getBackendEnv } from './env';
+import { timingLog } from '$lib/server/observability';
 
 export type {
 	BackendImage,
@@ -20,6 +21,7 @@ export type {
 let cached: { key: string; backend: VmBackend } | null = null;
 
 function createProxmox(): ProxmoxBackend {
+	const started = performance.now();
 	const env = getBackendEnv();
 
 	if (!env.PROXMOX_API_URL || !env.PROXMOX_TOKEN_ID || !env.PROXMOX_TOKEN_SECRET) {
@@ -38,6 +40,12 @@ function createProxmox(): ProxmoxBackend {
 		);
 	}
 
+	const proxmoxHost = new URL(env.PROXMOX_API_URL).host;
+	timingLog('backend.proxmox.create.start', {
+		'proxmox.host': proxmoxHost,
+		'proxmox.use_vpc': env.PROXMOX_USE_VPC !== 'false'
+	});
+
 	const client = new ProxmoxClient({
 		baseUrl: env.PROXMOX_API_URL,
 		tokenId: env.PROXMOX_TOKEN_ID,
@@ -46,7 +54,7 @@ function createProxmox(): ProxmoxBackend {
 		vpc: env.PROXMOX_USE_VPC === 'false' ? undefined : env.PROXMOX_VPC
 	});
 
-	return new ProxmoxBackend(client, {
+	const backend = new ProxmoxBackend(client, {
 		snippetsVpc: env.PROXMOX_SNIPPETS_USE_VPC === 'false' ? undefined : env.SNIPPETS,
 		snippetsEndpointUrl: env.PROXMOX_SNIPPETS_ENDPOINT_URL,
 		snippetsEndpointUsername: env.PROXMOX_SNIPPETS_ENDPOINT_USERNAME,
@@ -55,11 +63,29 @@ function createProxmox(): ProxmoxBackend {
 		snippetsStorage: env.PROXMOX_SNIPPETS_STORAGE,
 		firewallSecurityGroup: env.PROXMOX_VM_FIREWALL_SECURITY_GROUP
 	});
+
+	timingLog('backend.proxmox.create.end', {
+		'proxmox.host': proxmoxHost,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
+
+	return backend;
 }
 
 export function getBackend(name: string): VmBackend {
 	// Skip cache in dev — module-level state survives HMR and goes stale
-	if (!dev && cached?.key === name) return cached.backend;
+	const started = performance.now();
+	const cacheHit = !dev && cached?.key === name;
+	timingLog('backend.get.start', { 'backend.name': name, 'backend.cache_hit': cacheHit });
+	if (!dev && cached?.key === name) {
+		const backend = cached.backend;
+		timingLog('backend.get.end', {
+			'backend.name': name,
+			'backend.cache_hit': true,
+			duration_ms: Math.round((performance.now() - started) * 100) / 100
+		});
+		return backend;
+	}
 
 	let backend: VmBackend;
 
@@ -72,5 +98,10 @@ export function getBackend(name: string): VmBackend {
 	}
 
 	cached = { key: name, backend };
+	timingLog('backend.get.end', {
+		'backend.name': name,
+		'backend.cache_hit': false,
+		duration_ms: Math.round((performance.now() - started) * 100) / 100
+	});
 	return backend;
 }

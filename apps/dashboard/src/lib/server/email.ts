@@ -1,10 +1,25 @@
-import { Renderer, toPlainText } from '@better-svelte-email/server';
 import { dev } from '$app/environment';
 import appStyles from '../../routes/layout.css?raw';
 import { getRuntimeEnv } from '$lib/server/env';
 import { instrument } from '$lib/server/observability';
 
-const renderer = new Renderer({ customCSS: appStyles });
+type EmailRenderer = {
+	render(component: unknown, options: { props?: Record<string, unknown> }): string | Promise<string>;
+	toPlainText(html: string): string;
+};
+
+let emailRendererPromise: Promise<EmailRenderer> | undefined;
+
+function getEmailRenderer(): Promise<EmailRenderer> {
+	emailRendererPromise ??= import('@better-svelte-email/server').then(({ Renderer, toPlainText }) => {
+		const renderer = new Renderer({ customCSS: appStyles });
+		return {
+			render: (component, options) => renderer.render(component, options),
+			toPlainText
+		};
+	});
+	return emailRendererPromise;
+}
 
 type SendRenderedEmailParams = {
 	component: unknown;
@@ -152,7 +167,8 @@ export async function sendRenderedEmail({
 }: SendRenderedEmailParams) {
 	const env = getRuntimeEnv();
 
-	const html = await instrument('email.render', () => renderer.render(component, { props }));
+	const { render, toPlainText } = await getEmailRenderer();
+	const html = await instrument('email.render', () => render(component, { props }));
 	const text = toPlainText(html);
 	const fromAddress = env.EMAIL_FROM_ADDRESS;
 	const fromName = env.EMAIL_FROM_NAME;

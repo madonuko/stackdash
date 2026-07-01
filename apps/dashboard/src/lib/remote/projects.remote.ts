@@ -35,6 +35,12 @@ type ListResult = {
 	role: ProjectRole;
 }[];
 
+type ProjectListCacheEntry = {
+	projects?: ListResult;
+	expiresAt: number;
+	promise?: Promise<ListResult>;
+};
+
 type MemberInfo = { userId: string; name: string; email: string; permissions: ProjectRole };
 type GetResult = {
 	id: string;
@@ -45,6 +51,9 @@ type GetResult = {
 	creationDate: number;
 	members: MemberInfo[];
 };
+
+const PROJECT_LIST_CACHE_TTL_MS = 5_000;
+const projectListCache = new Map<string, ProjectListCacheEntry>();
 
 function toProjectName(name: string) {
 	return name.trim() || 'Untitled Project';
@@ -65,13 +74,23 @@ function toProjectRole(role: string): ProjectRole {
 	return projectRoles.includes(role as ProjectRole) ? (role as ProjectRole) : 'read';
 }
 
-export const listProjects = query(async () => {
-	const event = getRequestEvent();
-	if (!event?.locals.user) error(401, 'Authentication required');
+function cloneProjects(projects: ListResult): ListResult {
+	return projects.map((project) => ({ ...project }));
+}
 
+function clearProjectListCache(userId?: string) {
+	if (userId) {
+		projectListCache.delete(userId);
+		return;
+	}
+
+	projectListCache.clear();
+}
+
+async function loadProjectsForUser(userId: string): Promise<ListResult> {
 	const db = initDrizzle();
 	const memberships = await db.query.member.findMany({
-		where: eq(member.userId, event.locals.user.id),
+		where: eq(member.userId, userId),
 		with: { organization: { with: { members: true } } }
 	});
 
@@ -83,11 +102,52 @@ export const listProjects = query(async () => {
 			return {
 				id: org.id,
 				projectName: org.name,
-				ownerUserId: owner?.userId ?? membership.userId,
+				ownerUserId: owner?.userId ?? userId,
 				creationDate: org.createdAt.getTime(),
 				role: toProjectRole(membership.role)
 			};
 		}) satisfies ListResult;
+}
+
+async function getCachedProjectsForUser(userId: string): Promise<ListResult> {
+	const now = Date.now();
+	const cached = projectListCache.get(userId);
+
+	if (cached?.projects && now < cached.expiresAt) {
+		return cloneProjects(cached.projects);
+	}
+
+	if (cached?.promise) {
+		return cloneProjects(await cached.promise);
+	}
+
+	const promise = loadProjectsForUser(userId)
+		.then((projects) => {
+			projectListCache.set(userId, {
+				projects: cloneProjects(projects),
+				expiresAt: Date.now() + PROJECT_LIST_CACHE_TTL_MS
+			});
+			return projects;
+		})
+		.catch((err) => {
+			projectListCache.delete(userId);
+			throw err;
+		});
+
+	projectListCache.set(userId, {
+		...(cached?.projects ? { projects: cached.projects } : {}),
+		expiresAt: cached?.expiresAt ?? 0,
+		promise
+	});
+
+	return cloneProjects(await promise);
+}
+
+export const listProjects = query(async () => {
+	const event = getRequestEvent();
+	if (!event?.locals.user) error(401, 'Authentication required');
+
+	return getCachedProjectsForUser(event.locals.user.id);
 });
 
 const getParams = type({ projectId: 'string' });
@@ -146,6 +206,7 @@ export const createProject = command(createParams, async (params) => {
 	ensureProjectCustomer(org.id).catch((err) => {
 		console.warn(`Failed to sync Autumn customer for project ${org.id}`, err);
 	});
+	clearProjectListCache(event.locals.user.id);
 
 	return { id: org.id };
 });
@@ -212,6 +273,7 @@ export const deleteProject = command(deleteParams, async (params) => {
 		await deleteLocalProjectBillingCustomer(params.projectId);
 	}
 	await db.delete(organization).where(eq(organization.id, params.projectId));
+	clearProjectListCache();
 });
 
 const updateParams = type({ projectId: 'string', name: 'string' });
@@ -230,6 +292,7 @@ export const updateProject = command(updateParams, async (params) => {
 	updateProjectCustomer(params.projectId).catch((err) => {
 		console.warn(`Failed to sync Autumn customer update for project ${params.projectId}`, err);
 	});
+	clearProjectListCache();
 });
 
 const addMemberParams = type({
@@ -272,6 +335,7 @@ export const updateMemberRole = command(updateMemberRoleParams, async (params) =
 		.update(member)
 		.set({ role: params.permissions })
 		.where(and(eq(member.organizationId, params.projectId), eq(member.userId, params.userId)));
+	clearProjectListCache();
 });
 
 const removeMemberParams = type({ projectId: 'string', userId: 'string' });
@@ -289,4 +353,5 @@ export const removeMember = command(removeMemberParams, async (params) => {
 	if (target.role === 'owner') error(400, 'Project owner cannot be removed');
 
 	await db.delete(member).where(eq(member.id, target.id));
+	clearProjectListCache();
 });

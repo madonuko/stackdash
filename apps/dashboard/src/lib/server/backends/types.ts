@@ -3,6 +3,7 @@ export type VmStatus = 'running' | 'stopped' | 'paused' | 'unknown';
 export interface VmInfo {
 	id: string;
 	proxmoxId?: number;
+	proxmoxNode?: string;
 	name: string;
 	status: VmStatus;
 	cores: number;
@@ -87,18 +88,30 @@ export interface VmCreateParams {
 export interface VmCreateResult {
 	id: string;
 	proxmoxId?: number;
+	proxmoxNode?: string;
 	macAddress?: string;
 	taskId?: string;
+}
+
+export interface VmLookupOptions {
+	proxmoxNode?: string;
+	includeNetworkInterfaces?: boolean;
 }
 
 export interface VmBackend {
 	readonly name: string;
 	listVms(): Promise<VmInfo[]>;
-	getVm(id: string, proxmoxId?: number): Promise<VmInfo>;
+	getVm(id: string, proxmoxId?: number, options?: VmLookupOptions): Promise<VmInfo>;
+	getVmNetworkInterfaces?(
+		id: string,
+		proxmoxId?: number,
+		options?: Pick<VmLookupOptions, 'proxmoxNode'>
+	): Promise<VmInfo['networkInterfaces']>;
 	getVmMetricsHistory(
 		id: string,
 		proxmoxId: number | undefined,
-		timeframe: VmMetricsTimeframe
+		timeframe: VmMetricsTimeframe,
+		options?: Pick<VmLookupOptions, 'proxmoxNode'>
 	): Promise<VmMetricsHistorySample[]>;
 	createVm(params: VmCreateParams): Promise<VmCreateResult>;
 	deleteVm(id: string, proxmoxId?: number): Promise<void>;
