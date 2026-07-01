@@ -41,11 +41,11 @@
 		values: (number | null)[],
 		maxValue = Math.max(...values.map((v) => v ?? 0), 1)
 	) {
-		const padded = [...Array(Math.max(0, 12 - values.length)).fill(null), ...values].slice(-12);
-		return padded
+		const points = values.filter((value): value is number => value != null);
+		return points
 			.map((value, index) => {
-				const x = (index / Math.max(padded.length - 1, 1)) * 240;
-				const y = 80 - ((value ?? 0) / maxValue) * 70;
+				const x = (index / Math.max(points.length - 1, 1)) * 240;
+				const y = 80 - (value / maxValue) * 70;
 				return `${x.toFixed(1)},${Math.max(5, Math.min(75, y)).toFixed(1)}`;
 			})
 			.join(' ');
@@ -57,14 +57,8 @@
 		return {
 			cpu: metrics?.cpu ?? null,
 			memory: metrics?.memory ?? null,
-			bandwidth:
-				metrics?.networkIn == null && metrics?.networkOut == null
-					? null
-					: (metrics.networkIn ?? 0) + (metrics.networkOut ?? 0),
-			diskIo:
-				metrics?.diskRead == null && metrics?.diskWrite == null
-					? null
-					: (metrics.diskRead ?? 0) + (metrics.diskWrite ?? 0),
+			bandwidth: null,
+			diskIo: null,
 			time: Math.floor(Date.now() / 1000)
 		};
 	}
@@ -104,7 +98,13 @@
 				? [currentSample]
 				: [])
 		].slice(-12);
-		const latest = samples.at(-1);
+		const lastValue = (key: 'cpu' | 'memory' | 'bandwidth' | 'diskIo') => {
+			for (let index = samples.length - 1; index >= 0; index -= 1) {
+				const value = samples[index][key];
+				if (value != null) return value;
+			}
+			return null;
+		};
 		const bandwidthMax = Math.max(...samples.map((sample) => sample.bandwidth ?? 0), 1);
 		const diskIoMax = Math.max(...samples.map((sample) => sample.diskIo ?? 0), 1);
 		const loaded = samples.length > 0 || liveLoaded;
@@ -118,7 +118,7 @@
 					samples.map((sample) => sample.cpu),
 					1
 				),
-				value: formatPercent(latest?.cpu ?? null)
+				value: formatPercent(lastValue('cpu'))
 			},
 			{
 				label: 'RAM Usage',
@@ -128,7 +128,7 @@
 					samples.map((sample) => sample.memory),
 					1
 				),
-				value: formatPercent(latest?.memory ?? null)
+				value: formatPercent(lastValue('memory'))
 			},
 			{
 				label: 'Bandwidth',
@@ -138,7 +138,7 @@
 					samples.map((sample) => sample.bandwidth),
 					bandwidthMax
 				),
-				value: formatRate(latest?.bandwidth ?? null)
+				value: formatRate(lastValue('bandwidth'))
 			},
 			{
 				label: 'Disk I/O',
@@ -148,7 +148,7 @@
 					samples.map((sample) => sample.diskIo),
 					diskIoMax
 				),
-				value: formatRate(latest?.diskIo ?? null)
+				value: formatRate(lastValue('diskIo'))
 			}
 		];
 	});
