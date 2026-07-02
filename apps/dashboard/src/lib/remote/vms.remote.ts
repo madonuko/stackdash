@@ -291,6 +291,14 @@ export const getVm = query(getParams, async (params) => {
 		if (live.status === 'running') refreshVmNetworkInterfaces(db, row, backend);
 	} catch (err) {
 		console.warn(`Failed to load live VM state for ${row.id}`, err);
+		if (
+			row.active &&
+			row.status === 'deleting' &&
+			err instanceof Error &&
+			err.message.includes('not found on any Proxmox node')
+		) {
+			await queueVmDeletion(db, row);
+		}
 	}
 
 	if (live) persistLiveState(db, [{ id: row.id, live }]);
@@ -404,11 +412,13 @@ export const listVmStatuses = query(statusParams, async (params) => {
 	});
 
 	let liveVms: VmInfo[] = [];
+	let liveListLoaded = false;
 	try {
 		const backend = getBackend('proxmox');
 		liveVms = await instrument('remote.vms.listVmStatuses.backend', () => backend.listVms(), {
 			'vm.status.project_active_count': rows.length
 		});
+		liveListLoaded = true;
 	} catch (err) {
 		console.warn('Failed to load live Proxmox VM statuses', err);
 	}
@@ -417,6 +427,20 @@ export const listVmStatuses = query(statusParams, async (params) => {
 		liveVms.filter((vm) => vm.proxmoxId != null).map((vm) => [vm.proxmoxId!, vm] as const)
 	);
 	const liveById = new Map(liveVms.map((vm) => [vm.id, vm]));
+
+	if (liveListLoaded) {
+		const staleDeleting = rows.filter(
+			(row) =>
+				row.status === 'deleting' &&
+				!(row.proxmoxId != null ? liveByProxmoxId.get(row.proxmoxId) : null) &&
+				!liveById.get(row.id)
+		);
+		for (const row of staleDeleting) {
+			await queueVmDeletion(db, row).catch((err) => {
+				console.warn(`Failed to re-queue deletion for VM ${row.id}`, err);
+			});
+		}
+	}
 
 	const persistable: { id: string; live: VmInfo }[] = [];
 	const statuses = rows.map((row) => {

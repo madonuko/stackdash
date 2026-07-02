@@ -1,5 +1,5 @@
 import { getRequestEvent } from '$app/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { initDrizzle, closeRequestDb, type Database } from '$lib/server/db';
 import { vms } from '$lib/server/db/schema';
 import { getBackend } from '$lib/server/backends';
@@ -23,13 +23,24 @@ export async function queueVmDeletion(db: Database, row: DeletableVm): Promise<v
 	runInBackground(deleteVmResources(row), `vm-delete-${row.id}`);
 }
 
-async function deleteVmResources(row: DeletableVm): Promise<void> {
+function initOwnedDb() {
 	const event = getRequestEvent();
+	const ownsDb = !event.locals.db;
+	const db = initDrizzle();
+	return {
+		db,
+		close: () => {
+			if (ownsDb) closeRequestDb(event);
+		}
+	};
+}
+
+async function deleteVmResources(row: DeletableVm): Promise<void> {
 	try {
 		await getBackend(row.backend).deleteVm(row.id, row.proxmoxId ?? undefined);
 	} catch (err) {
 		console.warn(`Failed to delete backend VM ${row.id}`, err);
-		const db = initDrizzle();
+		const { db, close } = initOwnedDb();
 		try {
 			await db
 				.update(vms)
@@ -41,13 +52,20 @@ async function deleteVmResources(row: DeletableVm): Promise<void> {
 		} catch (updateErr) {
 			console.error(`VM ${row.id} deletion status update failed:`, updateErr);
 		} finally {
-			closeRequestDb(event);
+			close();
 		}
 		return;
 	}
 
-	const db = initDrizzle();
+	const { db, close } = initOwnedDb();
 	try {
+		const claimed = await db
+			.update(vms)
+			.set({ active: false })
+			.where(and(eq(vms.id, row.id), eq(vms.active, true)))
+			.returning({ id: vms.id });
+		if (claimed.length === 0) return;
+
 		const metered = await meterResourceThrough('vm', row.id);
 		if (row.ownerProjectId && (!metered?.event || metered.syncStatus === 'synced')) {
 			await deleteProjectServerEntity(row.ownerProjectId, row.id).catch((err) => {
@@ -59,7 +77,6 @@ async function deleteVmResources(row: DeletableVm): Promise<void> {
 			console.warn(`Failed to release networking for VM ${row.id}`, err);
 		});
 
-		await db.update(vms).set({ active: false }).where(eq(vms.id, row.id));
 		console.log(`VM ${row.id} deletion completed`);
 	} catch (err) {
 		console.error(`VM ${row.id} deletion cleanup failed:`, err);
@@ -72,6 +89,6 @@ async function deleteVmResources(row: DeletableVm): Promise<void> {
 			.where(eq(vms.id, row.id))
 			.catch((updateErr) => console.error(`VM ${row.id} deletion status update failed:`, updateErr));
 	} finally {
-		closeRequestDb(event);
+		close();
 	}
 }

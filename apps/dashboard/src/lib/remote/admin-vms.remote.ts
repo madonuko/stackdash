@@ -51,6 +51,7 @@ export const listAllAdminVms = query(async (): Promise<AdminVm[]> => {
 				name: vms.name,
 				proxmoxId: vms.proxmoxId,
 				active: vms.active,
+				backend: vms.backend,
 				status: vms.status,
 				statusError: vms.statusError,
 				lastKnownStatus: vms.lastKnownStatus,
@@ -82,15 +83,38 @@ export const listAllAdminVms = query(async (): Promise<AdminVm[]> => {
 	]);
 
 	let liveVms: VmInfo[] = [];
+	let liveListLoaded = false;
 	try {
 		liveVms = await getBackend('proxmox').listVms();
+		liveListLoaded = true;
 	} catch (err) {
 		console.warn('Failed to load Proxmox VM statuses', err);
 	}
 	const liveByProxmoxId = new Map(
 		liveVms.filter((vm) => vm.proxmoxId != null).map((vm) => [vm.proxmoxId!, vm] as const)
 	);
+	const liveById = new Map(liveVms.map((vm) => [vm.id, vm]));
 	const ownerByProject = new Map(owners.map((owner) => [owner.organizationId, owner]));
+
+	if (liveListLoaded) {
+		const staleDeleting = rows.filter(
+			(row) =>
+				row.active &&
+				row.status === 'deleting' &&
+				!(row.proxmoxId != null ? liveByProxmoxId.get(row.proxmoxId) : null) &&
+				!liveById.get(row.id)
+		);
+		for (const row of staleDeleting) {
+			await queueVmDeletion(db, {
+				id: row.id,
+				backend: row.backend,
+				proxmoxId: row.proxmoxId,
+				ownerProjectId: row.projectId
+			}).catch((err) => {
+				console.warn(`Failed to re-queue deletion for VM ${row.id}`, err);
+			});
+		}
+	}
 
 	return rows.map((row) => {
 		const live = row.proxmoxId != null ? liveByProxmoxId.get(row.proxmoxId) : null;
