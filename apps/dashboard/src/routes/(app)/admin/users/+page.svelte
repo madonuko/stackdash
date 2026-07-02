@@ -63,7 +63,9 @@
 	const userCount = $derived(admin.adminUsers.length);
 	const verifiedCount = $derived(admin.adminUsers.filter((u) => u.emailVerified).length);
 	const disabledCount = $derived(admin.adminUsers.filter((u) => u.disabled).length);
-	const has2faCount = $derived(admin.adminUsers.filter((u) => u.twoFactorEnabled).length);
+	const has2faCount = $derived(
+		admin.adminUsers.filter((u) => u.twoFactorEnabled || u.passkeyCount > 0).length
+	);
 	let deleteDialogOpen = $state(false);
 	let deletePreparing = $state(false);
 	let deleteVerifying = $state(false);
@@ -436,7 +438,7 @@
 										<Check class="h-2.5 w-2.5" />Verified
 									</span>
 								{/if}
-								{#if account.twoFactorEnabled}
+								{#if account.twoFactorEnabled || account.passkeyCount > 0}
 									<span
 										class="inline-flex items-center gap-1 rounded-sm border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
 									>
@@ -614,7 +616,7 @@
 					<!-- 2FA toggle -->
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
-							{#if u.twoFactorEnabled}
+							{#if u.twoFactorEnabled || u.passkeyCount > 0}
 								<Lock class="h-4 w-4 text-emerald-400" />
 							{:else}
 								<Unlock class="h-4 w-4 text-gray-500" />
@@ -622,7 +624,13 @@
 							<div class="flex flex-col">
 								<span class="text-sm font-medium text-gray-200">Two-factor auth</span>
 								<span class="text-[11px] text-gray-500">
-									{u.twoFactorEnabled ? 'Enabled for this account' : 'Not enabled'}
+									{u.twoFactorEnabled && u.passkeyCount > 0
+										? 'Authenticator app and passkey'
+										: u.twoFactorEnabled
+											? 'Authenticator app enabled'
+											: u.passkeyCount > 0
+												? 'Passkey enabled'
+												: 'Not enabled'}
 								</span>
 							</div>
 						</div>

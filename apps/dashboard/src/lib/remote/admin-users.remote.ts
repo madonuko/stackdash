@@ -84,6 +84,7 @@ export type AdminUser = {
 	disabled: boolean;
 	billingExempt: boolean;
 	twoFactorEnabled: boolean;
+	passkeyCount: number;
 	createdAt: Date;
 	updatedAt: Date;
 	sessionCount: number;
@@ -343,22 +344,25 @@ export const listAdminUsers = query(async (): Promise<AdminUser[]> => {
 		.from(user)
 		.orderBy(desc(user.createdAt));
 
-	const [sessions, accounts, members, sshKeysData, apiTokensData] = await Promise.all([
-		db.select({ userId: session.userId, count: count() }).from(session).groupBy(session.userId),
-		db.select({ userId: account.userId, count: count() }).from(account).groupBy(account.userId),
-		db.select({ userId: member.userId, count: count() }).from(member).groupBy(member.userId),
-		db.select({ userId: sshKeys.userId, count: count() }).from(sshKeys).groupBy(sshKeys.userId),
-		db
-			.select({ userId: apiTokens.userId, count: count() })
-			.from(apiTokens)
-			.groupBy(apiTokens.userId)
-	]);
+	const [sessions, accounts, members, sshKeysData, apiTokensData, passkeysData] =
+		await Promise.all([
+			db.select({ userId: session.userId, count: count() }).from(session).groupBy(session.userId),
+			db.select({ userId: account.userId, count: count() }).from(account).groupBy(account.userId),
+			db.select({ userId: member.userId, count: count() }).from(member).groupBy(member.userId),
+			db.select({ userId: sshKeys.userId, count: count() }).from(sshKeys).groupBy(sshKeys.userId),
+			db
+				.select({ userId: apiTokens.userId, count: count() })
+				.from(apiTokens)
+				.groupBy(apiTokens.userId),
+			db.select({ userId: passkey.userId, count: count() }).from(passkey).groupBy(passkey.userId)
+		]);
 
 	const sessionMap = makeCountMap(sessions);
 	const accountMap = makeCountMap(accounts);
 	const memberMap = makeCountMap(members);
 	const sshKeyMap = makeCountMap(sshKeysData);
 	const apiTokenMap = makeCountMap(apiTokensData);
+	const passkeyMap = makeCountMap(passkeysData);
 
 	return users.map(({ legacyIsAdmin, role, ...account }) => ({
 		...account,
@@ -366,6 +370,7 @@ export const listAdminUsers = query(async (): Promise<AdminUser[]> => {
 		disabled: account.disabled ?? false,
 		billingExempt: account.billingExempt ?? false,
 		twoFactorEnabled: account.twoFactorEnabled ?? false,
+		passkeyCount: passkeyMap.get(account.id) ?? 0,
 		isAdmin: hasAdminRole(role) || legacyIsAdmin,
 		sessionCount: sessionMap.get(account.id) ?? 0,
 		accountCount: accountMap.get(account.id) ?? 0,
