@@ -220,13 +220,11 @@ export const importProxmoxImageFromUrl = command(importUrlParams, async (params)
 
 	const backend = getBackend('proxmox');
 	const storage = params.storage?.trim() || 'local';
-	let targets = (await backend.listImageImportTargets()).filter(
+	const targets = (await backend.listImageImportTargets()).filter(
 		(target) => target.storage === storage
 	);
 	if (targets.length === 0)
 		error(400, `No online Proxmox nodes expose import storage "${storage}"`);
-
-	targets = [targets[0]];
 
 	const tasks = await Promise.all(
 		targets.map(async (target) => ({

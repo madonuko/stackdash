@@ -334,64 +334,46 @@ export class ProxmoxBackend implements VmBackend {
 		return resources.filter((r) => r.type === 'qemu').map((r) => this.resourceToInfo(r));
 	}
 
+	private async firstOnlineNode() {
+		const nodes = await this.client.listNodes();
+		const online = nodes.filter((node) => node.status === 'online');
+		if (online.length === 0) throw new Error('No online Proxmox nodes available');
+		return online.sort((a, b) => a.node.localeCompare(b.node))[0];
+	}
+
 	async listImages(): Promise<BackendImage[]> {
-		const nodes = (await this.client.listNodes()).filter((node) => node.status == 'online');
-		const nodeImages = await Promise.all(
-			nodes.map(async (node) => {
-				const storages = await this.client.listStorage(node.node);
-				const importStorages = storages.filter((storage) => this.isActiveImportStorage(storage));
+		const node = await this.firstOnlineNode();
+		const storages = await this.client.listStorage(node.node);
+		const importStorages = storages.filter((storage) => this.isActiveImportStorage(storage));
 
-				const storageImages = await Promise.all(
-					importStorages.map(async (storage) => {
-						const contents = await this.client.listStorageContent(
-							node.node,
-							storage.storage,
-							'import'
-						);
+		const storageImages = await Promise.all(
+			importStorages.map(async (storage) => {
+				const contents = await this.client.listStorageContent(node.node, storage.storage, 'import');
 
-						return contents.map((item) => {
-							const parts = item.volid.split('/');
-							return {
-								volid: item.volid,
-								filename: parts.at(-1) ?? item.volid,
-								size: item.size,
-								node: node.node,
-								storage: storage.storage,
-								content: 'import' as const,
-								format: item.format
-							};
-						});
-					})
-				);
-
-				return storageImages.flat();
+				return contents.map((item) => {
+					const parts = item.volid.split('/');
+					return {
+						volid: item.volid,
+						filename: parts.at(-1) ?? item.volid,
+						size: item.size,
+						node: node.node,
+						storage: storage.storage,
+						content: 'import' as const,
+						format: item.format
+					};
+				});
 			})
 		);
-		const seen = new Set<string>();
-		const results: BackendImage[] = [];
 
-		for (const image of nodeImages.flat()) {
-			if (seen.has(image.volid)) continue;
-			seen.add(image.volid);
-			results.push(image);
-		}
-
-		return results;
+		return storageImages.flat();
 	}
 
 	async listImageImportTargets(): Promise<BackendImageImportTarget[]> {
-		const nodes = await this.client.listNodes();
-		const onlineNodes = nodes.filter((node) => node.status === 'online');
-		const targets = await Promise.all(
-			onlineNodes.map(async (node) => {
-				const storages = await this.client.listStorage(node.node);
-				return storages
-					.filter((storage) => this.isActiveImportStorage(storage))
-					.map((storage) => ({ node: node.node, storage: storage.storage }));
-			})
-		);
-
-		return targets.flat();
+		const node = await this.firstOnlineNode();
+		const storages = await this.client.listStorage(node.node);
+		return storages
+			.filter((storage) => this.isActiveImportStorage(storage))
+			.map((storage) => ({ node: node.node, storage: storage.storage }));
 	}
 
 	async importImageFromUrl(params: BackendImageImportParams): Promise<string> {

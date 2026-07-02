@@ -3,6 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import { listVmTypes } from '$lib/remote/vm-types.remote';
 import { listImages } from '$lib/remote/images.remote';
 import { listAdminUsers } from '$lib/remote/admin-users.remote';
+import { listAllAdminVms } from '$lib/remote/admin-vms.remote';
 import { listIpamPrefixes } from '$lib/remote/ipam.remote';
 import { initDrizzle } from '$lib/server/db';
 import { requireAdmin } from '$lib/server/auth-context';
@@ -12,6 +13,7 @@ export const load: LayoutServerLoad = async ({ depends }) => {
 	depends('app:feature-flags');
 	depends('app:admin-users');
 	depends('app:ipam-prefixes');
+	depends('app:admin-vms');
 	const event = getRequestEvent();
 	const userId = event?.locals.user?.id;
 
@@ -20,18 +22,20 @@ export const load: LayoutServerLoad = async ({ depends }) => {
 			vmTypes: [],
 			images: [],
 			adminUsers: [],
-			ipamPrefixes: []
+			ipamPrefixes: [],
+			adminVms: []
 		};
 	}
 
 	await requireAdmin(initDrizzle(), userId);
 
-	const [vmTypes, images, featureFlags, adminUsers, ipamPrefixes] = await Promise.all([
+	const [vmTypes, images, featureFlags, adminUsers, ipamPrefixes, adminVms] = await Promise.all([
 		listVmTypes(),
 		listImages(),
 		getFeatureFlags(),
 		listAdminUsers(),
-		listIpamPrefixes()
+		listIpamPrefixes(),
+		listAllAdminVms()
 	]);
 
 	return {
@@ -39,6 +43,7 @@ export const load: LayoutServerLoad = async ({ depends }) => {
 		images,
 		featureFlags,
 		adminUsers,
-		ipamPrefixes
+		ipamPrefixes,
+		adminVms
 	};
 };

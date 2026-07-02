@@ -82,6 +82,7 @@ export type AdminUser = {
 	role: string | null;
 	isAdmin: boolean;
 	disabled: boolean;
+	billingExempt: boolean;
 	twoFactorEnabled: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -334,6 +335,7 @@ export const listAdminUsers = query(async (): Promise<AdminUser[]> => {
 			role: user.role,
 			legacyIsAdmin: user.isAdmin,
 			disabled: user.banned,
+			billingExempt: user.billingExempt,
 			twoFactorEnabled: user.twoFactorEnabled,
 			createdAt: user.createdAt,
 			updatedAt: user.updatedAt
@@ -362,6 +364,7 @@ export const listAdminUsers = query(async (): Promise<AdminUser[]> => {
 		...account,
 		role,
 		disabled: account.disabled ?? false,
+		billingExempt: account.billingExempt ?? false,
 		twoFactorEnabled: account.twoFactorEnabled ?? false,
 		isAdmin: hasAdminRole(role) || legacyIsAdmin,
 		sessionCount: sessionMap.get(account.id) ?? 0,
@@ -404,6 +407,20 @@ export const setUserDisabled = command(setDisabledParams, async (params) => {
 		.where(eq(user.id, params.userId));
 
 	return { userId: params.userId, disabled: params.disabled };
+});
+
+const setBillingExemptParams = type({ userId: 'string', billingExempt: 'boolean' });
+export const setUserBillingExempt = command(setBillingExemptParams, async (params) => {
+	const { db } = await requireCurrentAdmin();
+	const target = await db.query.user.findFirst({ where: eq(user.id, params.userId) });
+	if (!target) error(404, 'User not found');
+
+	await db
+		.update(user)
+		.set({ billingExempt: params.billingExempt })
+		.where(eq(user.id, params.userId));
+
+	return { userId: params.userId, billingExempt: params.billingExempt };
 });
 
 const setTwoFactorParams = type({ userId: 'string', twoFactorEnabled: 'boolean' });

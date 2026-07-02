@@ -25,7 +25,8 @@ export const user = pgTable('user', {
 	banReason: text('ban_reason'),
 	banExpires: timestamp('ban_expires'),
 	twoFactorEnabled: boolean('two_factor_enabled').default(false),
-	isAdmin: boolean('is_admin').default(false).notNull()
+	isAdmin: boolean('is_admin').default(false).notNull(),
+	billingExempt: boolean('billing_exempt').default(false).notNull()
 });
 
 export const session = pgTable(
@@ -98,7 +99,9 @@ export const twoFactor = pgTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		verified: boolean('verified').default(true)
+		verified: boolean('verified').default(true),
+		failedVerificationCount: integer('failed_verification_count').default(0),
+		lockedUntil: timestamp('locked_until')
 	},
 	(table) => [
 		index('twoFactor_secret_idx').on(table.secret),

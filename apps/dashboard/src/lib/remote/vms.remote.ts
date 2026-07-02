@@ -15,6 +15,7 @@ import { requireProjectAccess } from '$lib/server/auth-context';
 import {
 	deleteProjectServerEntity,
 	ensureProjectServerEntity,
+	isProjectBillingExempt,
 	requireProjectBillingActive
 } from '$lib/server/billing/autumn';
 import { createBillingMeter, meterResourceThrough } from '$lib/server/billing/metering';
@@ -460,7 +461,8 @@ export const createVm = command(createParams, async (params) => {
 
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'read_write');
-	await requireProjectBillingActive(params.projectId);
+	const billingExempt = await isProjectBillingExempt(params.projectId);
+	if (!billingExempt) await requireProjectBillingActive(params.projectId);
 
 	const [vmType, baseImage, keys] = await Promise.all([
 		db.query.vmTypes.findFirst({
@@ -509,11 +511,13 @@ export const createVm = command(createParams, async (params) => {
 	let networkingAllocations: Awaited<ReturnType<typeof allocateVmNetworking>> = [];
 	let result;
 	try {
-		await ensureProjectServerEntity({
-			projectId: params.projectId,
-			serverId: vmId,
-			name: params.name
-		});
+		if (!billingExempt) {
+			await ensureProjectServerEntity({
+				projectId: params.projectId,
+				serverId: vmId,
+				name: params.name
+			});
+		}
 		networkingAllocations = await allocateVmNetworking(db, {
 			vmId,
 			macAddress,

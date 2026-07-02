@@ -36,6 +36,7 @@
 		User,
 		Crown,
 		Clock,
+		CreditCard,
 		Globe,
 		Fingerprint,
 		Hash,
@@ -49,7 +50,7 @@
 		Network
 	} from '@lucide/svelte';
 
-	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users';
+	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users' | 'vms';
 	type DeletionVerificationMethod = 'passkey' | 'totp' | 'email';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'users' as AdminTab;
@@ -233,6 +234,19 @@
 			<Cpu class="h-3.5 w-3.5 shrink-0" />
 			VM Types
 			<Badge variant="secondary" class="text-[10px]">{admin.vmTypes.length}</Badge>
+		</a>
+		<a
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'vms'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			href={resolve('/admin/vms')}
+		>
+			<Server class="h-3.5 w-3.5 shrink-0" />
+			VMs
+			<Badge variant="secondary" class="text-[10px]">
+				{admin.adminVms.filter((vm) => vm.active).length}
+			</Badge>
 		</a>
 		<a
 			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
@@ -436,6 +450,13 @@
 										<X class="h-2.5 w-2.5" />Disabled
 									</span>
 								{/if}
+								{#if account.billingExempt}
+									<span
+										class="inline-flex items-center gap-1 rounded-sm border border-violet-500/20 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-400"
+									>
+										<CreditCard class="h-2.5 w-2.5" />Billing exempt
+									</span>
+								{/if}
 							</div>
 
 							<!-- Bottom meta + action -->
@@ -615,6 +636,35 @@
 									(v) => (u.twoFactorEnabled ? admin.prompt2FAConfirm(u.id, v) : undefined)
 								}
 								disabled={!u.twoFactorEnabled || isAdminSaving}
+							/>
+						</div>
+					</div>
+				</div>
+
+				<Separator class="bg-gray-800" />
+
+				<!-- Billing -->
+				<div class="flex flex-col gap-4">
+					<span class="text-xs font-medium tracking-wider text-gray-500 uppercase">Billing</span>
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<CreditCard class="h-4 w-4 {u.billingExempt ? 'text-violet-400' : 'text-gray-500'}" />
+							<div class="flex flex-col">
+								<span class="text-sm font-medium text-gray-200">Billing exempt</span>
+								<span class="text-[11px] text-gray-500">
+									{u.billingExempt
+										? 'Usage in projects they own is not metered or billed'
+										: 'Usage is metered and billed normally'}
+								</span>
+							</div>
+						</div>
+						<div class="flex items-center gap-2">
+							{#if admin.userSheetSaving[u.id]?.field === 'billingExempt' && admin.userSheetSaving[u.id]?.saving}
+								<Loader2 class="h-3.5 w-3.5 animate-spin text-gray-500" />
+							{/if}
+							<Switch
+								bind:checked={() => u.billingExempt, (v) => admin.setUserBillingExempt(u.id, v)}
+								disabled={isAdminSaving}
 							/>
 						</div>
 					</div>

@@ -334,7 +334,27 @@ export async function getProjectBillingState(
 	return state;
 }
 
+export async function isProjectBillingExempt(projectId: string) {
+	const db = initDrizzle();
+	const [exemptOwner] = await db
+		.select({ userId: member.userId })
+		.from(member)
+		.innerJoin(user, eq(user.id, member.userId))
+		.where(
+			and(
+				eq(member.organizationId, projectId),
+				eq(member.role, 'owner'),
+				eq(user.billingExempt, true)
+			)
+		)
+		.limit(1);
+
+	return Boolean(exemptOwner);
+}
+
 export async function requireProjectBillingActive(projectId: string) {
+	if (await isProjectBillingExempt(projectId)) return;
+
 	const state = await getProjectBillingState(projectId, { live: true });
 
 	if (state.status !== 'active' && state.status !== 'provider_unavailable') {

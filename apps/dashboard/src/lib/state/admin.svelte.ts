@@ -11,6 +11,7 @@ import { goto, invalidate } from '$app/navigation';
 import {
 	listAdminUsers,
 	setUserAdmin,
+	setUserBillingExempt,
 	setUserDisabled,
 	setUserTwoFactor,
 	setUserRole,
@@ -25,6 +26,15 @@ import {
 	type UserApiToken
 } from '$lib/remote/admin-users.remote';
 import { updateFeatureFlag } from '$lib/remote/feature-flags.remote';
+import {
+	adminDeleteVm,
+	adminKillVm,
+	adminRebootVm,
+	adminStartVm,
+	adminStopVm,
+	listAllAdminVms,
+	type AdminVm
+} from '$lib/remote/admin-vms.remote';
 import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
 import { toast } from 'svelte-sonner';
 import { getErrorMessage, runQuery } from '$lib/utils';
@@ -112,6 +122,7 @@ export type AdminPageData = {
 	featureFlags?: FeatureFlags;
 	adminUsers?: AdminUser[];
 	ipamPrefixes?: IpamPrefix[];
+	adminVms?: AdminVm[];
 };
 
 export const colorOptions = [
@@ -136,6 +147,9 @@ export class AdminState {
 	adminUsers = $state<AdminUser[]>([]);
 	adminUserSaving = $state<Record<string, boolean>>({});
 	adminUserError = $state('');
+	adminVms = $state<AdminVm[]>([]);
+	adminVmSaving = $state<Record<string, string>>({});
+	adminVmError = $state('');
 
 	userSheetOpen = $state(false);
 	selectedUser = $state<AdminUser | null>(null);
@@ -218,6 +232,7 @@ export class AdminState {
 		this.images = [...(data.images ?? [])];
 		this.ipamPrefixes = [...(data.ipamPrefixes ?? [])];
 		this.adminUsers = [...(data.adminUsers ?? [])];
+		this.adminVms = [...(data.adminVms ?? [])];
 		const incoming = data.featureFlags ?? { ...defaultFeatureFlags };
 		this.featureFlags = untrack(() =>
 			Object.fromEntries(
@@ -295,6 +310,63 @@ export class AdminState {
 			this.adminUserError = getErrorMessage(err, 'Failed to update status');
 		} finally {
 			this.stopUserSheetSave(userId);
+		}
+	}
+
+	async setUserBillingExempt(userId: string, billingExempt: boolean) {
+		const previousUsers = this.adminUsers.map((u) => ({ ...u }));
+		this.adminUserError = '';
+		this.startUserSheetSave(userId, 'billingExempt');
+		this.updateUserField(userId, 'billingExempt', (u) => ({ ...u, billingExempt }));
+		try {
+			await setUserBillingExempt({ userId, billingExempt });
+			await invalidate('app:admin-users');
+		} catch (err) {
+			this.adminUsers = previousUsers;
+			this.adminUserError = getErrorMessage(err, 'Failed to update billing exemption');
+		} finally {
+			this.stopUserSheetSave(userId);
+		}
+	}
+
+	async refreshAdminVms() {
+		try {
+			this.adminVms = await runQuery(listAllAdminVms());
+		} catch (err) {
+			this.adminVmError = getErrorMessage(err, 'Failed to refresh servers');
+		}
+	}
+
+	async adminVmPower(vmId: string, action: 'start' | 'stop' | 'kill' | 'reboot') {
+		const commands = {
+			start: adminStartVm,
+			stop: adminStopVm,
+			kill: adminKillVm,
+			reboot: adminRebootVm
+		} as const;
+		this.adminVmError = '';
+		this.adminVmSaving[vmId] = action;
+		try {
+			await commands[action]({ vmId });
+			await this.refreshAdminVms();
+		} catch (err) {
+			this.adminVmError = getErrorMessage(err, `Failed to ${action} server`);
+		} finally {
+			delete this.adminVmSaving[vmId];
+		}
+	}
+
+	async adminVmDelete(vmId: string) {
+		this.adminVmError = '';
+		this.adminVmSaving[vmId] = 'delete';
+		try {
+			await adminDeleteVm({ vmId });
+			await this.refreshAdminVms();
+		} catch (err) {
+			this.adminVmError = getErrorMessage(err, 'Failed to delete server');
+			throw err;
+		} finally {
+			delete this.adminVmSaving[vmId];
 		}
 	}
 

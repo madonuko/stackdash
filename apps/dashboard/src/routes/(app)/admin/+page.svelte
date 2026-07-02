@@ -35,7 +35,7 @@
 		volumes: HardDrive
 	};
 
-	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users';
+	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users' | 'vms';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'vmTypes' as AdminTab;
 	const admin = new AdminState(untrack(() => data));
@@ -65,6 +65,19 @@
 			<Cpu class="h-3.5 w-3.5 shrink-0" />
 			VM Types
 			<Badge variant="secondary" class="text-[10px]">{admin.vmTypes.length}</Badge>
+		</a>
+		<a
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'vms'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			href={resolve('/admin/vms')}
+		>
+			<Server class="h-3.5 w-3.5 shrink-0" />
+			VMs
+			<Badge variant="secondary" class="text-[10px]">
+				{admin.adminVms.filter((vm) => vm.active).length}
+			</Badge>
 		</a>
 		<a
 			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===

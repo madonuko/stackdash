@@ -10,7 +10,12 @@ import {
 } from '$lib/server/db/schema';
 import { getRuntimeEnv } from '$lib/server/env';
 import { requireVmFeatureId, usageIdempotencyKey, usageQuantity } from './features';
-import { ensureProjectCustomer, ensureProjectServerEntity, formatAutumnError } from './autumn';
+import {
+	ensureProjectCustomer,
+	ensureProjectServerEntity,
+	formatAutumnError,
+	isProjectBillingExempt
+} from './autumn';
 
 type BillingResourceType = (typeof billingResourceTypeEnum.enumValues)[number];
 type BillingMeter = typeof billingMeters.$inferSelect;
@@ -261,6 +266,14 @@ async function markUsageEventFailed(eventId: string, error: string) {
 		.where(eq(billingUsageEvents.id, eventId));
 }
 
+async function markUsageEventSynced(eventId: string) {
+	const db = initDrizzle();
+	await db
+		.update(billingUsageEvents)
+		.set({ syncStatus: 'synced', syncError: null, syncedAt: Date.now() })
+		.where(eq(billingUsageEvents.id, eventId));
+}
+
 function ensureProjectTarget(projectId: string, caches: EnsureCaches) {
 	let ensured = caches.projects.get(projectId);
 	if (!ensured) {
@@ -359,6 +372,11 @@ async function syncUsageEvents(events: BillingUsageEvent[]) {
 			synced += 1;
 			return;
 		}
+		if (await isProjectBillingExempt(event.projectId)) {
+			await markUsageEventSynced(event.id);
+			synced += 1;
+			return;
+		}
 		if (await ensureEventTarget(event, caches)) ready.push(event);
 		else failed += 1;
 	});
@@ -380,6 +398,10 @@ export async function syncUsageEvent(id: string) {
 
 	if (!event) return null;
 	if (event.syncStatus === 'synced') return 'synced' as const;
+	if (await isProjectBillingExempt(event.projectId)) {
+		await markUsageEventSynced(event.id);
+		return 'synced' as const;
+	}
 
 	const caches: EnsureCaches = { projects: new Map(), entities: new Map() };
 	if (!(await ensureEventTarget(event, caches))) return 'failed' as const;
