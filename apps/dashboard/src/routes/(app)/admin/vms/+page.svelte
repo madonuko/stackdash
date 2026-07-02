@@ -252,14 +252,7 @@
 				</div>
 			{/if}
 
-			<!-- Header -->
-			<div class="flex items-center justify-between">
-				<div>
-					<h2 class="text-base font-semibold tracking-tight text-gray-100">Virtual Machines</h2>
-					<p class="mt-1 text-xs text-gray-500">
-						All servers across every project, with power controls and deletion.
-					</p>
-				</div>
+			<div class="flex items-center justify-end">
 				<Button
 					variant="outline"
 					size="sm"

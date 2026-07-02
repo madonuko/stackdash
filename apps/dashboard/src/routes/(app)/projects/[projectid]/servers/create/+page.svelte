@@ -781,7 +781,12 @@
 						<div class="mt-3">
 							{#if data.sshKeys && data.sshKeys.length > 0}
 								<p class="mb-2 text-xs text-gray-500">
-									Select one or more SSH keys, or use the generated root password below.
+									Select one or more <a
+										href="https://fyrastack.com/docs/vps/ssh"
+										target="_blank"
+										rel="noopener noreferrer"
+										class="text-red-400 transition-colors hover:text-red-300">SSH keys</a
+									>, or use the generated root password below.
 								</p>
 								<div class="flex flex-col gap-1">
 									{#each data.sshKeys as key (key.id)}
@@ -815,7 +820,14 @@
 								</div>
 							{:else}
 								<div class="border border-gray-800/50 bg-gray-900/50 p-4 text-center">
-									<p class="text-xs text-gray-500">No SSH keys available.</p>
+									<p class="text-xs text-gray-500">
+										No <a
+											href="https://fyrastack.com/docs/vps/ssh"
+											target="_blank"
+											rel="noopener noreferrer"
+											class="text-red-400 transition-colors hover:text-red-300">SSH keys</a
+										> available.
+									</p>
 									<p class="mt-1 text-[11px] text-gray-500">
 										Password authentication will be used instead.
 									</p>

@@ -785,6 +785,14 @@
 							<div class="mb-3 flex items-center gap-2 border-b border-gray-800/50 pb-2">
 								<KeyRound class="h-3.5 w-3.5 text-red-400" />
 								<p class="text-xs font-semibold tracking-wider text-gray-400 uppercase">SSH Keys</p>
+								<a
+									href="https://fyrastack.com/docs/vps/ssh"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="ml-auto text-[11px] font-medium text-red-400 transition-colors hover:text-red-300"
+								>
+									SSH docs
+								</a>
 							</div>
 
 							{#if sshKeysLoading}

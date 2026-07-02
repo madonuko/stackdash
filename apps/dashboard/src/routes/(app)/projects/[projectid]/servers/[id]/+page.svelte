@@ -320,7 +320,14 @@
 									/>{/if}
 							</button>
 						</div>
-						<p class="text-[11px] text-gray-500">Connect over SSH in the meantime.</p>
+						<p class="text-[11px] text-gray-500">
+							Connect over <a
+								href="https://fyrastack.com/docs/vps/ssh"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="text-red-400 transition-colors hover:text-red-300">SSH</a
+							> in the meantime.
+						</p>
 					{/if}
 				</div>
 			{:else if selectedServer.status === 'running'}
@@ -392,7 +399,14 @@
 								/>{/if}
 						</button>
 					</div>
-					<p class="text-gray-500">Tail logs over SSH in the meantime.</p>
+					<p class="text-gray-500">
+						Tail logs over <a
+							href="https://fyrastack.com/docs/vps/ssh"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="text-red-400 transition-colors hover:text-red-300">SSH</a
+						> in the meantime.
+					</p>
 				{/if}
 			</div>
 		{:else if selectedServer.status !== 'running'}
