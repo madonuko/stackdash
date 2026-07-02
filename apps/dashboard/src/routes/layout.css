@@ -44,10 +44,6 @@
 	--border: var(--gray-800);
 	--input: var(--gray-800);
 	--ring: var(--gray-500);
-	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
-	--font-mono:
-		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-		monospace;
 	--radius: 0;
 }
 
@@ -111,8 +107,10 @@
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
-	--font-sans: var(--font-sans);
-	--font-mono: var(--font-mono);
+	--font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-mono:
+		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+		monospace;
 	--radius-xs: 0;
 	--radius-sm: 0;
 	--radius-md: 0;

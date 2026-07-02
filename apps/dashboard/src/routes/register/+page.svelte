@@ -5,7 +5,6 @@
 	import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from '@lucide/svelte';
 	import SiGithub from '@icons-pack/svelte-simple-icons/icons/SiGithub';
 	import type { PageData } from './$types';
-	import GoogleIcon from '$lib/components/google-icon.svelte';
 
 	let { data }: { data: PageData } = $props();
 	const redirectTo = $derived(data.redirectTo ?? '/');
@@ -26,9 +25,9 @@
 	let error = $state('');
 	let success = $state(false);
 	let loading = $state(false);
-	let socialLoading = $state<'github' | 'google' | null>(null);
+	let socialLoading = $state<'github' | null>(null);
 
-	async function signInWithSocial(provider: 'github' | 'google') {
+	async function signInWithSocial(provider: 'github') {
 		if (socialLoading) return;
 		error = '';
 		socialLoading = provider;
@@ -154,34 +153,19 @@
 				<div class="h-px flex-1 bg-gray-800"></div>
 			</div>
 
-			<div class="flex gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					class="flex-1 gap-1.5"
-					loading={socialLoading === 'github'}
-					disabled={socialLoading !== null}
-					onclick={() => signInWithSocial('github')}
-				>
-					{#if socialLoading !== 'github'}
-						<SiGithub class="h-3.5 w-3.5" color="currentColor" />
-					{/if}
-					GitHub
-				</Button>
-				<Button
-					variant="outline"
-					size="sm"
-					class="flex-1 gap-1.5"
-					loading={socialLoading === 'google'}
-					disabled={socialLoading !== null}
-					onclick={() => signInWithSocial('google')}
-				>
-					{#if socialLoading !== 'google'}
-						<GoogleIcon class="h-3.5 w-3.5" />
-					{/if}
-					Google
-				</Button>
-			</div>
+			<Button
+				variant="outline"
+				size="sm"
+				class="w-full gap-1.5"
+				loading={socialLoading === 'github'}
+				disabled={socialLoading !== null}
+				onclick={() => signInWithSocial('github')}
+			>
+				{#if socialLoading !== 'github'}
+					<SiGithub class="h-3.5 w-3.5" color="currentColor" />
+				{/if}
+				GitHub
+			</Button>
 
 			<p class="text-center text-xs text-gray-500">
 				Already have an account? <a href={loginHref} class="text-red-400 hover:text-red-300"

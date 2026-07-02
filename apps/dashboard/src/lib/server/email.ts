@@ -170,15 +170,31 @@ export async function renderEmail(component: unknown, props?: Record<string, unk
 	return { html, text: toPlainText(html) };
 }
 
+export async function emailToPlainText(html: string) {
+	const { toPlainText } = await getEmailRenderer();
+	return toPlainText(html);
+}
+
+type SendEmailParams = {
+	subject: string;
+	to: string;
+	html: string;
+	text: string;
+};
+
 export async function sendRenderedEmail({
 	component,
 	props,
 	subject,
 	to
 }: SendRenderedEmailParams) {
+	const { html, text } = await renderEmail(component, props);
+	await sendEmail({ subject, to, html, text });
+}
+
+export async function sendEmail({ subject, to, html, text }: SendEmailParams) {
 	const env = getRuntimeEnv();
 
-	const { html, text } = await renderEmail(component, props);
 	const fromAddress = env.EMAIL_FROM_ADDRESS;
 	const fromName = env.EMAIL_FROM_NAME;
 	const replyTo = env.EMAIL_REPLY_TO;

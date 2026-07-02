@@ -30,8 +30,6 @@ export type RuntimeEnv = {
 	BILLING_METER_SECRET?: string;
 	GITHUB_CLIENT_ID?: string;
 	GITHUB_CLIENT_SECRET?: string;
-	GOOGLE_CLIENT_ID?: string;
-	GOOGLE_CLIENT_SECRET?: string;
 };
 
 function required(name: keyof RuntimeEnv, value: string | undefined): string {
@@ -67,9 +65,7 @@ export function getRuntimeEnv(): RuntimeEnv {
 			FEATURE_FLAGS: platformEnv.FEATURE_FLAGS,
 			BILLING_METER_SECRET: platformEnv.BILLING_METER_SECRET,
 			GITHUB_CLIENT_ID: platformEnv.GITHUB_CLIENT_ID,
-			GITHUB_CLIENT_SECRET: platformEnv.GITHUB_CLIENT_SECRET,
-			GOOGLE_CLIENT_ID: platformEnv.GOOGLE_CLIENT_ID,
-			GOOGLE_CLIENT_SECRET: platformEnv.GOOGLE_CLIENT_SECRET
+			GITHUB_CLIENT_SECRET: platformEnv.GITHUB_CLIENT_SECRET
 		};
 	}
 
@@ -96,8 +92,6 @@ export function getRuntimeEnv(): RuntimeEnv {
 		DATABASE_URL: required('DATABASE_URL', privateEnv.DATABASE_URL),
 		BILLING_METER_SECRET: privateEnv.BILLING_METER_SECRET,
 		GITHUB_CLIENT_ID: privateEnv.GITHUB_CLIENT_ID,
-		GITHUB_CLIENT_SECRET: privateEnv.GITHUB_CLIENT_SECRET,
-		GOOGLE_CLIENT_ID: privateEnv.GOOGLE_CLIENT_ID,
-		GOOGLE_CLIENT_SECRET: privateEnv.GOOGLE_CLIENT_SECRET
+		GITHUB_CLIENT_SECRET: privateEnv.GITHUB_CLIENT_SECRET
 	};
 }

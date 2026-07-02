@@ -48,8 +48,6 @@ declare global {
 				BILLING_METER_SECRET?: string;
 				GITHUB_CLIENT_ID?: string;
 				GITHUB_CLIENT_SECRET?: string;
-				GOOGLE_CLIENT_ID?: string;
-				GOOGLE_CLIENT_SECRET?: string;
 				PROXMOX_VPC?: Fetcher;
 				PROXMOX_USE_VPC?: string;
 				PROXMOX_API_URL?: string;

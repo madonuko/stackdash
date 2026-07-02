@@ -446,7 +446,10 @@
 				<p class="text-xs text-gray-500">
 					Click the outlined text in the email to edit it in place. Use <span
 						class="font-mono text-gray-400">{'{{column}}'}</span
-					> to pull values from the CSV.
+					>
+					to pull values from the CSV. HTML tags like
+					<span class="font-mono text-gray-400">{'<a href="...">link</a>'}</span> render in the sent email
+					— check them with Preview.
 				</p>
 				{#if missingColumns.length > 0}
 					<div

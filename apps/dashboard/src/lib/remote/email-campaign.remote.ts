@@ -19,7 +19,7 @@ import {
 } from '$lib/emails/campaign-registry';
 import { requireAdmin } from '$lib/server/auth-context';
 import { initDrizzle } from '$lib/server/db';
-import { renderEmail, sendRenderedEmail } from '$lib/server/email';
+import { emailToPlainText, renderEmail, sendEmail } from '$lib/server/email';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -52,21 +52,34 @@ function resolveTemplate(key: string) {
 	return { meta, component };
 }
 
-function buildProps(
+async function renderCampaignHtml(
 	meta: CampaignTemplate,
+	component: unknown,
 	fields: Record<string, string>,
 	row: Record<string, string>
 ) {
 	const props: Record<string, unknown> = {};
+	const inlineValues: Record<string, string> = {};
 	for (const field of meta.fields) {
 		const value = applyPlaceholders(fields[field.name] ?? '', row).trim();
 		if (value === '') {
 			if (field.required) throw new Error(`Missing value for ${field.label}`);
 			continue;
 		}
-		props[field.name] = value;
+		if (field.inline) {
+			props[field.name] = fieldToken(field.name);
+			inlineValues[field.name] = value;
+		} else {
+			props[field.name] = value;
+		}
 	}
-	return props;
+
+	const { html } = await renderEmail(component, props);
+	let output = html;
+	for (const [name, value] of Object.entries(inlineValues)) {
+		output = output.replaceAll(fieldToken(name), value.replaceAll('\n', '<br />'));
+	}
+	return output;
 }
 
 const csvRow = type({ '[string]': 'string' });
@@ -107,9 +120,8 @@ export const previewCampaignEmail = command(previewParams, async (params) => {
 	const { meta, component } = resolveTemplate(params.template);
 
 	try {
-		const props = buildProps(meta, params.fields, params.row);
 		const subject = applyPlaceholders(params.subject, params.row).trim();
-		const { html } = await renderEmail(component, props);
+		const html = await renderCampaignHtml(meta, component, params.fields, params.row);
 		return { subject, html };
 	} catch (err) {
 		error(400, err instanceof Error ? err.message : 'Failed to render preview');
@@ -139,10 +151,11 @@ export const sendCampaignEmails = command(sendParams, async (params) => {
 		const to = (row[params.emailColumn] ?? '').trim();
 		try {
 			if (!EMAIL_PATTERN.test(to)) throw new Error('Invalid email address');
-			const props = buildProps(meta, params.fields, row);
 			const subject = applyPlaceholders(params.subject, row).trim();
 			if (subject === '') throw new Error('Subject is empty for this recipient');
-			await sendRenderedEmail({ component, props, subject, to });
+			const html = await renderCampaignHtml(meta, component, params.fields, row);
+			const text = await emailToPlainText(html);
+			await sendEmail({ subject, to, html, text });
 			sent += 1;
 		} catch (err) {
 			failures.push({
