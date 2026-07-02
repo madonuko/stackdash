@@ -119,6 +119,10 @@ function projectBillingUrl(projectId: string) {
 }
 
 export async function sendProjectPastDueEmail(projectId: string, graceDays: number) {
+	// TEMP FIX, REMOVE THIS ASAP. 
+	// This email was getting sent out every 15 minutes by the billing meter which was a problem. 
+	// I (Caleb) disabled it entirely until we could get a proper fix out to not annoy customers
+	return;
 	const owner = await getProjectOwnerRecipient(projectId);
 	if (!owner) return;
 
