@@ -44,7 +44,8 @@ export const vmTypes = pgTable('vm_types', {
 	storageAmount: integer('storage_amount').notNull(),
 	rate: numeric('rate').notNull(),
 	cap: numeric('cap').notNull(),
-	autumnFeatureId: text('autumn_feature_id')
+	autumnFeatureId: text('autumn_feature_id'),
+	sortOrder: integer('sort_order').notNull().default(0)
 });
 
 export const vmTypesRelations = relations(vmTypes, ({ many }) => ({

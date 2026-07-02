@@ -389,47 +389,58 @@
 		returnTo={`/projects/${projectId}/servers/create`}
 	/>
 
-	<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-5">
-		<div class="flex items-center gap-3">
+	<div
+		class="flex h-12 shrink-0 items-center justify-between border-b border-gray-800 px-4 sm:h-10 sm:px-5"
+	>
+		<div class="flex min-w-0 items-center gap-3">
 			<Button
 				variant="ghost"
 				size="sm"
-				class="h-7 gap-1.5 px-2 text-xs text-gray-400 hover:text-gray-200"
+				class="h-9 shrink-0 gap-1.5 px-2.5 text-sm text-gray-400 hover:text-gray-200 sm:h-7 sm:px-2 sm:text-xs"
 				onclick={() => goto(resolve(`/projects/${page.params.projectid}/servers`))}
 			>
-				<ArrowLeft class="h-3 w-3" />
+				<ArrowLeft class="h-3.5 w-3.5 sm:h-3 sm:w-3" />
 				Back
 			</Button>
-			<span class="text-sm font-semibold text-gray-100">Create Server</span>
+			<span class="truncate text-base font-semibold text-gray-100 sm:text-sm">Create Server</span>
 		</div>
 	</div>
 
 	<div class="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
 		<div class="flex-1 lg:overflow-y-auto">
-			<div class="px-6 py-6">
+			<div class="px-4 py-5 sm:px-6 sm:py-6">
 				<div class="flex flex-col gap-8">
 					<div id="section-name" class="scroll-mt-4">
 						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
-							<Server class="h-3.5 w-3.5 text-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Name</span>
+							<Server class="h-4 w-4 shrink-0 text-red-400 sm:h-3.5 sm:w-3.5" />
+							<span class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
+								>Name</span
+							>
 						</div>
 						<div class="mt-3">
-							<Input bind:value={serverName} placeholder="my-server" class="h-9 text-sm" />
+							<Input
+								bind:value={serverName}
+								placeholder="my-server"
+								class="h-11 text-base sm:h-9 sm:text-sm"
+							/>
 						</div>
 					</div>
 
 					<div id="section-image" class="scroll-mt-4">
 						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
-							<HardDrive class="h-3.5 w-3.5 text-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Image</span
+							<HardDrive class="h-4 w-4 shrink-0 text-red-400 sm:h-3.5 sm:w-3.5" />
+							<span class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
+								>Image</span
 							>
 						</div>
 						<Tabs.Root bind:value={() => imageTab, setImageTab} class="mt-3">
-							<Tabs.List class="h-auto gap-2 rounded-none bg-transparent p-0">
+							<Tabs.List
+								class="flex h-auto w-full justify-start gap-2 overflow-x-auto rounded-none bg-transparent p-0"
+							>
 								{#each imageTabs as tab (tab.id)}
 									<Tabs.Trigger
 										value={tab.id}
-										class="h-auto flex-none rounded-none border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:border-gray-600 hover:text-gray-300 data-active:border-red-500 data-active:bg-red-950/20 data-active:text-gray-100"
+										class="h-auto flex-none rounded-none border border-gray-700 px-4 py-2.5 text-sm font-medium whitespace-nowrap text-gray-500 transition-colors hover:border-gray-600 hover:text-gray-300 sm:px-3 sm:py-1.5 sm:text-xs data-active:border-red-500 data-active:bg-red-950/20 data-active:text-gray-100"
 									>
 										{tab.label}
 									</Tabs.Trigger>
@@ -440,7 +451,7 @@
 									<input
 										bind:value={imagesSearch}
 										placeholder="Search images..."
-										class="h-8 w-full border border-gray-700 bg-gray-800 px-3 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
+										class="h-11 w-full border border-gray-700 bg-gray-800 px-3 text-base text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none sm:h-8 sm:text-xs"
 									/>
 								</div>
 								<div class="mt-3 grid grid-cols-1 gap-px bg-gray-900 sm:grid-cols-2">
@@ -470,11 +481,15 @@
 													{/if}
 												</div>
 												<div class="relative flex min-w-0 flex-1 flex-col">
-													<span class="text-sm font-semibold text-gray-50">{group.name}</span>
-													<p class="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
+													<span class="text-base font-semibold text-gray-50 sm:text-sm"
+														>{group.name}</span
+													>
+													<p
+														class="mt-0.5 line-clamp-2 text-sm leading-relaxed text-gray-500 sm:text-[11px]"
+													>
 														{group.description}
 													</p>
-													<p class="mt-auto pt-2 text-[10px] leading-none text-gray-500">
+													<p class="mt-auto pt-2 text-xs leading-none text-gray-500 sm:text-[10px]">
 														x86 | {group.versions.length > 1
 															? `${group.versions.length} versions`
 															: group.versions[0].version} | {group.imageType}
@@ -483,11 +498,11 @@
 											</button>
 											{#if isSelected}
 												<div class="border-t border-gray-800 bg-gray-900/50 px-5 py-3">
-													<span class="text-xs text-gray-400">Version</span>
+													<span class="text-sm text-gray-400 sm:text-xs">Version</span>
 													<select
 														value={selectedImageId}
 														onchange={(e) => selectImageVersion(e.currentTarget.value)}
-														class="mt-1.5 h-8 w-full border border-gray-700 bg-gray-800 px-2 text-xs text-gray-100 focus:border-red-500 focus:outline-none"
+														class="mt-1.5 h-11 w-full border border-gray-700 bg-gray-800 px-2 text-base text-gray-100 focus:border-red-500 focus:outline-none sm:h-8 sm:text-xs"
 													>
 														{#each group.versions as v (v.id)}
 															<option value={v.id}>{v.version} (x86)</option>
@@ -499,7 +514,7 @@
 									{/each}
 								</div>
 								{#if filteredOfficialGroups().length === 0 && imagesSearch.trim()}
-									<div class="py-6 text-center text-xs text-gray-500">
+									<div class="py-6 text-center text-sm text-gray-500 sm:text-xs">
 										No images match "{imagesSearch}"
 									</div>
 								{/if}
@@ -507,7 +522,8 @@
 								{#if customDbImages.length > 0}
 									<div class="mt-4">
 										<div class="flex items-center gap-2 border-b border-gray-800/50 pb-2">
-											<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+											<span
+												class="text-xs font-semibold tracking-wider text-gray-500 uppercase sm:text-[10px]"
 												>Database Images</span
 											>
 										</div>
@@ -515,7 +531,7 @@
 											{#each customDbImages as img (img.id)}
 												<button
 													aria-pressed={selectedImageId === img.id}
-													class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-gray-800/20 {selectedImageId ===
+													class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-800/20 sm:py-2.5 {selectedImageId ===
 													img.id
 														? 'border-l-2 border-l-red-500 bg-gray-800/40'
 														: ''}"
@@ -529,10 +545,12 @@
 														}
 													}}
 												>
-													<HardDrive class="h-3.5 w-3.5 text-gray-500" />
-													<span class="text-xs text-gray-200">{img.name}</span>
+													<HardDrive class="h-4 w-4 shrink-0 text-gray-500 sm:h-3.5 sm:w-3.5" />
+													<span class="truncate text-sm text-gray-200 sm:text-xs">{img.name}</span>
 													{#if img.version}
-														<span class="text-[10px] text-gray-500">{img.version}</span>
+														<span class="shrink-0 text-xs text-gray-500 sm:text-[10px]"
+															>{img.version}</span
+														>
 													{/if}
 												</button>
 											{/each}
@@ -545,8 +563,8 @@
 								class="mt-6 flex flex-col items-center justify-center py-8 text-center"
 							>
 								<HardDrive class="mb-3 h-8 w-8 text-gray-500" />
-								<p class="text-xs text-gray-500">Snapshots coming soon</p>
-								<p class="mt-1 max-w-xs text-[11px] text-gray-500">
+								<p class="text-sm text-gray-500 sm:text-xs">Snapshots coming soon</p>
+								<p class="mt-1 max-w-xs text-sm text-gray-500 sm:text-[11px]">
 									Create point-in-time copies of your servers for quick recovery.
 								</p>
 							</Tabs.Content>
@@ -555,8 +573,8 @@
 								class="mt-6 flex flex-col items-center justify-center py-8 text-center"
 							>
 								<Server class="mb-3 h-8 w-8 text-gray-500" />
-								<p class="text-xs text-gray-500">Apps coming soon</p>
-								<p class="mt-1 max-w-xs text-[11px] text-gray-500">
+								<p class="text-sm text-gray-500 sm:text-xs">Apps coming soon</p>
+								<p class="mt-1 max-w-xs text-sm text-gray-500 sm:text-[11px]">
 									One-click deploy popular applications like WordPress, Nextcloud, and more.
 								</p>
 							</Tabs.Content>
@@ -565,15 +583,17 @@
 
 					<div id="section-plan" class="scroll-mt-4">
 						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
-							<Server class="h-3.5 w-3.5 text-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Plan</span>
+							<Server class="h-4 w-4 shrink-0 text-red-400 sm:h-3.5 sm:w-3.5" />
+							<span class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
+								>Plan</span
+							>
 						</div>
 						<div class="mt-3">
 							{#if vmTypes.length === 0}
 								<div class="flex flex-col items-center justify-center py-8 text-center">
 									<Server class="mb-3 h-6 w-6 text-gray-500" />
-									<p class="text-xs text-gray-500">No VM types available</p>
-									<p class="mt-1 text-[11px] text-gray-500">
+									<p class="text-sm text-gray-500 sm:text-xs">No VM types available</p>
+									<p class="mt-1 text-sm text-gray-500 sm:text-[11px]">
 										Create a plan in the Admin panel to get started.
 									</p>
 								</div>
@@ -583,7 +603,7 @@
 										<button
 											aria-pressed={selectedPlanId === plan.id}
 											aria-label={`${plan.name} plan`}
-											class="flex flex-col gap-1 border p-3 text-left transition-colors {selectedPlanId ===
+											class="flex flex-col gap-1 border p-4 text-left transition-colors sm:p-3 {selectedPlanId ===
 											plan.id
 												? 'border-red-500 bg-red-950/20'
 												: 'border-gray-700 hover:border-gray-600'}"
@@ -591,8 +611,12 @@
 												selectedPlanId = selectedPlanId === plan.id ? null : plan.id;
 											}}
 										>
-											<span class="text-sm font-semibold text-gray-100">{plan.name}</span>
-											<div class="flex items-center gap-2 text-[11px] text-gray-400">
+											<span class="text-base font-semibold text-gray-100 sm:text-sm"
+												>{plan.name}</span
+											>
+											<div
+												class="flex flex-wrap items-center gap-2 text-xs text-gray-400 sm:text-[11px]"
+											>
 												<span>{plan.cores} vCPU</span>
 												<span class="text-gray-700">&bull;</span>
 												<span>{formatRam(plan.ramCapacity)}</span>
@@ -600,7 +624,9 @@
 												<span>{plan.storageAmount}GB</span>
 											</div>
 											{#if plan.cap}
-												<span class="text-xs font-medium text-gray-300">${plan.cap}/month</span>
+												<span class="text-sm font-medium text-gray-300 sm:text-xs"
+													>${plan.cap}/month</span
+												>
 											{/if}
 										</button>
 									{/each}
@@ -612,31 +638,39 @@
 					{#if volumesEnabled}
 						<div id="section-storage" class="scroll-mt-4">
 							<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
-								<HardDriveUpload class="h-3.5 w-3.5 text-red-400" />
-								<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
+								<HardDriveUpload class="h-4 w-4 shrink-0 text-red-400 sm:h-3.5 sm:w-3.5" />
+								<span
+									class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
 									>Storage</span
 								>
 							</div>
 							<div class="mt-3">
 								{#if selectedPlan}
-									<div class="flex items-center gap-2 text-xs text-gray-300">
+									<div class="flex items-center gap-2 text-sm text-gray-300 sm:text-xs">
 										<span class="text-gray-500">Included disk:</span>
 										<span class="font-medium">{selectedPlan.storageAmount}GB</span>
 									</div>
 								{:else}
-									<p class="text-xs text-gray-500">Select a plan to see included disk size.</p>
+									<p class="text-sm text-gray-500 sm:text-xs">
+										Select a plan to see included disk size.
+									</p>
 								{/if}
 
 								<div class="mt-4">
 									<div class="flex items-center justify-between">
-										<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+										<span
+											class="text-xs font-semibold tracking-wider text-gray-500 uppercase sm:text-[10px]"
 											>Attach Volumes</span
 										>
 										<button
 											type="button"
-											class="flex items-center gap-1 text-[10px] font-medium text-red-400 transition-colors hover:text-red-300"
+											class="relative flex items-center gap-1 py-1 text-xs font-medium text-red-400 transition-colors hover:text-red-300 sm:text-[10px]"
 											onclick={() => (showCreateVolume = !showCreateVolume)}
 										>
+											<span
+												class="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
+												aria-hidden="true"
+											></span>
 											{#if showCreateVolume}
 												<X class="h-3 w-3" />
 												Cancel
@@ -648,22 +682,26 @@
 									</div>
 
 									{#if showCreateVolume}
-										<div class="mt-2 flex gap-2 border border-gray-700 bg-gray-800/40 p-3">
-											<div class="flex-1">
-												<label for="new-vol-name" class="mb-1 block text-[10px] text-gray-500"
-													>Name</label
+										<div
+											class="mt-2 flex flex-col gap-2 border border-gray-700 bg-gray-800/40 p-3 sm:flex-row"
+										>
+											<div class="min-w-0 flex-1">
+												<label
+													for="new-vol-name"
+													class="mb-1 block text-xs text-gray-500 sm:text-[10px]">Name</label
 												>
 												<input
 													id="new-vol-name"
 													name="newVolumeName"
 													bind:value={newVolumeName}
 													placeholder="volume-name"
-													class="h-7 w-full border border-gray-700 bg-gray-900 px-2 text-xs text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none"
+													class="h-10 w-full border border-gray-700 bg-gray-900 px-2 text-base text-gray-100 placeholder:text-gray-500 focus:border-gray-500 focus:outline-none sm:h-7 sm:text-xs"
 												/>
 											</div>
-											<div class="w-24">
-												<label for="new-vol-size" class="mb-1 block text-[10px] text-gray-500"
-													>Size (GB)</label
+											<div class="sm:w-24">
+												<label
+													for="new-vol-size"
+													class="mb-1 block text-xs text-gray-500 sm:text-[10px]">Size (GB)</label
 												>
 												<input
 													id="new-vol-size"
@@ -671,14 +709,14 @@
 													type="number"
 													min="1"
 													bind:value={newVolumeSize}
-													class="h-7 w-full border border-gray-700 bg-gray-900 px-2 text-xs text-gray-100 tabular-nums focus:border-gray-500 focus:outline-none"
+													class="h-10 w-full border border-gray-700 bg-gray-900 px-2 text-base text-gray-100 tabular-nums focus:border-gray-500 focus:outline-none sm:h-7 sm:text-xs"
 												/>
 											</div>
 											<div class="flex items-end">
 												<Button
 													type="button"
 													size="sm"
-													class="h-7 px-3 text-xs"
+													class="h-10 w-full px-3 text-sm sm:h-7 sm:w-auto sm:text-xs"
 													disabled={!newVolumeName.trim() ||
 														!parseInt(newVolumeSize, 10) ||
 														parseInt(newVolumeSize, 10) < 1 ||
@@ -695,7 +733,7 @@
 										<div class="mt-2 flex flex-col gap-1">
 											{#each availableVolumes as vol (vol.id)}
 												<label
-													class="flex cursor-pointer items-center gap-3 border p-3 text-xs transition-colors {selectedVolumeIds.includes(
+													class="flex cursor-pointer items-center gap-3 border p-3 text-sm transition-colors sm:text-xs {selectedVolumeIds.includes(
 														vol.id
 													)
 														? 'border-red-500 bg-red-950/20'
@@ -711,10 +749,11 @@
 																selectedVolumeIds = [...selectedVolumeIds, vol.id];
 															}
 														}}
-														class="accent-red-500"
+														class="h-5 w-5 shrink-0 accent-red-500 sm:h-4 sm:w-4"
 													/>
-													<span class="font-medium text-gray-200">{vol.name}</span>
-													<span class="ml-auto text-[11px] text-gray-500 tabular-nums"
+													<span class="min-w-0 truncate font-medium text-gray-200">{vol.name}</span>
+													<span
+														class="ml-auto shrink-0 text-xs text-gray-500 tabular-nums sm:text-[11px]"
 														>{vol.sizeGb}GB</span
 													>
 												</label>
@@ -722,8 +761,8 @@
 										</div>
 									{:else}
 										<div class="mt-2 border border-gray-800/50 bg-gray-900/50 p-3 text-center">
-											<p class="text-xs text-gray-500">No volumes available.</p>
-											<p class="mt-1 text-[11px] text-gray-500">
+											<p class="text-sm text-gray-500 sm:text-xs">No volumes available.</p>
+											<p class="mt-1 text-sm text-gray-500 sm:text-[11px]">
 												Create a volume to attach it to this server.
 											</p>
 										</div>
@@ -735,8 +774,8 @@
 
 					<div id="section-networking" class="scroll-mt-4">
 						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
-							<Globe class="h-3.5 w-3.5 text-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
+							<Globe class="h-4 w-4 shrink-0 text-red-400 sm:h-3.5 sm:w-3.5" />
+							<span class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
 								>Networking</span
 							>
 						</div>
@@ -744,7 +783,7 @@
 							<div class="flex flex-col gap-2">
 								{#each [{ value: 'both' as const, label: '1 Public IPv4 Address and an IPv6 block', disabled: !bothNetworksAvailable }, { value: 'ipv6' as const, label: 'IPv6 block only', disabled: !ipv6Available }] as opt (opt.value)}
 									<label
-										class="flex items-center gap-2 border p-3 text-xs transition-colors {opt.disabled
+										class="flex items-center gap-2 border p-3 text-sm transition-colors sm:text-xs {opt.disabled
 											? 'cursor-not-allowed border-gray-800 text-gray-500'
 											: networkingOption === opt.value
 												? 'cursor-pointer border-red-500 bg-red-950/20 text-gray-100'
@@ -756,16 +795,20 @@
 											value={opt.value}
 											bind:group={networkingOption}
 											disabled={opt.disabled}
-											class="accent-red-500"
+											class="h-5 w-5 shrink-0 accent-red-500 sm:h-4 sm:w-4"
 										/>
 										{opt.label}
 										{#if opt.disabled}
-											<span class="ml-auto text-[11px] text-gray-500">Exhausted</span>
+											<span class="ml-auto shrink-0 text-xs text-gray-500 sm:text-[11px]"
+												>Exhausted</span
+											>
 										{/if}
 									</label>
 								{/each}
 								{#if !ipv6Available}
-									<p class="text-xs text-red-400">No IPv6 capacity is currently available.</p>
+									<p class="text-sm text-red-400 sm:text-xs">
+										No IPv6 capacity is currently available.
+									</p>
 								{/if}
 							</div>
 						</div>
@@ -773,14 +816,14 @@
 
 					<div id="section-ssh" class="scroll-mt-4 pb-8">
 						<div class="flex items-center gap-2 border-b border-gray-800 pb-2">
-							<Key class="h-3.5 w-3.5 text-red-400" />
-							<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase"
+							<Key class="h-4 w-4 shrink-0 text-red-400 sm:h-3.5 sm:w-3.5" />
+							<span class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
 								>Authentication</span
 							>
 						</div>
 						<div class="mt-3">
 							{#if data.sshKeys && data.sshKeys.length > 0}
-								<p class="mb-2 text-xs text-gray-500">
+								<p class="mb-2 text-sm text-gray-500 sm:text-xs">
 									Select one or more <a
 										href="https://fyrastack.com/docs/vps/ssh"
 										target="_blank"
@@ -791,7 +834,7 @@
 								<div class="flex flex-col gap-1">
 									{#each data.sshKeys as key (key.id)}
 										<label
-											class="flex cursor-pointer items-center gap-3 border p-3 text-xs transition-colors {selectedSshKeyIds.includes(
+											class="flex cursor-pointer items-center gap-3 border p-3 text-sm transition-colors sm:text-xs {selectedSshKeyIds.includes(
 												key.id
 											)
 												? 'border-red-500 bg-red-950/20'
@@ -807,11 +850,11 @@
 														selectedSshKeyIds = [...selectedSshKeyIds, key.id];
 													}
 												}}
-												class="accent-red-500"
+												class="h-5 w-5 shrink-0 accent-red-500 sm:h-4 sm:w-4"
 											/>
-											<div class="flex flex-col">
-												<span class="font-medium text-gray-200">{key.name}</span>
-												<span class="font-mono text-[10px] text-gray-500"
+											<div class="flex min-w-0 flex-col">
+												<span class="truncate font-medium text-gray-200">{key.name}</span>
+												<span class="truncate font-mono text-xs text-gray-500 sm:text-[10px]"
 													>{truncateFingerprint(key.fingerprint)}</span
 												>
 											</div>
@@ -820,7 +863,7 @@
 								</div>
 							{:else}
 								<div class="border border-gray-800/50 bg-gray-900/50 p-4 text-center">
-									<p class="text-xs text-gray-500">
+									<p class="text-sm text-gray-500 sm:text-xs">
 										No <a
 											href="https://fyrastack.com/docs/vps/ssh"
 											target="_blank"
@@ -828,13 +871,13 @@
 											class="text-red-400 transition-colors hover:text-red-300">SSH keys</a
 										> available.
 									</p>
-									<p class="mt-1 text-[11px] text-gray-500">
+									<p class="mt-1 text-sm text-gray-500 sm:text-[11px]">
 										Password authentication will be used instead.
 									</p>
 									<a
 										href={resolve(userSettingsHref('keys', page.url) as any)}
 										data-sveltekit-noscroll
-										class="mt-2 inline-flex text-[11px] font-medium text-red-400 transition-colors hover:text-red-300"
+										class="mt-2 inline-flex py-1 text-sm font-medium text-red-400 transition-colors hover:text-red-300 sm:py-0 sm:text-[11px]"
 									>
 										Add an SSH key in user settings
 									</a>
@@ -844,7 +887,7 @@
 								<div class="mt-3">
 									<label
 										for="server-password"
-										class="mb-1.5 block text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+										class="mb-1.5 block text-xs font-semibold tracking-wider text-gray-500 uppercase sm:text-[10px]"
 										>Root Password</label
 									>
 									<div class="flex">
@@ -853,36 +896,36 @@
 											name="serverPassword"
 											type={showServerPassword ? 'text' : 'password'}
 											bind:value={serverPassword}
-											class="h-9 min-w-0 flex-1 border border-gray-700 bg-gray-800 px-3 font-mono text-xs text-gray-100 placeholder:text-gray-500 focus:border-red-500 focus:outline-none"
+											class="h-11 min-w-0 flex-1 border border-gray-700 bg-gray-800 px-3 font-mono text-base text-gray-100 placeholder:text-gray-500 focus:border-red-500 focus:outline-none sm:h-9 sm:text-xs"
 											placeholder="Generated password"
 										/>
 										<button
 											type="button"
-											class="flex h-9 w-9 items-center justify-center border-y border-gray-700 bg-gray-800 text-gray-400 transition-colors hover:text-gray-200"
+											class="flex h-11 w-11 shrink-0 items-center justify-center border-y border-gray-700 bg-gray-800 text-gray-400 transition-colors hover:text-gray-200 sm:h-9 sm:w-9"
 											aria-label={showServerPassword ? 'Hide password' : 'Show password'}
 											onclick={() => (showServerPassword = !showServerPassword)}
 										>
 											{#if showServerPassword}
-												<EyeOff class="h-3.5 w-3.5" />
+												<EyeOff class="h-4 w-4 sm:h-3.5 sm:w-3.5" />
 											{:else}
-												<Eye class="h-3.5 w-3.5" />
+												<Eye class="h-4 w-4 sm:h-3.5 sm:w-3.5" />
 											{/if}
 										</button>
 										<button
 											type="button"
-											class="flex h-9 w-9 items-center justify-center border border-gray-700 bg-gray-800 text-gray-400 transition-colors hover:text-gray-200"
+											class="flex h-11 w-11 shrink-0 items-center justify-center border border-gray-700 bg-gray-800 text-gray-400 transition-colors hover:text-gray-200 sm:h-9 sm:w-9"
 											aria-label="Copy password"
 											disabled={!serverPassword}
 											onclick={copyServerPassword}
 										>
 											{#if passwordCopied}
-												<Check class="h-3.5 w-3.5 text-emerald-500" />
+												<Check class="h-4 w-4 text-emerald-500 sm:h-3.5 sm:w-3.5" />
 											{:else}
-												<Copy class="h-3.5 w-3.5" />
+												<Copy class="h-4 w-4 sm:h-3.5 sm:w-3.5" />
 											{/if}
 										</button>
 									</div>
-									<p class="mt-1.5 text-[11px] text-gray-500">
+									<p class="mt-1.5 text-sm text-gray-500 sm:text-[11px]">
 										Save this password now. It will not be shown after the server is created.
 									</p>
 								</div>
@@ -898,14 +941,15 @@
 		>
 			<div class="flex h-full flex-col">
 				<div class="border-b border-gray-800 px-4 py-3">
-					<span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Configure</span
+					<span class="text-sm font-semibold tracking-wider text-gray-400 uppercase sm:text-xs"
+						>Configure</span
 					>
 				</div>
 				<div class="flex-1 overflow-y-auto px-4 py-3">
 					<nav class="flex flex-col gap-1">
 						{#each sections as section (section.id)}
 							<button
-								class="flex items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors hover:bg-gray-800/50"
+								class="flex items-center gap-2 px-2 py-2.5 text-left text-sm transition-colors hover:bg-gray-800/50 sm:py-1.5 sm:text-xs"
 								onclick={() => scrollTosSection(section.id)}
 							>
 								{#if section.isComplete}
@@ -921,57 +965,58 @@
 					</nav>
 
 					<div class="mt-4 border-t border-gray-800 pt-4">
-						<span class="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+						<span
+							class="text-xs font-semibold tracking-wider text-gray-500 uppercase sm:text-[10px]"
 							>Summary</span
 						>
 						<div class="mt-2 flex flex-col gap-2">
-							<div class="flex items-center justify-between text-xs">
+							<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 								<span class="text-gray-500">Image</span>
-								<span class="text-gray-200">
+								<span class="min-w-0 truncate text-right text-gray-200">
 									{selectedImage?.name ?? '—'}
 									{#if selectedImageVersion}/ {selectedImageVersion}{/if}
 								</span>
 							</div>
-							<div class="flex items-center justify-between text-xs">
+							<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 								<span class="text-gray-500">Plan</span>
-								<span class="text-gray-200">
+								<span class="min-w-0 truncate text-right text-gray-200">
 									{selectedPlan
 										? `${selectedPlan.name} (${selectedPlan.cores} vCPU, ${formatRam(selectedPlan.ramCapacity)})`
 										: '—'}
 								</span>
 							</div>
 							{#if selectedPlan}
-								<div class="flex items-center justify-between text-xs">
+								<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 									<span class="text-gray-500">Disk</span>
-									<span class="text-gray-200 tabular-nums"
+									<span class="min-w-0 truncate text-right text-gray-200 tabular-nums"
 										>{selectedPlan.storageAmount}GB{#if selectedVolumeCount > 0}
 											+ {selectedVolumeCount} vol{/if}</span
 									>
 								</div>
 							{/if}
-							<div class="flex items-center justify-between text-xs">
+							<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 								<span class="text-gray-500">Network</span>
-								<span class="text-gray-200">
+								<span class="min-w-0 truncate text-right text-gray-200">
 									{networkingOption === 'both' ? 'IPv4 + IPv6' : 'IPv6 only'}
 								</span>
 							</div>
 							{#if selectedSshKeyIds.length > 0}
-								<div class="flex items-center justify-between text-xs">
+								<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 									<span class="text-gray-500">Authentication</span>
-									<span class="text-gray-200"
+									<span class="min-w-0 truncate text-right text-gray-200"
 										>{selectedSshKeyIds.length} SSH key{selectedSshKeyIds.length === 1
 											? ''
 											: 's'}</span
 									>
 								</div>
 							{:else}
-								<div class="flex items-center justify-between text-xs">
+								<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 									<span class="text-gray-500">Authentication</span>
-									<span class="text-gray-200">Password</span>
+									<span class="min-w-0 truncate text-right text-gray-200">Password</span>
 								</div>
 							{/if}
 							{#if selectedPlan?.cap}
-								<div class="flex items-center justify-between text-xs">
+								<div class="flex items-center justify-between gap-3 text-sm sm:text-xs">
 									<span class="text-gray-500">Estimated</span>
 									<span class="font-medium text-gray-100">${selectedPlan.cap}/month</span>
 								</div>
@@ -983,7 +1028,7 @@
 				<div class="border-t border-gray-800 px-4 py-3">
 					{#if !billingReady}
 						<div
-							class="mb-3 rounded-md border border-amber-900/40 bg-amber-950/20 p-3 text-xs text-amber-200"
+							class="mb-3 rounded-md border border-amber-900/40 bg-amber-950/20 p-3 text-sm text-amber-200 sm:text-xs"
 						>
 							{#if canManageBilling}
 								Set up billing before creating this server.
@@ -993,7 +1038,7 @@
 						</div>
 					{/if}
 					<Button
-						class="w-full"
+						class="h-11 w-full text-sm sm:h-9"
 						disabled={!serverName.trim() ||
 							!selectedImageId ||
 							!selectedPlanId ||
@@ -1010,7 +1055,7 @@
 						{/if}
 					</Button>
 					{#if createError}
-						<p class="mt-2 text-xs text-red-400">{createError}</p>
+						<p class="mt-2 text-sm text-red-400 sm:text-xs">{createError}</p>
 					{/if}
 				</div>
 			</div>

@@ -29,10 +29,11 @@
 		Square,
 		Trash2,
 		UserCog,
-		Zap
+		Zap,
+		Mail
 	} from '@lucide/svelte';
 
-	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users' | 'vms';
+	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users' | 'vms' | 'emails';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'vms' as AdminTab;
 	const admin = new AdminState();
@@ -239,6 +240,16 @@
 			<UserCog class="h-3.5 w-3.5 shrink-0" />
 			Users
 			<Badge variant="secondary" class="text-[10px]">{admin.adminUsers.length}</Badge>
+		</a>
+		<a
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'emails'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			href={resolve('/admin/emails')}
+		>
+			<Mail class="h-3.5 w-3.5 shrink-0" />
+			Emails
 		</a>
 	</div>
 

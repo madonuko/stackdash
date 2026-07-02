@@ -20,11 +20,13 @@
 		Shield,
 		Image,
 		HardDrive,
+		GripVertical,
 		Loader2,
 		AlertTriangle,
 		RefreshCw,
 		UserCog,
-		Network
+		Network,
+		Mail
 	} from '@lucide/svelte';
 	import { AdminState, colorOptions, type AdminPageData } from '$lib/state/admin.svelte';
 
@@ -35,7 +37,7 @@
 		volumes: HardDrive
 	};
 
-	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users' | 'vms';
+	type AdminTab = 'features' | 'vmTypes' | 'images' | 'ipam' | 'users' | 'vms' | 'emails';
 	let { data }: { data: AdminPageData } = $props();
 	const activeTab = 'vmTypes' as AdminTab;
 	const admin = new AdminState(untrack(() => data));
@@ -50,6 +52,44 @@
 	}
 
 	const userCount = $derived(admin.adminUsers.length);
+
+	let vtDragIndex = $state<number | null>(null);
+	let vtDropIndex = $state<number | null>(null);
+
+	function vtDragStart(event: DragEvent, index: number) {
+		vtDragIndex = index;
+		if (event.dataTransfer) {
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', String(index));
+			const row = (event.target as HTMLElement).closest('tr');
+			if (row) event.dataTransfer.setDragImage(row, 0, 0);
+		}
+	}
+
+	function vtDragOver(event: DragEvent, index: number) {
+		if (vtDragIndex === null) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+		vtDropIndex = index;
+	}
+
+	function vtDrop(event: DragEvent, index: number) {
+		event.preventDefault();
+		if (vtDragIndex !== null) admin.vtReorder(vtDragIndex, index);
+		vtDragIndex = null;
+		vtDropIndex = null;
+	}
+
+	function vtDragEnd() {
+		vtDragIndex = null;
+		vtDropIndex = null;
+	}
+
+	function vtHandleKeydown(event: KeyboardEvent, index: number) {
+		if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+		event.preventDefault();
+		admin.vtReorder(index, event.key === 'ArrowUp' ? index - 1 : index + 1);
+	}
 </script>
 
 <div class="flex flex-1 flex-col overflow-hidden">
@@ -124,6 +164,16 @@
 			<UserCog class="h-3.5 w-3.5 shrink-0" />
 			Users
 			<Badge variant="secondary" class="text-[10px]">{userCount}</Badge>
+		</a>
+		<a
+			class="flex h-full items-center gap-1.5 border-b-2 px-5 text-xs font-medium transition-colors {activeTab ===
+			'emails'
+				? 'border-red-500 text-gray-100'
+				: 'border-transparent text-gray-500 hover:text-gray-300'}"
+			href={resolve('/admin/emails')}
+		>
+			<Mail class="h-3.5 w-3.5 shrink-0" />
+			Emails
 		</a>
 		<div class="flex-1"></div>
 		{#if activeTab === 'vmTypes'}
@@ -216,6 +266,7 @@
 				<table class="w-full whitespace-nowrap">
 					<thead
 						><tr class="border-b border-gray-800">
+							<th class="w-8 px-3 py-3"></th>
 							<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Name</th>
 							<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">ISA</th>
 							<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Cores</th>
@@ -228,8 +279,28 @@
 						</tr></thead
 					>
 					<tbody class="divide-y divide-gray-800/50">
-						{#each admin.vmTypes as vt (vt.id)}
-							<tr class="transition-colors hover:bg-gray-800/20">
+						{#each admin.vmTypes as vt, index (vt.id)}
+							<tr
+								class="transition-colors hover:bg-gray-800/20 {vtDragIndex === index
+									? 'opacity-40'
+									: ''} {vtDropIndex === index && vtDragIndex !== index ? 'bg-gray-800/40' : ''}"
+								ondragover={(event) => vtDragOver(event, index)}
+								ondrop={(event) => vtDrop(event, index)}
+							>
+								<td class="px-3 py-3">
+									<span
+										role="button"
+										tabindex="0"
+										aria-label={`Drag or use arrow keys to reorder ${vt.name}`}
+										draggable="true"
+										class="flex h-7 w-5 cursor-grab items-center justify-center text-gray-600 transition-colors hover:text-gray-300 focus:text-gray-300 focus:outline-none active:cursor-grabbing"
+										ondragstart={(event) => vtDragStart(event, index)}
+										ondragend={vtDragEnd}
+										onkeydown={(event) => vtHandleKeydown(event, index)}
+									>
+										<GripVertical class="h-3.5 w-3.5" />
+									</span>
+								</td>
 								<td class="px-5 py-3 text-sm font-medium text-gray-100">{vt.name}</td>
 								<td class="px-5 py-3"
 									><Badge variant="secondary" class="text-[10px]">{vt.isa}</Badge></td

@@ -4,20 +4,25 @@ import { getRuntimeEnv } from '$lib/server/env';
 import { instrument } from '$lib/server/observability';
 
 type EmailRenderer = {
-	render(component: unknown, options: { props?: Record<string, unknown> }): string | Promise<string>;
+	render(
+		component: unknown,
+		options: { props?: Record<string, unknown> }
+	): string | Promise<string>;
 	toPlainText(html: string): string;
 };
 
 let emailRendererPromise: Promise<EmailRenderer> | undefined;
 
 function getEmailRenderer(): Promise<EmailRenderer> {
-	emailRendererPromise ??= import('@better-svelte-email/server').then(({ Renderer, toPlainText }) => {
-		const renderer = new Renderer({ customCSS: appStyles });
-		return {
-			render: (component, options) => renderer.render(component, options),
-			toPlainText
-		};
-	});
+	emailRendererPromise ??= import('@better-svelte-email/server').then(
+		({ Renderer, toPlainText }) => {
+			const renderer = new Renderer({ customCSS: appStyles });
+			return {
+				render: (component, options) => renderer.render(component, options),
+				toPlainText
+			};
+		}
+	);
 	return emailRendererPromise;
 }
 
@@ -159,6 +164,12 @@ async function sendCloudflareEmail({
 	);
 }
 
+export async function renderEmail(component: unknown, props?: Record<string, unknown>) {
+	const { render, toPlainText } = await getEmailRenderer();
+	const html = await instrument('email.render', () => render(component, { props }));
+	return { html, text: toPlainText(html) };
+}
+
 export async function sendRenderedEmail({
 	component,
 	props,
@@ -167,9 +178,7 @@ export async function sendRenderedEmail({
 }: SendRenderedEmailParams) {
 	const env = getRuntimeEnv();
 
-	const { render, toPlainText } = await getEmailRenderer();
-	const html = await instrument('email.render', () => render(component, { props }));
-	const text = toPlainText(html);
+	const { html, text } = await renderEmail(component, props);
 	const fromAddress = env.EMAIL_FROM_ADDRESS;
 	const fromName = env.EMAIL_FROM_NAME;
 	const replyTo = env.EMAIL_REPLY_TO;

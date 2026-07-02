@@ -36,7 +36,12 @@ import {
 	listAllAdminVms,
 	type AdminVm
 } from '$lib/remote/admin-vms.remote';
-import { createVmType, deleteVmType, updateVmType } from '$lib/remote/vm-types.remote';
+import {
+	createVmType,
+	deleteVmType,
+	reorderVmTypes,
+	updateVmType
+} from '$lib/remote/vm-types.remote';
 import { toast } from 'svelte-sonner';
 import { getErrorMessage, runQuery } from '$lib/utils';
 import { untrack } from 'svelte';
@@ -561,6 +566,22 @@ export class AdminState {
 			this.vtError = getErrorMessage(err, 'Failed to save');
 		} finally {
 			this.vtSaving = false;
+		}
+	}
+
+	async vtReorder(fromIndex: number, toIndex: number) {
+		if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+		if (fromIndex >= this.vmTypes.length || toIndex >= this.vmTypes.length) return;
+		const previous = [...this.vmTypes];
+		const next = [...this.vmTypes];
+		const [moved] = next.splice(fromIndex, 1);
+		next.splice(toIndex, 0, moved);
+		this.vmTypes = next;
+		try {
+			await reorderVmTypes({ vmTypeIds: next.map((vmType) => vmType.id) });
+		} catch (err) {
+			this.vmTypes = previous;
+			toast.error(getErrorMessage(err, 'Failed to reorder VM types'));
 		}
 	}
 

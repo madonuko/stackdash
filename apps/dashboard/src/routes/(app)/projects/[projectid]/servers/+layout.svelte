@@ -4,7 +4,7 @@
 	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
-	import { HardDrive, Plus } from '@lucide/svelte';
+	import { ChevronDown, HardDrive, Plus } from '@lucide/svelte';
 	import { listVmStatuses } from '$lib/remote/vms.remote';
 	import { clientTimingLog, runQuery } from '$lib/utils';
 	import { serversState, sortServers } from '$lib/state/servers.svelte';
@@ -205,6 +205,14 @@
 	const currentPath = $derived(page.url.pathname);
 	const serversPath = $derived(`/projects/${projectId}/servers`);
 	const isCreatePage = $derived(currentPath === `${serversPath}/create`);
+	const isServersIndex = $derived(currentPath === serversPath);
+	let mobileListOpen = $state(false);
+	const listOpen = $derived(mobileListOpen || isServersIndex);
+
+	$effect(() => {
+		currentPath;
+		mobileListOpen = false;
+	});
 	const selectedServerId = $derived(
 		isCreatePage
 			? null
@@ -215,28 +223,54 @@
 </script>
 
 <div class="flex h-full w-full flex-col overflow-hidden lg:flex-row">
-	<!-- Server list sidebar -->
 	<div
-		class="flex max-h-[38vh] w-full shrink-0 flex-col border-b border-gray-800 lg:max-h-none lg:w-64 lg:border-r lg:border-b-0"
+		class="flex w-full shrink-0 flex-col border-b border-gray-800 lg:max-h-none lg:w-64 lg:border-r lg:border-b-0 {listOpen
+			? 'max-h-[38dvh]'
+			: ''}"
 	>
-		<div class="flex h-10 shrink-0 items-center justify-between border-b border-gray-800 px-4">
-			<div class="flex items-center">
-				<span class="text-sm font-semibold text-gray-100">Servers</span>
-				<Badge variant="secondary" class="ml-2 text-[10px]">{serversState.servers.length}</Badge>
+		<div
+			class="flex h-12 shrink-0 items-center justify-between border-b border-gray-800 px-4 lg:h-10"
+		>
+			<div class="flex min-w-0 items-center">
+				<span class="text-base font-semibold text-gray-100 lg:text-sm">Servers</span>
+				<Badge variant="secondary" class="ml-2 text-xs lg:text-[10px]"
+					>{serversState.servers.length}</Badge
+				>
 				{#if serversState.statusRefreshing && serversState.servers.length > 0}
-					<span class="ml-2 h-1.5 w-1.5 animate-pulse rounded-full bg-gray-500"></span>
+					<span class="ml-2 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-gray-500"></span>
 				{/if}
 			</div>
-			<Button
-				variant="outline"
-				size="sm"
-				class="h-6 w-6 border-red-500/50 p-0 text-red-400 hover:border-red-500 hover:bg-red-950 hover:text-gray-100"
-				onclick={() => goto(`/projects/${page.params.projectid}/servers/create`)}
-			>
-				<Plus class="h-3.5 w-3.5" />
-			</Button>
+			<div class="flex shrink-0 items-center gap-1">
+				{#if !isServersIndex}
+					<button
+						type="button"
+						class="relative flex h-8 w-8 items-center justify-center text-gray-400 transition-colors hover:text-gray-200 lg:hidden"
+						aria-expanded={listOpen}
+						aria-label={listOpen ? 'Hide server list' : 'Show server list'}
+						onclick={() => (mobileListOpen = !mobileListOpen)}
+					>
+						<span
+							class="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
+							aria-hidden="true"
+						></span>
+						<ChevronDown class="h-4 w-4 transition-transform {listOpen ? 'rotate-180' : ''}" />
+					</button>
+				{/if}
+				<Button
+					variant="outline"
+					size="sm"
+					class="relative h-8 w-8 border-red-500/50 p-0 text-red-400 hover:border-red-500 hover:bg-red-950 hover:text-gray-100 lg:h-6 lg:w-6"
+					onclick={() => goto(`/projects/${page.params.projectid}/servers/create`)}
+				>
+					<span
+						class="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
+						aria-hidden="true"
+					></span>
+					<Plus class="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+				</Button>
+			</div>
 		</div>
-		<div class="flex-1 overflow-y-auto">
+		<div class="flex-1 overflow-y-auto {listOpen ? '' : 'hidden'} lg:block">
 			{#if serversState.loading}
 				<div class="divide-y divide-gray-800">
 					{#each Array.from({ length: 3 }) as _, index (index)}
@@ -261,8 +295,8 @@
 					data-sveltekit-preload-data="tap"
 				>
 					<div class="min-w-0">
-						<p class="truncate text-sm font-semibold text-gray-100">{server.name}</p>
-						<p class="mt-0.5 truncate text-xs text-gray-500">
+						<p class="truncate text-base font-semibold text-gray-100 lg:text-sm">{server.name}</p>
+						<p class="mt-0.5 truncate text-sm text-gray-500 lg:text-xs">
 							{server.vcpu} vCPU &bull; {server.ram} &bull;
 							{#if server.liveLoaded || serversState.firstStatusRefreshComplete}
 								{server.ip}
@@ -293,15 +327,14 @@
 			{/each}
 
 			{#if !serversState.loading && serversState.servers.length === 0}
-				<div class="flex flex-col items-center justify-center py-16 text-gray-500">
+				<div class="flex flex-col items-center justify-center py-8 text-gray-500 lg:py-16">
 					<HardDrive class="mb-3 h-6 w-6" />
-					<p class="text-xs">No servers</p>
+					<p class="text-sm lg:text-xs">No servers</p>
 				</div>
 			{/if}
 		</div>
 	</div>
 
-	<!-- Main content -->
 	<div class="flex flex-1 flex-col overflow-hidden">
 		{@render children()}
 	</div>

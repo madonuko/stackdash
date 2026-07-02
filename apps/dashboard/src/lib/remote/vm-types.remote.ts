@@ -1,7 +1,7 @@
 import { query, command, getRequestEvent } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
-import { eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { vmTypes } from '$lib/server/db/schema';
 import { requireAdmin } from '$lib/server/auth-context';
@@ -23,7 +23,9 @@ export const listVmTypes = query(async () => {
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
-	const rows = await db.query.vmTypes.findMany();
+	const rows = await db.query.vmTypes.findMany({
+		orderBy: [asc(vmTypes.sortOrder), asc(vmTypes.id)]
+	});
 	return rows.map((row) => ({
 		id: row.id,
 		name: row.name,
@@ -54,9 +56,14 @@ export const createVmType = command(createParams, async (params) => {
 	const db = initDrizzle();
 	await requireAdmin(db, event.locals.user.id);
 
+	const lastVmType = await db.query.vmTypes.findFirst({
+		orderBy: [desc(vmTypes.sortOrder)]
+	});
+
 	const [inserted] = await db
 		.insert(vmTypes)
 		.values({
+			sortOrder: (lastVmType?.sortOrder ?? -1) + 1,
 			name: params.name,
 			isa: params.isa,
 			cores: params.cores,
@@ -106,6 +113,32 @@ export const updateVmType = command(updateParams, async (params) => {
 	if (Object.keys(updates).length === 0) return;
 
 	await db.update(vmTypes).set(updates).where(eq(vmTypes.id, params.vmTypeId));
+});
+
+const reorderParams = type({ vmTypeIds: 'string[]' });
+export const reorderVmTypes = command(reorderParams, async (params) => {
+	const event = getRequestEvent();
+	if (!event?.locals.user) error(401, 'Authentication required');
+
+	const db = initDrizzle();
+	await requireAdmin(db, event.locals.user.id);
+
+	const rows = await db.query.vmTypes.findMany({ columns: { id: true } });
+	const existingIds = new Set(rows.map((row) => row.id));
+	const requestedIds = new Set(params.vmTypeIds);
+	if (
+		params.vmTypeIds.length !== existingIds.size ||
+		requestedIds.size !== existingIds.size ||
+		params.vmTypeIds.some((id) => !existingIds.has(id))
+	) {
+		error(400, 'VM type order is out of date, refresh and try again');
+	}
+
+	await Promise.all(
+		params.vmTypeIds.map((id, index) =>
+			db.update(vmTypes).set({ sortOrder: index }).where(eq(vmTypes.id, id))
+		)
+	);
 });
 
 const deleteParams = type({ vmTypeId: 'string' });
