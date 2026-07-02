@@ -252,23 +252,6 @@
 				</div>
 			{/if}
 
-			<div class="flex items-center justify-end">
-				<Button
-					variant="outline"
-					size="sm"
-					class="h-8 gap-1.5 border-gray-700/50 text-xs text-gray-300 hover:bg-gray-800 hover:text-gray-100"
-					onclick={() => refresh()}
-					disabled={refreshing}
-				>
-					{#if refreshing}
-						<Loader2 class="h-3 w-3 animate-spin" />
-					{:else}
-						<RefreshCw class="h-3 w-3" />
-					{/if}
-					Refresh
-				</Button>
-			</div>
-
 			<!-- Stat row -->
 			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 				<div
@@ -441,6 +424,20 @@
 					<Switch bind:checked={showDeleted} />
 					Show deleted
 				</label>
+				<Button
+					variant="outline"
+					size="sm"
+					class="ml-auto h-8 gap-1.5 border-gray-700/50 text-xs text-gray-300 hover:bg-gray-800 hover:text-gray-100"
+					onclick={() => refresh()}
+					disabled={refreshing}
+				>
+					{#if refreshing}
+						<Loader2 class="h-3 w-3 animate-spin" />
+					{:else}
+						<RefreshCw class="h-3 w-3" />
+					{/if}
+					Refresh
+				</Button>
 			</div>
 
 			{#if filteredVms.length === 0}

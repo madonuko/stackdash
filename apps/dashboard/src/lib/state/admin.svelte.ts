@@ -5,6 +5,7 @@ import {
 	importProxmoxImageFromUrl,
 	listProxmoxImageImportTargets,
 	listProxmoxImages,
+	reorderImages,
 	updateImage
 } from '$lib/remote/images.remote';
 import { goto, invalidate } from '$app/navigation';
@@ -749,6 +750,22 @@ export class AdminState {
 			this.imgError = getErrorMessage(err, 'Failed to save');
 		} finally {
 			this.imgSaving = false;
+		}
+	}
+
+	async imgReorder(fromIndex: number, toIndex: number) {
+		if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+		if (fromIndex >= this.images.length || toIndex >= this.images.length) return;
+		const previous = [...this.images];
+		const next = [...this.images];
+		const [moved] = next.splice(fromIndex, 1);
+		next.splice(toIndex, 0, moved);
+		this.images = next;
+		try {
+			await reorderImages({ imageIds: next.map((image) => image.id) });
+		} catch (err) {
+			this.images = previous;
+			toast.error(getErrorMessage(err, 'Failed to reorder images'));
 		}
 	}
 

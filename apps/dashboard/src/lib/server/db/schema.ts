@@ -376,5 +376,6 @@ export const baseImages = pgTable('base_images', {
 	logoSvg: text('logo_svg'),
 	accentColor: text('accent_color').notNull().default('#6b7280'),
 	imageType: text('image_type').notNull().default('qcow2'),
-	isa: vmIsaEnum('isa').notNull()
+	isa: vmIsaEnum('isa').notNull(),
+	sortOrder: integer('sort_order').notNull().default(0)
 });

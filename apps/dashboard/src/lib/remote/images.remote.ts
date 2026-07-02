@@ -1,7 +1,7 @@
 import { query, command, getRequestEvent } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
-import { eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { initDrizzle } from '$lib/server/db';
 import { baseImages } from '$lib/server/db/schema';
 import { getBackend } from '$lib/server/backends';
@@ -53,7 +53,9 @@ export const listImages = query(async () => {
 	if (!event?.locals.user) error(401, 'Authentication required');
 
 	const db = initDrizzle();
-	const rows = await db.query.baseImages.findMany();
+	const rows = await db.query.baseImages.findMany({
+		orderBy: [asc(baseImages.sortOrder), asc(baseImages.id)]
+	});
 	return rows.map((row) => ({
 		id: row.id,
 		filePath: row.filePath,
@@ -95,9 +97,14 @@ export const createImage = command(createParams, async (params) => {
 	validateAccentColor(accentColor);
 	const logoSvg = validateLogoSvg(params.logoSvg, isOfficial);
 
+	const lastImage = await db.query.baseImages.findFirst({
+		orderBy: [desc(baseImages.sortOrder)]
+	});
+
 	const [inserted] = await db
 		.insert(baseImages)
 		.values({
+			sortOrder: (lastImage?.sortOrder ?? -1) + 1,
 			name: params.name,
 			version: params.version,
 			description: params.description,
@@ -160,6 +167,32 @@ export const updateImage = command(updateParams, async (params) => {
 	if (Object.keys(updates).length === 0) return;
 
 	await db.update(baseImages).set(updates).where(eq(baseImages.id, params.imageId));
+});
+
+const reorderParams = type({ imageIds: 'string[]' });
+export const reorderImages = command(reorderParams, async (params) => {
+	const event = getRequestEvent();
+	if (!event?.locals.user) error(401, 'Authentication required');
+
+	const db = initDrizzle();
+	await requireAdmin(db, event.locals.user.id);
+
+	const rows = await db.query.baseImages.findMany({ columns: { id: true } });
+	const existingIds = new Set(rows.map((row) => row.id));
+	const requestedIds = new Set(params.imageIds);
+	if (
+		params.imageIds.length !== existingIds.size ||
+		requestedIds.size !== existingIds.size ||
+		params.imageIds.some((id) => !existingIds.has(id))
+	) {
+		error(400, 'Image order is out of date, refresh and try again');
+	}
+
+	await Promise.all(
+		params.imageIds.map((id, index) =>
+			db.update(baseImages).set({ sortOrder: index }).where(eq(baseImages.id, id))
+		)
+	);
 });
 
 const deleteParams = type({ imageId: 'string' });

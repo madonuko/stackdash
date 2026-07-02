@@ -19,6 +19,7 @@
 		Image,
 		HardDrive,
 		Upload,
+		GripVertical,
 		Loader2,
 		AlertTriangle,
 		RefreshCw,
@@ -50,6 +51,44 @@
 
 	function svgDataUrl(svg: string) {
 		return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+	}
+
+	let imgDragIndex = $state<number | null>(null);
+	let imgDropIndex = $state<number | null>(null);
+
+	function imgDragStart(event: DragEvent, index: number) {
+		imgDragIndex = index;
+		if (event.dataTransfer) {
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', String(index));
+			const row = (event.target as HTMLElement).closest('tr');
+			if (row) event.dataTransfer.setDragImage(row, 0, 0);
+		}
+	}
+
+	function imgDragOver(event: DragEvent, index: number) {
+		if (imgDragIndex === null) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+		imgDropIndex = index;
+	}
+
+	function imgDrop(event: DragEvent, index: number) {
+		event.preventDefault();
+		if (imgDragIndex !== null) admin.imgReorder(imgDragIndex, index);
+		imgDragIndex = null;
+		imgDropIndex = null;
+	}
+
+	function imgDragEnd() {
+		imgDragIndex = null;
+		imgDropIndex = null;
+	}
+
+	function imgHandleKeydown(event: KeyboardEvent, index: number) {
+		if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+		event.preventDefault();
+		admin.imgReorder(index, event.key === 'ArrowUp' ? index - 1 : index + 1);
 	}
 
 	let localImportTargets = $derived(
@@ -294,6 +333,7 @@
 			<table class="w-full whitespace-nowrap">
 				<thead
 					><tr class="border-b border-gray-800">
+						<th class="w-8 px-3 py-3"></th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Image</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Version</th>
 						<th class="px-5 py-3 text-left text-xs font-medium text-gray-500">Type</th>
@@ -303,8 +343,30 @@
 					</tr></thead
 				>
 				<tbody class="divide-y divide-gray-800/50">
-					{#each admin.images as img (img.id)}
-						<tr class="transition-colors hover:bg-gray-800/20">
+					{#each admin.images as img, index (img.id)}
+						<tr
+							class="transition-colors hover:bg-gray-800/20 {imgDragIndex === index
+								? 'opacity-40'
+								: ''} {imgDropIndex === index && imgDragIndex !== index
+								? 'bg-gray-800/40'
+								: ''}"
+							ondragover={(event) => imgDragOver(event, index)}
+							ondrop={(event) => imgDrop(event, index)}
+						>
+							<td class="px-3 py-3">
+								<span
+									role="button"
+									tabindex="0"
+									aria-label={`Drag or use arrow keys to reorder ${img.name}`}
+									draggable="true"
+									class="flex h-7 w-5 cursor-grab items-center justify-center text-gray-600 transition-colors hover:text-gray-300 focus:text-gray-300 focus:outline-none active:cursor-grabbing"
+									ondragstart={(event) => imgDragStart(event, index)}
+									ondragend={imgDragEnd}
+									onkeydown={(event) => imgHandleKeydown(event, index)}
+								>
+									<GripVertical class="h-3.5 w-3.5" />
+								</span>
+							</td>
 							<td class="px-5 py-3">
 								<div class="flex items-center gap-2.5">
 									<span
