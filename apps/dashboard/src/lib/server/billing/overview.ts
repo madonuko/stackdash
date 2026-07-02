@@ -1,4 +1,4 @@
-import { and, eq, inArray, sum } from 'drizzle-orm';
+import { and, eq, sum } from 'drizzle-orm';
 import {
 	ensureProjectCustomer,
 	getProjectBillingState,
@@ -44,20 +44,16 @@ export async function getProjectBillingOverview(projectId: string) {
 			)
 		);
 
-	const activeResourceIds = activeMeters.map((meter) => meter.resourceId);
-
-	const recordedRows = activeResourceIds.length
-		? await db
-				.select({ featureId: billingUsageEvents.featureId, hours: sum(billingUsageEvents.quantity) })
-				.from(billingUsageEvents)
-				.where(
-					and(
-						eq(billingUsageEvents.projectId, projectId),
-						inArray(billingUsageEvents.resourceId, activeResourceIds)
-					)
-				)
-				.groupBy(billingUsageEvents.featureId)
-		: [];
+	const recordedRows = await db
+		.select({ featureId: billingUsageEvents.featureId, hours: sum(billingUsageEvents.quantity) })
+		.from(billingUsageEvents)
+		.where(
+			and(
+				eq(billingUsageEvents.projectId, projectId),
+				eq(billingUsageEvents.resourceType, 'vm')
+			)
+		)
+		.groupBy(billingUsageEvents.featureId);
 
 	const vmTypeRows = await db
 		.select({ featureId: vmTypes.autumnFeatureId, name: vmTypes.name, rate: vmTypes.rate })
@@ -75,6 +71,9 @@ export async function getProjectBillingOverview(projectId: string) {
 		group.count += 1;
 		group.liveHours += Math.max(0, (now - meter.lastMeteredAt) / 3_600_000) * Number(meter.units);
 		groups.set(meter.featureId, group);
+	}
+	for (const featureId of recordedByFeature.keys()) {
+		if (!groups.has(featureId)) groups.set(featureId, { count: 0, liveHours: 0 });
 	}
 
 	const activeResources = [...groups.entries()].map(([featureId, group]) => {
