@@ -142,18 +142,30 @@ export async function updateProjectCustomer(projectId: string) {
 	}
 }
 
-export async function attachDefaultProjectPlan(projectId: string, successUrl?: string) {
+export async function attachDefaultProjectPlan(
+	projectId: string,
+	successUrl?: string,
+	discountCode?: string
+) {
 	const planId = defaultPlanId();
 	if (!planId) return null;
 
 	await ensureProjectCustomer(projectId);
 
-	try {
-		const response = await createAutumnClient().billing.attach({
+	const attachPlan = (withDiscount: boolean) =>
+		createAutumnClient().billing.attach({
 			customerId: projectId,
 			planId,
 			redirectMode: 'if_required',
-			...(successUrl ? { successUrl } : {})
+			...(successUrl ? { successUrl } : {}),
+			...(withDiscount && discountCode ? { discounts: [{ promotionCode: discountCode }] } : {})
+		});
+
+	try {
+		const response = await attachPlan(true).catch((err) => {
+			if (!discountCode || autumnStatus(err) !== 400) throw err;
+
+			return attachPlan(false);
 		});
 
 		invalidateProjectBillingState(projectId);
@@ -210,6 +222,26 @@ export async function retryOrphanedProjectBillingCancellations(limit = 100) {
 	}
 
 	return { orphaned: orphans.length, cancelled };
+}
+
+export async function validateProjectDiscountCode(projectId: string, discountCode: string) {
+	const planId = defaultPlanId();
+	if (!planId) return;
+
+	await ensureProjectCustomer(projectId);
+
+	try {
+		await createAutumnClient().billing.previewAttach({
+			customerId: projectId,
+			planId,
+			discounts: [{ promotionCode: discountCode }]
+		});
+	} catch (err) {
+		if (autumnStatus(err) === 400) {
+			error(400, 'This discount code is not valid.');
+		}
+		throw err;
+	}
 }
 
 export async function setupProjectPayment(projectId: string, successUrl: string) {

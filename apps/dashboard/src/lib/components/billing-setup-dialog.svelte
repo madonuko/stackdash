@@ -2,6 +2,8 @@
 	import { CreditCard, Info, Loader2, ShieldAlert } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { openBillingPortal, setupProjectBillingPayment } from '$lib/remote/billing.remote';
 	import { getErrorMessage } from '$lib/utils';
 
@@ -25,6 +27,7 @@
 
 	let loading = $state(false);
 	let actionError = $state('');
+	let discountCode = $state('');
 
 	const title = $derived(billingReady ? 'Manage billing' : 'Set up billing');
 	const description = $derived(
@@ -42,9 +45,14 @@
 		loading = true;
 		actionError = '';
 		try {
+			const code = discountCode.trim();
 			const result = billingReady
 				? await openBillingPortal({ projectId })
-				: await setupProjectBillingPayment({ projectId, returnTo });
+				: await setupProjectBillingPayment({
+						projectId,
+						returnTo,
+						...(code ? { discountCode: code } : {})
+					});
 			window.location.href = result.url;
 		} catch (err) {
 			actionError = getErrorMessage(err, 'Billing could not be opened. Try again.');
@@ -82,6 +90,23 @@
 					This payment method is used for this project only. You can change it from Billing anytime.
 				</p>
 			</div>
+
+			{#if canManageBilling}
+				<div class="space-y-1.5">
+					<Label for="billing-discount-code" class="text-sm text-gray-400">
+						Discount code <span class="text-gray-600">(optional)</span>
+					</Label>
+					<Input
+						id="billing-discount-code"
+						bind:value={discountCode}
+						placeholder="Enter code"
+						autocomplete="off"
+						spellcheck={false}
+						disabled={loading}
+						class="border-gray-800 bg-gray-950 text-gray-100 placeholder:text-gray-600"
+					/>
+				</div>
+			{/if}
 		{/if}
 
 		{#if actionError}

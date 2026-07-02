@@ -2,13 +2,17 @@ import { command, getRequestEvent, query } from '$app/server';
 import { error } from '@sveltejs/kit';
 import { type } from 'arktype';
 import { requireProjectAccess } from '$lib/server/auth-context';
-import { openProjectBillingPortal, setupProjectPayment } from '$lib/server/billing/autumn';
+import {
+	openProjectBillingPortal,
+	setupProjectPayment,
+	validateProjectDiscountCode
+} from '$lib/server/billing/autumn';
 import { getProjectBillingOverview, refreshProjectBilling } from '$lib/server/billing/overview';
 import { runInBackground } from '$lib/server/background';
 import { initDrizzle } from '$lib/server/db';
 
 const projectParams = type({ projectId: 'string' });
-const setupParams = type({ projectId: 'string', returnTo: 'string?' });
+const setupParams = type({ projectId: 'string', returnTo: 'string?', discountCode: 'string?' });
 
 function safeReturnPath(value: string | undefined, fallback: string) {
 	if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback;
@@ -49,9 +53,13 @@ export const setupProjectBillingPayment = command(setupParams, async (params) =>
 	const db = initDrizzle();
 	await requireProjectAccess(db, event.locals.user.id, params.projectId, 'owner');
 
+	const discountCode = params.discountCode?.trim();
+	if (discountCode) await validateProjectDiscountCode(params.projectId, discountCode);
+
 	const returnPath = safeReturnPath(params.returnTo, `/projects/${params.projectId}/billing`);
 	const separator = returnPath.includes('?') ? '&' : '?';
-	const successUrl = `${event.url.origin}${returnPath}${separator}billing_setup=complete`;
+	const promoParam = discountCode ? `&billing_promo=${encodeURIComponent(discountCode)}` : '';
+	const successUrl = `${event.url.origin}${returnPath}${separator}billing_setup=complete${promoParam}`;
 	const url = await setupProjectPayment(params.projectId, successUrl);
 
 	return { url };
