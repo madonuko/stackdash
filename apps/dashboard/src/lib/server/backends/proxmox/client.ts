@@ -269,9 +269,16 @@ export class ProxmoxClient {
 		return res.data;
 	}
 
-	async stopVm(node: string, vmid: number): Promise<string> {
+	async stopVm(
+		node: string,
+		vmid: number,
+		options?: { overruleShutdown?: boolean }
+	): Promise<string> {
 		const res = await this.api
-			.post(`nodes/${encodeURIComponent(node)}/qemu/${vmid}/status/stop`)
+			.post(
+				`nodes/${encodeURIComponent(node)}/qemu/${vmid}/status/stop`,
+				options?.overruleShutdown ? { body: this.toForm({ 'overrule-shutdown': 1 }) } : undefined
+			)
 			.json<PveResponse<string>>();
 		return res.data;
 	}

@@ -652,27 +652,59 @@ export class ProxmoxBackend implements VmBackend {
 		const { node, vmid } = resolved;
 
 		try {
-			const status = await this.client.getQemuVm(node, vmid);
-			if (status.status === 'running') {
-				const stopUpid = await this.client.stopVm(node, vmid);
-				await this.client.waitForTask(node, stopUpid);
-			}
-		} catch {
-			// already stopped or gone
-		}
-
-		let upid: string;
-		try {
-			upid = await this.client.deleteQemuVm(node, vmid, {
-				purge: true,
-				destroyUnreferencedDisks: true
-			});
+			await this.ensureVmStopped(node, vmid);
 		} catch (err) {
 			if (err instanceof HTTPError && err.response.status === 404) return;
 			throw err;
 		}
 
+		const upid = await this.destroyVm(node, vmid);
+		if (!upid) return;
+
 		await this.client.waitForTask(node, upid);
+	}
+
+	private async ensureVmStopped(node: string, vmid: number): Promise<void> {
+		const status = await this.client.getQemuVm(node, vmid);
+		if (status.status === 'stopped') return;
+
+		let stopUpid: string;
+		try {
+			stopUpid = await this.client.stopVm(node, vmid, { overruleShutdown: true });
+		} catch (err) {
+			if (!(err instanceof HTTPError) || err.response.status !== 400) throw err;
+			stopUpid = await this.client.stopVm(node, vmid);
+		}
+		try {
+			await this.client.waitForTask(node, stopUpid);
+		} catch (err) {
+			const current = await this.client.getQemuVm(node, vmid);
+			if (current.status !== 'stopped') throw err;
+		}
+
+		const deadline = Date.now() + 60_000;
+		while (Date.now() < deadline) {
+			const current = await this.client.getQemuVm(node, vmid);
+			if (current.status === 'stopped') return;
+			await new Promise((r) => setTimeout(r, 1_000));
+		}
+		throw new Error(`VM ${vmid} on node ${node} did not reach stopped state within 60s`);
+	}
+
+	private async destroyVm(node: string, vmid: number): Promise<string | undefined> {
+		for (let attempt = 1; ; attempt++) {
+			try {
+				return await this.client.deleteQemuVm(node, vmid, {
+					purge: true,
+					destroyUnreferencedDisks: true
+				});
+			} catch (err) {
+				if (err instanceof HTTPError && err.response.status === 404) return undefined;
+				if (!(err instanceof HTTPError) || attempt >= 3) throw err;
+				await new Promise((r) => setTimeout(r, 2_000));
+				await this.ensureVmStopped(node, vmid);
+			}
+		}
 	}
 
 	async startVm(id: string, proxmoxId?: number): Promise<void> {
