@@ -4,9 +4,10 @@
 
 1. `pnpm install`
 2. Start a Postgres server: `podman run -p 5432:5432 -e POSTGRES_PASSWORD=mysecretpassword -d postgres`
-3. Add secrets to `.env`
-4. Set up the database: `pnpm --filter stack-dashboard db:push`
-5. `pnpm --filter stack-dashboard dev`
+3. Copy `apps/dashboard/.env.example` to `apps/dashboard/.env`
+4. Add secrets to `apps/dashboard/.env`
+5. Set up the database: `pnpm --filter stack-dashboard db:push`
+6. `pnpm --filter stack-dashboard dev`
 
 ### Postgres Setup
 
@@ -21,6 +22,7 @@
   - Generate Better Auth
   - Autumn
   - Postgres connection URL
+    - if you use the podman command(s) listed above, the connection string is `postgres://postgres:mysecretpassword@127.0.0.1:5432/postgres`
 - Highly recommended:
   - Proxmox
 - Optional:
