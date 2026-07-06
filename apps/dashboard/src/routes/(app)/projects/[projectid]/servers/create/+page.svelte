@@ -26,7 +26,8 @@
 		EyeOff,
 		HardDriveUpload,
 		Plus,
-		X
+		X,
+		Dices
 	} from '@lucide/svelte';
 	import { generateServerName } from '$lib/server/name-generator';
 
@@ -125,6 +126,9 @@
 	const bothNetworksAvailable = $derived(ipv4Available && ipv6Available);
 
 	let serverName = $state(generateServerName());
+	function regenerateServerName() {
+		serverName = generateServerName();
+	}
 	let selectedImageId = $state<string | null>(null);
 	let selectedImageVersion = $state<string | null>(null);
 	let selectedPlanId = $state<string | null>(null);
@@ -424,6 +428,7 @@
 								placeholder="my-server"
 								class="h-11 text-base sm:h-9 sm:text-sm"
 							/>
+							<Button onclick={regenerateServerName}><Dices /></Button>
 						</div>
 					</div>
 
