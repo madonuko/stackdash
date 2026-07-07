@@ -29,7 +29,7 @@
 		X,
 		Dices
 	} from '@lucide/svelte';
-	import { generateServerName } from '$lib/server/name-generator';
+	import { generateServerName } from '$lib/name-generator';
 
 	type PageData = {
 		currentProject?: { id: string } | null;
@@ -422,13 +422,15 @@
 								>Name</span
 							>
 						</div>
-						<div class="mt-3">
+						<div class="mt-3 flex">
 							<Input
 								bind:value={serverName}
 								placeholder="my-server"
 								class="h-11 text-base sm:h-9 sm:text-sm"
 							/>
-							<Button onclick={regenerateServerName}><Dices /></Button>
+							<Button variant="outline" class="h-11 sm:h-9" onclick={regenerateServerName}
+								><Dices /></Button
+							>
 						</div>
 					</div>
 

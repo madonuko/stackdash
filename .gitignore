@@ -29,3 +29,5 @@ vite.config.ts.timestamp-*
 
 # traces for local dev
 Trace-*.json
+
+bun.lock

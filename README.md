@@ -6,7 +6,9 @@
 2. Start a Postgres server: `podman run -p 5432:5432 -e POSTGRES_PASSWORD=mysecretpassword -d postgres`
 3. Copy `apps/dashboard/.env.example` to `apps/dashboard/.env`
 4. Add secrets to `apps/dashboard/.env`
-5. Set up the database: `pnpm --filter stack-dashboard db:push`
+   - Update `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` and set all `VPC` stuff to false
+   - set `BETTER_AUTH_SECRET`, `AUTUMN_SECRET` to anything
+5. Set up the database: `pnpm --filter stack-dashboard db:migrate`
 6. `pnpm --filter stack-dashboard dev`
 
 ### Postgres Setup
