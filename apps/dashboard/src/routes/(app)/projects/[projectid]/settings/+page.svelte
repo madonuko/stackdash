@@ -17,6 +17,7 @@
 	import { Settings, User, Trash2, Check, Plus, Loader2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { getErrorMessage } from '$lib/utils';
+	import { projectRoleLabels } from '$lib/auth/organization-permissions';
 
 	let { data } = $props();
 
@@ -42,6 +43,7 @@
 	let memberInviteEmail = $state('');
 	let selectedMemberRole = $state<MemberRole>('read_write');
 	let addingMember = $state(false);
+	let memberToRemove = $state<ProjectMember | null>(null);
 	let removingMemberIds = $state<string[]>([]);
 	let updatingMemberIds = $state<string[]>([]);
 
@@ -52,12 +54,13 @@
 	const canManageMembers = $derived(viewerRole === 'owner' || viewerRole === 'admin');
 	const currentUserId = $derived(data.user?.id);
 
-	const roleLabels: Record<ProjectRole, string> = {
-		owner: 'Owner',
-		admin: 'Admin',
-		read_write: 'Read Write',
-		read: 'Read'
-	};
+	const roleLabels = projectRoleLabels;
+
+	const memberRoleOptions: { value: MemberRole; description: string }[] = [
+		{ value: 'admin', description: 'Manage members, project settings, and all resources' },
+		{ value: 'read_write', description: 'Create and modify resources' },
+		{ value: 'read', description: 'View resources only' }
+	];
 
 	$effect(() => {
 		return clearSavedTimeout;
@@ -113,6 +116,7 @@
 				permissions: selectedMemberRole
 			});
 			memberInviteEmail = '';
+			selectedMemberRole = 'read_write';
 			addMemberOpen = false;
 			toast.success(`Invitation sent to ${email}`);
 			await invalidate('app:projects');
@@ -121,6 +125,13 @@
 		} finally {
 			addingMember = false;
 		}
+	}
+
+	function confirmRemoveMember() {
+		if (!memberToRemove) return;
+		const userId = memberToRemove.userId;
+		memberToRemove = null;
+		removeMember(userId);
 	}
 
 	async function removeMember(userId: string) {
@@ -228,128 +239,59 @@
 						<div class="border-b border-gray-800/30"></div>
 						<!-- Other members -->
 						{#each members as member (member.userId)}
-							<div class="flex items-center justify-between py-2.5">
+							<div class="flex items-center justify-between gap-3 py-2.5">
 								<div class="min-w-0">
 									<p class="truncate text-sm font-medium text-gray-100">{member.name}</p>
 									<p class="truncate text-xs text-gray-500">{member.email}</p>
+								</div>
+								<div class="flex shrink-0 items-center gap-1.5">
 									{#if canManageMembers && member.userId !== currentUserId}
+										<Button
+											variant="ghost"
+											size="sm"
+											class="h-7 w-7 p-0 text-gray-500 hover:text-red-400"
+											aria-label={`Remove ${member.name}`}
+											onclick={() => (memberToRemove = member)}
+											disabled={removingMemberIds.includes(member.userId) ||
+												updatingMemberIds.includes(member.userId)}
+										>
+											{#if removingMemberIds.includes(member.userId)}
+												<Loader2 class="h-3.5 w-3.5 animate-spin" />
+											{:else}
+												<Trash2 class="h-3.5 w-3.5" />
+											{/if}
+										</Button>
 										<DropdownMenu.Root>
-											<DropdownMenu.Trigger>
-												<span
-													class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-700"
-													>{roleLabels[member.permissions]}</span
+											<DropdownMenu.Trigger class="flex cursor-pointer items-center">
+												<Badge
+													variant="secondary"
+													class="text-[10px] transition-colors hover:bg-gray-700"
+													>{roleLabels[member.permissions]}</Badge
 												>
 											</DropdownMenu.Trigger>
-											<DropdownMenu.Content align="start" class="border-gray-800 bg-gray-900">
-												<DropdownMenu.Item
-													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-													disabled={updatingMemberIds.includes(member.userId)}
-													onclick={() => updateMemberRole(member.userId, 'admin')}
-													>Admin</DropdownMenu.Item
-												>
-												<DropdownMenu.Item
-													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-													disabled={updatingMemberIds.includes(member.userId)}
-													onclick={() => updateMemberRole(member.userId, 'read_write')}
-													>Read Write</DropdownMenu.Item
-												>
-												<DropdownMenu.Item
-													class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
-													disabled={updatingMemberIds.includes(member.userId)}
-													onclick={() => updateMemberRole(member.userId, 'read')}
-													>Read</DropdownMenu.Item
-												>
+											<DropdownMenu.Content align="end" class="border-gray-800 bg-gray-900">
+												{#each memberRoleOptions as option (option.value)}
+													<DropdownMenu.Item
+														class="cursor-pointer text-xs text-gray-300 focus:bg-gray-800 focus:text-gray-100"
+														disabled={updatingMemberIds.includes(member.userId)}
+														onclick={() => updateMemberRole(member.userId, option.value)}
+														>{roleLabels[option.value]}</DropdownMenu.Item
+													>
+												{/each}
 											</DropdownMenu.Content>
 										</DropdownMenu.Root>
 									{:else}
-										<span
-											class="mt-1 inline-flex items-center gap-1 rounded-xs bg-gray-800 px-1.5 py-0.5 text-[10px] font-medium text-gray-400"
-											>{roleLabels[member.permissions]}</span
+										<Badge variant="secondary" class="text-[10px]"
+											>{roleLabels[member.permissions]}</Badge
 										>
 									{/if}
 								</div>
-								{#if canManageMembers && member.userId !== currentUserId}
-									<Button
-										variant="ghost"
-										size="sm"
-										class="h-7 w-7 shrink-0 p-0 text-gray-500 hover:text-red-400"
-										aria-label={`Remove ${member.name}`}
-										onclick={() => removeMember(member.userId)}
-										disabled={removingMemberIds.includes(member.userId) ||
-											updatingMemberIds.includes(member.userId)}
-									>
-										{#if removingMemberIds.includes(member.userId)}
-											<Loader2 class="h-3.5 w-3.5 animate-spin" />
-										{:else}
-											<Trash2 class="h-3.5 w-3.5" />
-										{/if}
-									</Button>
-								{/if}
 							</div>
 						{/each}
 						{#if members.length === 0}
 							<p class="py-2 text-center text-xs text-gray-500">No additional members.</p>
 						{/if}
 					</div>
-
-					<!-- Add Member Form -->
-					{#if addMemberOpen}
-						<div class="mt-3 border-t border-gray-800/50 pt-3">
-							<p class="mb-2 text-xs font-medium text-gray-400">Invite member by email</p>
-							<div class="flex flex-col gap-2">
-								<div class="flex gap-2">
-									<Input
-										bind:value={memberInviteEmail}
-										placeholder="member@example.com"
-										type="email"
-										class="h-8 text-xs"
-										disabled={addingMember}
-									/>
-									<Button
-										variant="outline"
-										size="sm"
-										class="h-8 shrink-0 gap-1.5 text-xs"
-										onclick={addMember}
-										disabled={addingMember || !memberInviteEmail.trim()}
-									>
-										{#if addingMember}<Loader2 class="h-3 w-3 animate-spin" />{:else}<Plus
-												class="h-3 w-3"
-											/>{/if}
-										{addingMember ? 'Inviting...' : 'Invite'}
-									</Button>
-								</div>
-								<div class="flex items-center gap-2">
-									<span class="text-xs text-gray-500">Role:</span>
-									<div class="flex gap-1">
-										<button
-											type="button"
-											class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
-											'admin'
-												? 'bg-gray-700 text-gray-100'
-												: 'text-gray-500 hover:text-gray-300'}"
-											onclick={() => (selectedMemberRole = 'admin')}>Admin</button
-										>
-										<button
-											type="button"
-											class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
-											'read_write'
-												? 'bg-gray-700 text-gray-100'
-												: 'text-gray-500 hover:text-gray-300'}"
-											onclick={() => (selectedMemberRole = 'read_write')}>Read Write</button
-										>
-										<button
-											type="button"
-											class="rounded-xs px-2 py-1 text-[10px] font-medium transition-colors {selectedMemberRole ===
-											'read'
-												? 'bg-gray-700 text-gray-100'
-												: 'text-gray-500 hover:text-gray-300'}"
-											onclick={() => (selectedMemberRole = 'read')}>Read</button
-										>
-									</div>
-								</div>
-							</div>
-						</div>
-					{/if}
 				</div>
 
 				{#if isOwner}
@@ -392,3 +334,80 @@
 		</div>
 	</div>
 </div>
+
+<Dialog.Root
+	open={memberToRemove !== null}
+	onOpenChange={(v) => {
+		if (!v) memberToRemove = null;
+	}}
+>
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Remove Member</Dialog.Title>
+			<Dialog.Description>
+				{memberToRemove?.name} ({memberToRemove?.email}) will lose access to this project. They can
+				be re-invited later.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Dialog.Footer>
+			<Button variant="outline" size="sm" onclick={() => (memberToRemove = null)}>Cancel</Button>
+			<Button variant="destructive" size="sm" onclick={confirmRemoveMember}>Remove</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={addMemberOpen}>
+	<Dialog.Content class="border-gray-800 bg-gray-900 sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Invite Member</Dialog.Title>
+			<Dialog.Description>Send an email invitation to join this project.</Dialog.Description>
+		</Dialog.Header>
+		<div class="flex flex-col gap-4 py-4">
+			<div class="flex flex-col gap-2">
+				<Label>Email</Label>
+				<Input
+					bind:value={memberInviteEmail}
+					placeholder="member@example.com"
+					type="email"
+					disabled={addingMember}
+					onkeydown={(e) => e.key === 'Enter' && addMember()}
+				/>
+			</div>
+			<div class="flex flex-col gap-2">
+				<Label>Role</Label>
+				<div class="flex flex-col gap-2">
+					{#each memberRoleOptions as option (option.value)}
+						<button
+							type="button"
+							class="rounded-xs border p-3 text-left transition-colors {selectedMemberRole ===
+							option.value
+								? 'border-red-400/60 bg-gray-800/60'
+								: 'border-gray-800 hover:border-gray-700'}"
+							onclick={() => (selectedMemberRole = option.value)}
+							disabled={addingMember}
+						>
+							<p class="text-sm font-medium text-gray-100">{roleLabels[option.value]}</p>
+							<p class="mt-0.5 text-xs text-gray-500">{option.description}</p>
+						</button>
+					{/each}
+				</div>
+			</div>
+		</div>
+		<Dialog.Footer>
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => (addMemberOpen = false)}
+				disabled={addingMember}>Cancel</Button
+			>
+			<Button size="sm" onclick={addMember} disabled={addingMember || !memberInviteEmail.trim()}>
+				{#if addingMember}
+					<Loader2 class="size-3.5 animate-spin" />
+					Inviting...
+				{:else}
+					Send Invite
+				{/if}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
