@@ -37,18 +37,4 @@ image="localhost/fyrastack/vyos"
 podman build --dns "${VYOS_BUILD_DNS:-1.1.1.1}" -f Containerfile --build-arg ISO="$iso" \
 	-t "$image:$version" -t "$image:$channel" .
 
-cat <<EOF
-
-built $image:$version ($image:$channel)
-
-run it (VyOS needs an IPv6-enabled network):
-  podman network exists vyos-dev >/dev/null 2>&1 || podman network create --ipv6 vyos-dev
-  podman run -d --name vyos --privileged --network vyos-dev -p 8443:443 \\
-    -v /lib/modules:/lib/modules:ro $image:$channel
-
-dashboard .env:
-  VYOS_API_URL="https://127.0.0.1:8443"
-  VYOS_API_KEY="vyos-dev"
-  VYOS_USE_VPC="false"
-  VYOS_VERIFY_SSL="false"
-EOF
+echo "built $image:$version ($image:$channel)"

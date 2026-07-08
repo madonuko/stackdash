@@ -43,6 +43,8 @@ ip -6 route add 2001:db8:100::/56 dev vxlan100
 
 iptables -t nat -C POSTROUTING -o vxlan100 -j MASQUERADE 2>/dev/null ||
 	iptables -t nat -A POSTROUTING -o vxlan100 -j MASQUERADE
+iptables -t nat -C POSTROUTING -o eth0 -j MASQUERADE 2>/dev/null ||
+	iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 ip6tables -t nat -C POSTROUTING -o vxlan100 -j MASQUERADE 2>/dev/null ||
 	ip6tables -t nat -A POSTROUTING -o vxlan100 -j MASQUERADE
 

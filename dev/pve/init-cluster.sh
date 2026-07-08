@@ -79,6 +79,49 @@ for node in "${nodes[@]}"; do
 	podman exec "$node" sh -c 'ifup vxlan_public 2>/dev/null; ifup public 2>/dev/null; true'
 done
 
+for node in "${nodes[@]}"; do
+	podman exec "$node" sh -c '
+cat > /usr/local/lib/watchdog-mux-stub.py <<'"'"'EOF'"'"'
+import os
+import socket
+import threading
+
+path = "/run/watchdog-mux.sock"
+try:
+    os.unlink(path)
+except FileNotFoundError:
+    pass
+
+srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+srv.bind(path)
+srv.listen()
+
+def drain(conn):
+    while conn.recv(4096):
+        pass
+
+while True:
+    conn, _ = srv.accept()
+    threading.Thread(target=drain, args=(conn,), daemon=True).start()
+EOF
+cat > /etc/systemd/system/watchdog-mux-stub.service <<'"'"'EOF'"'"'
+[Unit]
+Description=watchdog-mux stub
+Before=pve-ha-lrm.service pve-ha-crm.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/watchdog-mux-stub.py
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl mask --now watchdog-mux >/dev/null 2>&1
+systemctl daemon-reload
+systemctl enable --now watchdog-mux-stub >/dev/null 2>&1
+systemctl restart pve-ha-crm pve-ha-lrm
+'
+done
+
 until podman exec fyra-gw test -f /data/host.conf 2>/dev/null; do sleep 3; done
 podman exec fyra-gw cat /data/host.conf > "$(dirname "$0")/../fyra-wg.conf"
 
@@ -88,7 +131,11 @@ secret=$(podman exec fyra-pve1 pveum user token add root@pam stack --privsep 0 -
 
 cat <<EOF
 
-cluster ready. dashboard .env:
+cluster ready.
+
+pve web ui: https://127.0.0.1:8006 (pve2: 8007, pve3: 8008), user "root", password "fyradev"
+
+dashboard .env:
   PROXMOX_API_URL="https://127.0.0.1:8006"
   PROXMOX_TOKEN_ID="root@pam!stack"
   PROXMOX_TOKEN_SECRET="$secret"
