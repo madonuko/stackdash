@@ -4,6 +4,13 @@ export const projectRoles = ['owner', 'admin', 'read_write', 'read'] as const;
 export type ProjectRole = (typeof projectRoles)[number];
 export type PermissionLevel = Exclude<ProjectRole, 'owner'>;
 
+export const projectRoleLabels: Record<ProjectRole, string> = {
+	owner: 'Owner',
+	admin: 'Admin',
+	read_write: 'Read & Write',
+	read: 'Read'
+};
+
 export const projectRoleRank: Record<ProjectRole, number> = {
 	read: 0,
 	read_write: 1,
