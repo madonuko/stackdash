@@ -30,4 +30,11 @@ vite.config.ts.timestamp-*
 # traces for local dev
 Trace-*.json
 
+# bun lockfile
 bun.lock
+
+# cached VyOS ISOs
+dev/vyos/.cache
+
+# local wireguard config
+dev/fyra-wg.conf

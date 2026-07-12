@@ -5,6 +5,7 @@ import { closeRequestDb } from '$lib/server/db';
 import { instrument, timingLog } from '$lib/server/observability';
 
 const publicRoutes = ['/login', '/register', '/signup', '/accept-invitation', '/api/'];
+const authPages = ['/login', '/register', '/signup'];
 
 const moduleLoadedAt = performance.now();
 let isFirstRequestOnIsolate = true;
@@ -39,7 +40,7 @@ async function runFullAuth(
 		throw redirect(303, '/login');
 	}
 
-	if (session && isPublic && !event.url.pathname.startsWith('/api/')) {
+	if (session && authPages.some((route) => event.url.pathname.startsWith(route))) {
 		throw redirect(303, '/');
 	}
 
@@ -93,11 +94,7 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 				event.locals.user = cached.user;
 				event.locals.activeProjectId = cached.session.activeOrganizationId ?? null;
 
-				if (!isPublic) {
-					return await instrument('sveltekit.resolve', () => resolve(event), requestAttrs);
-				}
-
-				if (!event.url.pathname.startsWith('/api/')) {
+				if (authPages.some((route) => event.url.pathname.startsWith(route))) {
 					throw redirect(303, '/');
 				}
 

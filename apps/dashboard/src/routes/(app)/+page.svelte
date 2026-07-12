@@ -21,6 +21,7 @@
 	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { getErrorMessage } from '$lib/utils';
+	import { isProjectRole, projectRoleLabels } from '$lib/auth/organization-permissions';
 
 	type Project = { id: string; projectName: string; role: string };
 
@@ -166,7 +167,9 @@
 										<h2 class="truncate text-base font-semibold text-gray-50">
 											{project.projectName}
 										</h2>
-										<p class="mt-1 text-sm text-gray-500 capitalize">{project.role}</p>
+										<p class="mt-1 text-sm text-gray-500">
+											{isProjectRole(project.role) ? projectRoleLabels[project.role] : project.role}
+										</p>
 									</div>
 								</div>
 								<div class="flex items-center gap-3 text-sm text-gray-500">

@@ -11,15 +11,18 @@ function insecureNodeFetch(): Promise<typeof globalThis.fetch> {
 	insecureFetchPromise ??= import('undici').then(({ Agent }) => {
 		const tlsTolerantAgent = new Agent({ connect: { rejectUnauthorized: false } });
 		return ((input, init) =>
-			fetch(input, { ...init, dispatcher: tlsTolerantAgent } as RequestInit)) as typeof globalThis.fetch;
+			fetch(input, {
+				...init,
+				dispatcher: tlsTolerantAgent
+			} as RequestInit)) as typeof globalThis.fetch;
 	});
 	return insecureFetchPromise;
 }
 
 export const insecureDirectFetch: VpcFetch = async (input, init) =>
 	dev
-		? ky(input, { ...init, retry: 0, fetch: await insecureNodeFetch() })
-		: ky(input, { ...init, retry: 0 });
+		? ky(input, { ...init, retry: 0, throwHttpErrors: false, fetch: await insecureNodeFetch() })
+		: ky(input, { ...init, retry: 0, throwHttpErrors: false });
 
 async function toUrlAndInit(
 	input: RequestInfo | URL,
