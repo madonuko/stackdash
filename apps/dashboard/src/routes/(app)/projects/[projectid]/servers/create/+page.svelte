@@ -428,9 +428,9 @@
 								placeholder="my-server"
 								class="h-11 text-base sm:h-9 sm:text-sm"
 							/>
-							<Button variant="outline" class="h-11 sm:h-9" onclick={regenerateServerName}
-								><Dices /></Button
-							>
+							<Button variant="outline" class="h-11 sm:h-9" onclick={regenerateServerName}>
+								<Dices />
+							</Button>
 						</div>
 					</div>
 
